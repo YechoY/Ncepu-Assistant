@@ -9,11 +9,10 @@ class AuthPrefs {
 }
 
 class AuthService {
-  AuthService({FlutterSecureStorage? storage, CacheService? cache})
-      : _storage = storage ?? const FlutterSecureStorage(),
-        _cache = cache;
+  AuthService({FlutterSecureStorage? storage, this.cache})
+      : _storage = storage ?? const FlutterSecureStorage();
   final FlutterSecureStorage _storage;
-  final CacheService? _cache;
+  final CacheService? cache;
 
   Future<void> saveAccount(String username, String password) async {
     await _storage.write(key: 'username', value: username);
@@ -56,6 +55,6 @@ class AuthService {
     await clearAccount();
     await setRemember(false);
     await setAutoLogin(false);
-    await _cache?.clearAll();
+    await cache?.clearAll();
   }
 }
