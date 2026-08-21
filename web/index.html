@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NCEPU 教务助手</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="vue.global.prod.js"></script>
+</head>
+<body>
+<div id="app" v-cloak>
+
+  <!-- 登录页 -->
+  <div v-if="view === 'login'" class="login-wrap">
+    <div class="login-card">
+      <div class="logo-badge">NCEPU</div>
+      <h1>教务助手</h1>
+      <p class="subtitle">课表 · 成绩 · 考试安排 · 空闲教室</p>
+
+      <div class="field">
+        <label>学号</label>
+        <input v-model="username" placeholder="请输入学号" @keyup.enter="doLogin">
+      </div>
+      <div class="field">
+        <label>密码</label>
+        <input v-model="password" type="password" placeholder="请输入密码" @keyup.enter="doLogin">
+      </div>
+      <label class="check">
+        <input type="checkbox" v-model="remember"> 记住账号密码（明文保存在本地）
+      </label>
+      <button class="btn primary block" :disabled="loginBusy" @click="doLogin">
+        {{ loginBusy ? '登录中…' : '登  录' }}
+      </button>
+      <p class="login-msg" :class="{error: loginError}">{{ loginMsg }}</p>
+      <p class="login-hint">需要连接校园网才能登录和刷新</p>
+    </div>
+  </div>
+
+  <!-- 主界面 -->
+  <div v-else class="shell">
+    <aside class="sidebar">
+      <div class="brand">NCEPU<span>教务助手</span></div>
+      <nav>
+        <a v-for="t in tabs" :key="t.key" :class="{active: tab === t.key}" @click="switchTab(t.key)">
+          <span class="nav-icon">{{ t.icon }}</span>{{ t.name }}
+        </a>
+      </nav>
+      <div class="user-card" v-if="userInfo.name || userInfo.sid">
+        <div class="u-name">{{ userInfo.name || '—' }}</div>
+        <div class="u-line">学号：{{ sidText }}</div>
+        <div class="u-line">班级：{{ userInfo.className || '—' }}</div>
+      </div>
+      <div class="side-foot">
+        <button class="btn ghost small about-btn" @click="showAbout = true">关于</button>
+        <button class="btn logout" @click="doLogout">退出登录</button>
+      </div>
+    </aside>
+
+    <main class="content">
+
+      <!-- 课表 -->
+      <section v-if="tab === 'timetable'" class="panel">
+        <div class="panel-head">
+          <div>
+            <h2>课表</h2>
+            <p class="muted">{{ weekText }}<span v-if="tt.source === 'cache'"> · 离线缓存</span></p>
+          </div>
+          <div class="toolbar">
+            <button class="btn ghost" @click="shiftWeek(-1)">◀ 上周</button>
+            <button class="btn ghost" @click="loadTimetable(null)">本周课表</button>
+            <button class="btn ghost" @click="shiftWeek(1)">下周 ▶</button>
+            <div class="date-picker">
+              <div class="date-field" @click="toggleCal">
+                <span class="date-value">{{ ttDate }}</span><span class="date-caret">▾</span>
+              </div>
+              <div v-if="calOpen" class="cal-overlay" @click="calOpen = false"></div>
+              <div v-if="calOpen" class="cal-panel" @click.stop>
+                <div class="cal-head">
+                  <button class="cal-nav" @click="calShiftMonth(-1)">◀</button>
+                  <span class="cal-title">{{ calYear }} 年 {{ calMonth }} 月</span>
+                  <button class="cal-nav" @click="calShiftMonth(1)">▶</button>
+                </div>
+                <div class="cal-week">
+                  <span v-for="w in ['一','二','三','四','五','六','日']" :key="w">{{ w }}</span>
+                </div>
+                <div class="cal-grid">
+                  <button v-for="d in calDays" :key="d.key" class="cal-day"
+                    :class="{blank: !d.day, today: d.today, selected: d.selected}"
+                    :disabled="!d.day" @click="pickDate(d.day)">
+                    {{ d.day || '' }}
+                  </button>
+                </div>
+              </div>
+            </div>
+            <button class="btn primary" @click="resetDate">重置到今天</button>
+          </div>
+        </div>
+
+        <div class="tt-wrap">
+          <div class="tt-grid" :style="ttStyle">
+            <div class="tt-head" v-for="(h, i) in ttHeaders" :key="'h' + i">{{ h }}</div>
+            <template v-for="(row, r) in ttRows" :key="'r' + r">
+              <div class="tt-label">{{ row[0] }}</div>
+              <div class="tt-cell" v-for="(cell, c) in row.slice(1)" :key="'c' + r + '-' + c">
+                <div v-if="typeof cell === 'object' && cell" class="tt-card" :style="courseStyle(cell.name)">
+                  <div class="tt-name">{{ cell.name || '' }}</div>
+                  <div class="tt-loc">{{ cell.location || '' }}</div>
+                  <div class="tt-attr">{{ attrCredits(cell) }}</div>
+                </div>
+              </div>
+            </template>
+          </div>
+          <div v-if="!tt.rows || !tt.rows.length" class="empty">暂无课表数据{{ ttLoading ? '，正在加载…' : '' }}</div>
+        </div>
+      </section>
+
+      <!-- 成绩 -->
+      <section v-if="tab === 'grades'" class="panel">
+        <div class="panel-head">
+          <div>
+            <h2>课程成绩</h2>
+            <p class="muted">{{ gradesNote }}</p>
+          </div>
+          <div class="toolbar">
+            <select v-model="termFilter" @change="none">
+              <option v-for="t in termOptions" :key="t">{{ t }}</option>
+            </select>
+            <div class="search-box">
+              <span class="search-icon">🔍</span>
+              <input v-model="nameFilter" placeholder="课程名称（支持模糊查询）">
+            </div>
+            <select v-model="attrFilter" @change="none">
+              <option v-for="a in attrOptions" :key="a">{{ a }}</option>
+            </select>
+            <button class="btn ghost" @click="resetGrades">重置</button>
+            <button class="btn primary" :disabled="gradeLoading" @click="loadGrades">
+              {{ gradeLoading ? '加载中…' : '刷新成绩' }}
+            </button>
+          </div>
+        </div>
+
+        <div class="gpa-line"><span class="gpa-ico">🎓</span><span>{{ gpaText }}</span></div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th v-for="(h, i) in gradeHeaders" :key="i"
+                  :class="{sortable: sortableCols.includes(i)}"
+                  @click="sortableCols.includes(i) && toggleSort(i)">
+                  {{ h }}<span v-if="sortMark(i)" class="sort-mark">{{ sortMark(i) }}</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="row in gradeRows" :key="row[0]">
+                <td v-for="(v, i) in row" :key="i">{{ v }}</td>
+              </tr>
+            </tbody>
+          </table>
+          <div v-if="!gradeRows.length" class="empty">没有符合条件的成绩</div>
+        </div>
+      </section>
+
+      <!-- 考试安排 -->
+      <section v-if="tab === 'exams'" class="panel">
+        <div class="panel-head">
+          <div>
+            <h2>考试安排</h2>
+            <p class="muted">{{ examNote }}</p>
+          </div>
+          <div class="toolbar">
+            <span class="hint"><span class="dot gray"></span>灰色 = 已考完</span>
+            <button class="btn primary" :disabled="examLoading" @click="loadExams">
+              {{ examLoading ? '加载中…' : '刷新考试安排' }}
+            </button>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th v-for="(h, i) in examHeaders" :key="i">{{ h }}</th></tr>
+            </thead>
+            <tbody>
+              <tr v-for="row in examRows" :key="row[0]" :class="{done: row[6]}">
+                <td v-for="(v, i) in row.slice(0, 6)" :key="i">{{ v }}</td>
+              </tr>
+            </tbody>
+          </table>
+          <div v-if="!examRows.length" class="empty">暂无考试安排{{ examLoading ? '，正在加载…' : '' }}</div>
+        </div>
+      </section>
+
+      <!-- 空闲教室 -->
+      <section v-if="tab === 'classrooms'" class="panel">
+        <div class="panel-head">
+          <div>
+            <h2>空闲教室</h2>
+            <p class="muted">{{ classMsg }}</p>
+          </div>
+          <div class="toolbar">
+            <button class="btn primary" :disabled="classLoading" @click="queryClassrooms">
+              {{ classLoading ? '查询中…' : '查询空闲教室' }}
+            </button>
+          </div>
+        </div>
+
+        <div class="cond-grid">
+          <label>校区
+            <select v-model="campus" @change="onCampusChange">
+              <option v-for="c in ['一校区', '二校区']" :key="c">{{ c }}</option>
+            </select>
+          </label>
+          <label>教学楼
+            <select v-model="building" @change="scheduleClassQuery">
+              <option value="全部">全部</option>
+              <option v-for="b in buildings" :key="b[0]" :value="b[0]">{{ b[1] }}</option>
+            </select>
+          </label>
+          <label>星期
+            <span class="range">
+              <select v-model="dayFrom" @change="scheduleClassQuery">
+                <option v-for="d in weekdays" :key="d">{{ d }}</option>
+              </select>
+              <i>至</i>
+              <select v-model="dayTo" @change="scheduleClassQuery">
+                <option v-for="d in weekdays" :key="d">{{ d }}</option>
+              </select>
+            </span>
+          </label>
+          <label>节次
+            <span class="range">
+              <select v-model="jcFrom" @change="scheduleClassQuery">
+                <option value="">全部</option>
+                <option v-for="s in sections" :key="s" :value="s">{{ s }}</option>
+              </select>
+              <i>至</i>
+              <select v-model="jcTo" @change="scheduleClassQuery">
+                <option value="">全部</option>
+                <option v-for="s in sections" :key="s" :value="s">{{ s }}</option>
+              </select>
+            </span>
+          </label>
+          <label>周次
+            <span class="range">
+              <select v-model="weekFrom" @change="scheduleClassQuery">
+                <option value="">默认</option>
+                <option v-for="w in weeks" :key="w" :value="w">{{ w }}</option>
+              </select>
+              <i>至</i>
+              <select v-model="weekTo" @change="scheduleClassQuery">
+                <option value="">默认</option>
+                <option v-for="w in weeks" :key="w" :value="w">{{ w }}</option>
+              </select>
+            </span>
+          </label>
+        </div>
+
+        <div class="room-grid" v-if="classNames.length">
+          <div class="room-card" v-for="(n, i) in classNames" :key="i">{{ n }}</div>
+        </div>
+        <div v-else class="empty">{{ classLoading ? '正在查询…' : '设置条件后自动查询空闲教室' }}</div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- 启动弹窗（关于） -->
+  <div v-if="showAbout" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-logo">NCEPU</div>
+      <h2>{{ about.name }}</h2>
+      <p class="modal-ver">版本 {{ about.version }}</p>
+      <p class="modal-desc">{{ about.desc }}</p>
+      <div class="modal-info">
+        <div><span>创建人</span>{{ about.author }}</div>
+        <div><span>联系方式</span>{{ about.contact }}</div>
+      </div>
+      <label class="check modal-check">
+        <input type="checkbox" v-model="aboutNever"> 不再显示
+      </label>
+      <button class="btn primary block" @click="closeAbout">知道了</button>
+    </div>
+  </div>
+</div>
+<script src="app.js"></script>
+</body>
+</html>
