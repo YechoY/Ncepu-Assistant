@@ -41,6 +41,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.4.1"
+  charset:
+    dependency: "direct main"
+    description:
+      name: charset
+      sha256: e8346cf597b6cea278d2d3a29b2d01ed8fb325aad718e70f22b0cb653cb31700
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.2.0"
   checked_yaml:
     dependency: transitive
     description:
