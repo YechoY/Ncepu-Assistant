@@ -13,6 +13,8 @@ class DataState {
   final String timetableWeek; // 周一日期 yyyy-MM-dd
   final List<Grade> grades;
   final List<Exam> exams;
+  final int? currentWeek;
+  final String currentWeekBase; // 获取 currentWeek 时对应的周一
   final bool loading;
   final String? notice;
   const DataState({
@@ -20,6 +22,8 @@ class DataState {
     this.timetableWeek = '',
     this.grades = const [],
     this.exams = const [],
+    this.currentWeek,
+    this.currentWeekBase = '',
     this.loading = false,
     this.notice,
   });
@@ -28,6 +32,8 @@ class DataState {
     String? timetableWeek,
     List<Grade>? grades,
     List<Exam>? exams,
+    int? currentWeek,
+    String? currentWeekBase,
     bool? loading,
     String? notice,
   }) =>
@@ -36,6 +42,8 @@ class DataState {
         timetableWeek: timetableWeek ?? this.timetableWeek,
         grades: grades ?? this.grades,
         exams: exams ?? this.exams,
+        currentWeek: currentWeek ?? this.currentWeek,
+        currentWeekBase: currentWeekBase ?? this.currentWeekBase,
         loading: loading ?? this.loading,
         notice: notice ?? this.notice,
       );
@@ -79,6 +87,12 @@ class DataNotifier extends Notifier<DataState> {
       await cache.saveJson('timetable_$week', ttToJson(tt));
       state = state.copyWith(timetable: tt, timetableWeek: week);
     } catch (_) {}
+    final curWeek = await api.fetchCurrentWeek();
+    if (curWeek != null) {
+      await cache.saveJson('current_week', curWeek);
+      await cache.saveJson('current_week_base', week);
+      state = state.copyWith(currentWeek: curWeek, currentWeekBase: week);
+    }
     try {
       final g = await api.fetchGrades();
       await cache.saveJson('grades', g.map((e) => e.toJson()).toList());
@@ -147,6 +161,8 @@ class DataNotifier extends Notifier<DataState> {
     final tt = await cache.loadJson('timetable_$week', ttlDays: 30);
     final g = await cache.loadJson('grades');
     final e = await cache.loadJson('exams');
+    final curWeek = await cache.loadJson('current_week');
+    final curBase = await cache.loadJson('current_week_base');
     state = state.copyWith(
       timetable: tt == null ? const [] : ttFromJson(tt),
       timetableWeek: week,
@@ -156,6 +172,8 @@ class DataNotifier extends Notifier<DataState> {
       exams: e == null
           ? const []
           : (e as List).map((x) => Exam.fromJson(x as Map<String, dynamic>)).toList(),
+      currentWeek: curWeek as int?,
+      currentWeekBase: curBase as String? ?? '',
     );
   }
 }

@@ -24,7 +24,7 @@ String encodeLogin(String username, String password, String dataStr) {
   final parts = dataStr.split(sep);
   var scode = parts[0];
   final sxh = parts[1];
-  final code = username + '%%%' + password;
+  final code = '$username%%%$password';
   final buf = StringBuffer();
   for (var i = 0; i < code.length; i++) {
     final n = i < sxh.length && int.tryParse(sxh[i]) != null ? int.parse(sxh[i]) : 0;
@@ -284,6 +284,22 @@ class ApiClient {
       } catch (_) {}
     }
     return '';
+  }
+
+  Future<int?> fetchCurrentWeek() async {
+    for (final path in [
+      'jsxsd/framework/xsMain_new.jsp',
+      'jsxsd/framework/xsMain.jsp',
+    ]) {
+      try {
+        final r = await _client
+            .get(Uri.parse('$baseUrl/$path'), headers: _headers())
+            .timeout(const Duration(seconds: 12));
+        final w = extractWeek(r.body);
+        if (w != null) return w;
+      } catch (_) {}
+    }
+    return null;
   }
 
   Future<List<TimetableRow>> fetchTimetable(String date) async {
