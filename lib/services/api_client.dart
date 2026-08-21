@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:charset/charset.dart';
+import 'package:flutter/foundation.dart';
 import 'package:html/dom.dart';
 import 'package:html/parser.dart' as html_parser;
 import 'package:http/http.dart' as http;
@@ -38,6 +40,14 @@ String encodeLogin(String username, String password, String dataStr) {
 }
 
 const baseUrl = 'https://jwxt.ncepu.edu.cn';
+
+String _decode(http.Response r) {
+  final ct = (r.headers['content-type'] ?? '').toLowerCase();
+  if (ct.contains('gbk') || ct.contains('gb2312') || ct.contains('gb18030')) {
+    return gbk.decode(r.bodyBytes);
+  }
+  return utf8.decode(r.bodyBytes, allowMalformed: true);
+}
 
 Element? _pickTable(Document doc) {
   final tables = doc.querySelectorAll('table');
@@ -238,10 +248,11 @@ class ApiClient {
         )
         .timeout(const Duration(seconds: 12));
     _saveCookies(seedR);
-    final seed = seedR.body.trim();
+    final seed = _decode(seedR).trim();
     if (seed.isEmpty) throw Exception('登录失败：加密种子为空，请确认已连接校园网');
     final encoded = encodeLogin(username, password, seed);
-    await _client
+    debugPrint('DEBUG login seed=$seed encoded=$encoded');
+    final loginR = await _client
         .post(
           Uri.parse('$baseUrl/Logon.do?method=logon'),
           headers: _headers(),
@@ -253,6 +264,10 @@ class ApiClient {
           },
         )
         .timeout(const Duration(seconds: 12));
+    debugPrint(
+      'DEBUG login post status=${loginR.statusCode} url=${loginR.request?.url} '
+      'len=${loginR.bodyBytes.length}',
+    );
     if (!await checkLogin()) throw Exception('账号或密码错误（也可能是加密算法不匹配）');
   }
 
@@ -261,8 +276,11 @@ class ApiClient {
       final r = await _client
           .get(Uri.parse('$baseUrl/jsxsd/framework/xsMain.jsp'), headers: _headers())
           .timeout(const Duration(seconds: 12));
-      return !r.request!.url.path.contains('Logon.do') &&
-          (r.body.contains('xsMain') || r.body.contains('本周课表') || r.body.contains('退出'));
+      final url = r.request?.url.toString() ?? '';
+      final body = _decode(r);
+      debugPrint('DEBUG checkLogin url=$url len=${body.length} hasLogon=${url.contains('Logon.do')}');
+      if (url.contains('Logon.do')) return false;
+      return url.contains('xsMain') || body.contains('本周课表') || body.contains('退出');
     } catch (_) {
       return false;
     }
@@ -279,7 +297,7 @@ class ApiClient {
         final r = await _client
             .get(Uri.parse('$baseUrl/$path'), headers: _headers())
             .timeout(const Duration(seconds: 12));
-        final t = extractTerm(r.body);
+        final t = extractTerm(_decode(r));
         if (t.isNotEmpty) return t;
       } catch (_) {}
     }
@@ -295,7 +313,7 @@ class ApiClient {
         final r = await _client
             .get(Uri.parse('$baseUrl/$path'), headers: _headers())
             .timeout(const Duration(seconds: 12));
-        final w = extractWeek(r.body);
+        final w = extractWeek(_decode(r));
         if (w != null) return w;
       } catch (_) {}
     }
@@ -311,7 +329,7 @@ class ApiClient {
         final r = await _client
             .get(Uri.parse('$baseUrl/$path'), headers: _headers())
             .timeout(const Duration(seconds: 12));
-        final text = r.body
+        final text = _decode(r)
             .replaceAll(RegExp(r'<[^>]+>'), ' ')
             .replaceAll(RegExp(r'\s+'), ' ');
         var name = '';
@@ -344,7 +362,7 @@ class ApiClient {
           body: {'rq': date},
         )
         .timeout(const Duration(seconds: 12));
-    return parseTimetable(r.body);
+    return parseTimetable(_decode(r));
   }
 
   Future<List<Grade>> fetchGrades() async {
@@ -355,7 +373,7 @@ class ApiClient {
           body: {'kksj': '', 'kcxz': '', 'kcmc': '', 'xsfs': 'all'},
         )
         .timeout(const Duration(seconds: 12));
-    return parseGrades(r.body);
+    return parseGrades(_decode(r));
   }
 
   Future<List<Exam>> fetchExams() async {
@@ -367,7 +385,7 @@ class ApiClient {
           body: {'xqlbmc': '', 'xnxqid': term, 'kc': '', 'ksjs': '', 'jkls': ''},
         )
         .timeout(const Duration(seconds: 12));
-    return parseExams(r.body);
+    return parseExams(_decode(r));
   }
 
   Future<List<Building>> fetchBuildings(String campusId) async {
@@ -434,6 +452,6 @@ class ApiClient {
           },
         )
         .timeout(const Duration(seconds: 12));
-    return parseClassrooms(r.body);
+    return parseClassrooms(_decode(r));
   }
 }
