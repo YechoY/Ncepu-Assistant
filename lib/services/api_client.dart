@@ -302,6 +302,40 @@ class ApiClient {
     return null;
   }
 
+  Future<({String name, String sid, String className})> fetchUserInfo() async {
+    for (final path in [
+      'jsxsd/framework/xsMain_new.jsp',
+      'jsxsd/framework/xsMain.jsp',
+    ]) {
+      try {
+        final r = await _client
+            .get(Uri.parse('$baseUrl/$path'), headers: _headers())
+            .timeout(const Duration(seconds: 12));
+        final text = r.body
+            .replaceAll(RegExp(r'<[^>]+>'), ' ')
+            .replaceAll(RegExp(r'\s+'), ' ');
+        var name = '';
+        final mWelcome = RegExp(r'欢迎[^0-9A-Za-z]{0,6}?([\u4e00-\u9fa5]{2,4})\s*(?:同学|，|,)')
+            .firstMatch(text);
+        if (mWelcome != null) {
+          name = mWelcome.group(1)!;
+        } else {
+          final mName = RegExp(r'(?:姓名|学生姓名)[:：\s]*([\u4e00-\u9fa5]{2,4})').firstMatch(text);
+          if (mName != null) name = mName.group(1)!;
+        }
+        final mSid = RegExp(r'(?:学生编号|学号)[:：\s]*([0-9A-Za-z]{4,})').firstMatch(text);
+        final mClass = RegExp(r'(?:班级名称|班级)[:：\s]*([\u4e00-\u9fa5A-Za-z0-9\-]{2,20})')
+            .firstMatch(text);
+        return (
+          name: name,
+          sid: mSid?.group(1) ?? '',
+          className: mClass?.group(1) ?? '',
+        );
+      } catch (_) {}
+    }
+    return (name: '', sid: '', className: '');
+  }
+
   Future<List<TimetableRow>> fetchTimetable(String date) async {
     final r = await _client
         .post(
