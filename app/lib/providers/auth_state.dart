@@ -10,8 +10,16 @@ final authServiceProvider = Provider<AuthService>(
 class AuthState {
   final bool loggedIn;
   final String username;
+  final String name;
+  final String className;
   final String? error;
-  const AuthState({this.loggedIn = false, this.username = '', this.error});
+  const AuthState({
+    this.loggedIn = false,
+    this.username = '',
+    this.name = '',
+    this.className = '',
+    this.error,
+  });
 }
 
 final authStateProvider = NotifierProvider<AuthNotifier, AuthState>(AuthNotifier.new);
@@ -41,7 +49,14 @@ class AuthNotifier extends Notifier<AuthState> {
     } else {
       await auth.clearAccount();
     }
-    state = AuthState(loggedIn: true, username: username);
+    String name = '';
+    String className = '';
+    try {
+      final info = await api.fetchUserInfo();
+      name = info.name;
+      className = info.className;
+    } catch (_) {}
+    state = AuthState(loggedIn: true, username: username, name: name, className: className);
     return true;
   }
 
