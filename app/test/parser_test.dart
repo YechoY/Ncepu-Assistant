@@ -56,6 +56,17 @@ void main() {
     expect(exams[0].teacher, '王老师');
   });
 
+  // 真实服务器：没有考试时返回一行 <td colspan="9">未查询到数据</td> 占位行。
+  const examEmptyHtml = '''
+<table id="dataList">
+<tr><th>序号</th><th>考试类型</th><th>课程编号</th><th>课程名称</th><th>考试时间</th><th>考试地点</th><th>任课/负责老师</th><th>主监考</th><th>说明</th><th>座位号</th></tr>
+<tr><td colspan="9">未查询到数据</td></tr>
+</table>''';
+
+  test('解析考试：无数据占位行返回空列表', () {
+    expect(parseExams(examEmptyHtml), isEmpty);
+  });
+
   const classroomHtml = '''
 <table>
 <tr><th>星期</th><th>星期一</th></tr>
@@ -75,5 +86,52 @@ void main() {
 
   test('提取当前周', () {
     expect(extractWeek('<span>第16周</span>/26周'), 16);
+  });
+
+  // 学期全部课表（xskb_list.do）：id=kbtable，每格详版 div.kbcontent，
+  // 单格可含多门课（用 ---- 分隔），字段在 <font title>。取自真实响应片段。
+  const fullKbHtml = '''
+<html><body>
+<table id="kbtable">
+<tr><th>&nbsp;</th><th>星期一</th><th>星期二</th><th>星期三</th><th>星期四</th><th>星期五</th><th>星期六</th><th>星期日</th></tr>
+<tr>
+  <th>第一大节&nbsp;</th>
+  <td><div class="kbcontent1">x</div><div class="kbcontent" style="display:none;">20910311-3<br/>计算机网络<br/><font title='分组名称' color='red'>(课堂派GG2BPS)</font><br/><font title='老师'>李丽芬</font><br/><font title='周次(节次)'>1-12(周)</font><br/><font title='教室'>教十一楼C106</font><br/></div></td>
+  <td><div class="kbcontent1">&nbsp;</div><div class="kbcontent" style="display:none;">&nbsp;</div></td>
+  <td><div class="kbcontent">&nbsp;</div></td>
+  <td><div class="kbcontent" style="display:none;">20910212-1<br/>软件工程B<br/><font title='老师'>陈晴</font><br/><font title='周次(节次)'>11-18(周)</font><br/><font title='教室'>教十一楼C102</font><br/>----------------------<br>20910252-1<br/>PYTHON程序设计<br/><font title='老师'>闫蕾</font><br/><font title='周次(节次)'>1-8(周)</font><br/><font title='教室'>教十楼A座603</font><br/></div></td>
+  <td><div class="kbcontent">&nbsp;</div></td>
+  <td><div class="kbcontent">&nbsp;</div></td>
+  <td><div class="kbcontent">&nbsp;</div></td>
+</tr>
+<tr>
+  <th>备注:</th><td colspan="7">无课表课程:</td>
+</tr>
+</table>
+</body></html>''';
+
+  test('解析学期全部课表', () {
+    final list = parseFullTimetable(fullKbHtml);
+    // 周一第一大节：计算机网络；周四第一大节：软件工程B + PYTHON程序设计
+    expect(list.length, 3);
+    final net = list.firstWhere((c) => c.name == '计算机网络');
+    expect(net.day, 1);
+    expect(net.section, 1);
+    expect(net.location, '教十一楼C106');
+    expect(net.teacher, '李丽芬');
+    expect(net.weeks, '1-12(周)');
+    expect(net.group, '(课堂派GG2BPS)');
+    expect(net.code, '20910311-3');
+    // 周四同一格两门课都要解出来
+    final thu = list.where((c) => c.day == 4 && c.section == 1).toList();
+    expect(thu.length, 2);
+    expect(thu.map((c) => c.name), containsAll(['软件工程B', 'PYTHON程序设计']));
+    final py = thu.firstWhere((c) => c.name == 'PYTHON程序设计');
+    expect(py.location, '教十楼A座603');
+    expect(py.weeks, '1-8(周)');
+  });
+
+  test('解析学期全部课表：非 kbtable 页面返回空', () {
+    expect(parseFullTimetable('<html><body>no table</body></html>'), isEmpty);
   });
 }

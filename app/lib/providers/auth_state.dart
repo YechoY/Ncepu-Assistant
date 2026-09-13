@@ -32,7 +32,6 @@ class AuthNotifier extends Notifier<AuthState> {
     String username,
     String password, {
     required bool remember,
-    required bool autoLogin,
   }) async {
     final api = ref.read(apiClientProvider);
     final auth = ref.read(authServiceProvider);
@@ -42,30 +41,36 @@ class AuthNotifier extends Notifier<AuthState> {
       state = AuthState(error: _message(e));
       return false;
     }
-    await auth.setRemember(remember);
-    await auth.setAutoLogin(autoLogin && remember);
-    if (remember) {
-      await auth.saveAccount(username, password);
-    } else {
-      await auth.clearAccount();
-    }
+    // 记住密码等本地存储可能因 secure storage 抛错，不应影响登录本身，单独容错
+    try {
+      await auth.setRemember(remember);
+      if (remember) {
+        await auth.saveAccount(username, password);
+      } else {
+        await auth.clearAccount();
+      }
+    } catch (_) {}
     String name = '';
     String className = '';
+    // 用户信息是次要的，不阻塞登录；先设 loggedIn=true 让界面切到主界面，再后台拉取
+    state = AuthState(loggedIn: true, username: username, name: name, className: className);
     try {
       final info = await api.fetchUserInfo();
       name = info.name;
       className = info.className;
+      state = AuthState(loggedIn: true, username: username, name: name, className: className);
     } catch (_) {}
-    state = AuthState(loggedIn: true, username: username, name: name, className: className);
     return true;
   }
 
+  /// 勾选了「记住账号密码」时，用本地保存的账号静默登录。
+  /// 已合并原「自动登录」开关：只要记住了密码，下次启动就尝试登录。
   Future<bool> tryAutoLogin() async {
     final auth = ref.read(authServiceProvider);
-    if (!await auth.getRemember() || !await auth.getAutoLogin()) return false;
+    if (!await auth.getRemember()) return false;
     final acc = await auth.loadAccount();
     if (acc == null) return false;
-    return login(acc.username, acc.password, remember: true, autoLogin: true);
+    return login(acc.username, acc.password, remember: true);
   }
 
   Future<void> logout() async {

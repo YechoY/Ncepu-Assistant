@@ -46,3 +46,6 @@ app.*.map.json
 
 # Widget Preview related
 .widget_preview/
+
+# 手动导出的安装包归档（体积大，不进仓库）
+*.zip

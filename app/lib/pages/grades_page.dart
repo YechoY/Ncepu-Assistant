@@ -5,7 +5,10 @@ import '../models/grade.dart';
 import '../providers/data_state.dart';
 import '../theme.dart';
 import '../widgets/empty_view.dart';
+import '../widgets/glass_dropdown.dart';
 import '../widgets/grade_card.dart';
+import '../widgets/gradient_text.dart';
+import '../widgets/reveal.dart';
 
 int gradeScore(String g) {
   const map = {'优': 95, '良': 85, '中': 75, '及格': 65, '不及格': 55};
@@ -44,22 +47,35 @@ class _GradesPageState extends ConsumerState<GradesPage> {
     final terms = <String>{'全部学期', for (final g in state.grades) g.term};
     final attrs = <String>{'全部属性', for (final g in state.grades) g.attr};
     var list = state.grades
-        .where((g) =>
-            (term == '全部学期' || g.term == term) &&
-            (attr == '全部属性' || g.attr == attr) &&
-            (query.isEmpty || g.name.contains(query)))
+        .where(
+          (g) =>
+              (term == '全部学期' || g.term == term) &&
+              (attr == '全部属性' || g.attr == attr) &&
+              (query.isEmpty || g.name.contains(query)),
+        )
         .toList();
     if (sort == '学期') {
-      list.sort((a, b) => desc ? b.term.compareTo(a.term) : a.term.compareTo(b.term));
+      list.sort(
+        (a, b) => desc ? b.term.compareTo(a.term) : a.term.compareTo(b.term),
+      );
     }
     if (sort == '成绩') {
-      list.sort((a, b) =>
-          desc ? gradeScore(b.grade).compareTo(gradeScore(a.grade)) : gradeScore(a.grade).compareTo(gradeScore(b.grade)));
+      list.sort(
+        (a, b) => desc
+            ? gradeScore(b.grade).compareTo(gradeScore(a.grade))
+            : gradeScore(a.grade).compareTo(gradeScore(b.grade)),
+      );
     }
     if (sort == '学分') {
-      list.sort((a, b) => desc
-          ? (double.tryParse(b.credit) ?? 0).compareTo(double.tryParse(a.credit) ?? 0)
-          : (double.tryParse(a.credit) ?? 0).compareTo(double.tryParse(b.credit) ?? 0));
+      list.sort(
+        (a, b) => desc
+            ? (double.tryParse(b.credit) ?? 0).compareTo(
+                double.tryParse(a.credit) ?? 0,
+              )
+            : (double.tryParse(a.credit) ?? 0).compareTo(
+                double.tryParse(b.credit) ?? 0,
+              ),
+      );
     }
 
     return Column(
@@ -68,15 +84,18 @@ class _GradesPageState extends ConsumerState<GradesPage> {
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 14),
           child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 7),
+            padding: const EdgeInsets.symmetric(vertical: 8),
             decoration: BoxDecoration(
-              gradient: const LinearGradient(colors: [kPrimary, kPrimaryDark]),
+              color: Colors.white.withValues(alpha: 0.55),
               borderRadius: BorderRadius.circular(999),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.5)),
             ),
-            child: Text(
-              '必修 ${state.grades.where((g) => g.attr.startsWith('必修')).length} 门 · 平均学分绩 ${gpa(state.grades).toStringAsFixed(6)}',
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.white),
+            child: Center(
+              child: GradientText(
+                text:
+                    '必修 ${state.grades.where((g) => g.attr.startsWith('必修')).length} 门 · 平均学分绩 ${gpa(state.grades).toStringAsFixed(4)}',
+                fontSize: 12,
+              ),
             ),
           ),
         ),
@@ -99,7 +118,10 @@ class _GradesPageState extends ConsumerState<GradesPage> {
                     decoration: const InputDecoration(
                       hintText: '搜索课程',
                       border: InputBorder.none,
-                      hintStyle: TextStyle(fontSize: 11, color: Color(0xFF9AA3AD)),
+                      hintStyle: TextStyle(
+                        fontSize: 11,
+                        color: Color(0xFF9AA3AD),
+                      ),
                     ),
                   ),
                 ),
@@ -114,23 +136,41 @@ class _GradesPageState extends ConsumerState<GradesPage> {
           child: Row(
             children: [
               for (final s in ['学期', '成绩', '学分'])
-                GestureDetector(
-                  onTap: () => setState(() {
-                    if (sort == s) {
-                      desc = !desc;
-                    } else {
-                      sort = s;
-                      desc = false;
-                    }
-                  }),
-                  child: Padding(
-                    padding: const EdgeInsets.only(right: 12),
-                    child: Text(
-                      '$s ${sort == s ? (desc ? '▼' : '▲') : ''}',
-                      style: TextStyle(
-                        fontSize: 10,
-                        color: sort == s ? kPrimary : const Color(0xFF9AA3AD),
-                        fontWeight: sort == s ? FontWeight.w700 : FontWeight.w400,
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () => setState(() {
+                      if (sort == s) {
+                        desc = !desc;
+                      } else {
+                        sort = s;
+                        desc = false;
+                      }
+                    }),
+                    child: Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 3),
+                      padding: const EdgeInsets.symmetric(vertical: 7),
+                      decoration: BoxDecoration(
+                        color: sort == s
+                            ? kPrimary.withValues(alpha: 0.14)
+                            : Colors.white.withValues(alpha: 0.5),
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(
+                          color: sort == s ? kPrimary : const Color(0xFFE5E9F0),
+                        ),
+                      ),
+                      child: Center(
+                        child: Text(
+                          '$s ${sort == s ? (desc ? '▼' : '▲') : ''}',
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: sort == s
+                                ? kPrimary
+                                : const Color(0xFF6B7280),
+                            fontWeight: sort == s
+                                ? FontWeight.w700
+                                : FontWeight.w500,
+                          ),
+                        ),
                       ),
                     ),
                   ),
@@ -144,30 +184,20 @@ class _GradesPageState extends ConsumerState<GradesPage> {
               : ListView.builder(
                   padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
                   itemCount: list.length,
-                  itemBuilder: (_, i) => GradeCard(grade: list[i]),
+                  itemBuilder: (_, i) => Reveal(
+                    duration: const Duration(milliseconds: 420),
+                    offset: const Offset(0, 20),
+                    child: GradeCard(grade: list[i]),
+                  ),
                 ),
         ),
       ],
     );
   }
 
-  Widget _dropdown(String value, List<String> items, ValueChanged<String> onChanged) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 8),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: const Color(0xFFE5E9F0)),
-        ),
-        child: DropdownButtonHideUnderline(
-          child: DropdownButton<String>(
-            value: value,
-            isDense: true,
-            items: [
-              for (final it in items)
-                DropdownMenuItem(value: it, child: Text(it, style: const TextStyle(fontSize: 11))),
-            ],
-            onChanged: (v) => v != null ? onChanged(v) : null,
-          ),
-        ),
-      );
+  Widget _dropdown(
+    String value,
+    List<String> items,
+    ValueChanged<String> onChanged,
+  ) => GlassDropdown(value: value, items: items, onChanged: onChanged);
 }

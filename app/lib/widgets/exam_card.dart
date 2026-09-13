@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/exam.dart';
+import 'mac_card.dart';
 
 class ExamCard extends StatelessWidget {
   final Exam exam;
@@ -11,14 +12,12 @@ class ExamCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final dim = done;
     final text = dim ? const Color(0xFF9AA3AD) : const Color(0xFF1F2937);
-    return Container(
-      padding: const EdgeInsets.all(11),
-      margin: const EdgeInsets.only(bottom: 8),
-      decoration: BoxDecoration(
-        color: dim ? const Color(0xFFF5F5F6) : Colors.white,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: dim ? const Color(0xFFECECEE) : const Color(0xFFEEF1F6)),
-      ),
+    return MacCard(
+      padding: const EdgeInsets.all(12),
+      margin: const EdgeInsets.only(bottom: 12),
+      background: dim ? const Color(0xFFF6F7F8) : Colors.white,
+      // 未考=绿色强调条，已考=灰色
+      accent: dim ? const Color(0xFFD1D5DB) : const Color(0xFF22C55E),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
