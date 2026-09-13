@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/grade.dart';
 import '../theme.dart';
+import 'mac_card.dart';
 
 class GradeCard extends StatelessWidget {
   final Grade grade;
@@ -28,14 +29,10 @@ class GradeCard extends StatelessWidget {
                 : badge.contains('不及格')
                     ? const Color(0xFF7F1D1D)
                     : const Color(0xFF1E3A8A);
-    return Container(
-      padding: const EdgeInsets.all(11),
-      margin: const EdgeInsets.only(bottom: 8),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFFEEF1F6)),
-      ),
+    return MacCard(
+      padding: const EdgeInsets.all(12),
+      margin: const EdgeInsets.only(bottom: 12),
+      accent: fg, // 左侧强调条用成绩等级色
       child: Row(
         children: [
           Expanded(

@@ -5,7 +5,6 @@ import 'cache_service.dart';
 
 class AuthPrefs {
   static const kRemember = 'remember_password';
-  static const kAutoLogin = 'auto_login';
 }
 
 class AuthService {
@@ -41,20 +40,9 @@ class AuthService {
     return sp.getBool(AuthPrefs.kRemember) ?? false;
   }
 
-  Future<void> setAutoLogin(bool v) async {
-    final sp = await SharedPreferences.getInstance();
-    await sp.setBool(AuthPrefs.kAutoLogin, v);
-  }
-
-  Future<bool> getAutoLogin() async {
-    final sp = await SharedPreferences.getInstance();
-    return sp.getBool(AuthPrefs.kAutoLogin) ?? false;
-  }
-
   Future<void> logoutAll() async {
     await clearAccount();
     await setRemember(false);
-    await setAutoLogin(false);
     await cache?.clearAll();
   }
 }
