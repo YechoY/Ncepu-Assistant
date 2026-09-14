@@ -9,6 +9,7 @@ import '../theme.dart';
 import '../widgets/border_beam.dart';
 import '../widgets/empty_view.dart';
 import '../widgets/glass_dropdown.dart';
+import '../widgets/reveal.dart';
 import '../widgets/room_card.dart';
 
 class ClassroomsPage extends ConsumerStatefulWidget {
@@ -322,7 +323,7 @@ class _ClassroomsPageState extends ConsumerState<ClassroomsPage> {
             child: Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.5),
+                color: Colors.white.withValues(alpha: 0.55),
                 borderRadius: BorderRadius.circular(14),
               ),
               child: Column(
@@ -374,14 +375,14 @@ class _ClassroomsPageState extends ConsumerState<ClassroomsPage> {
                       child: ElevatedButton.icon(
                         onPressed: loading ? null : _query,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF16A34A),
+                          backgroundColor: kPrimary,
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(vertical: 6),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
+                            borderRadius: BorderRadius.circular(12),
                           ),
                           elevation: 2,
-                          shadowColor: const Color(0x6622C55E),
+                          shadowColor: kPrimary.withValues(alpha: 0.5),
                         ),
                         icon: const Icon(
                           Icons.search,
@@ -427,7 +428,7 @@ class _ClassroomsPageState extends ConsumerState<ClassroomsPage> {
                   textAlign: TextAlign.right,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 9, color: Color(0xFF9AA3AD)),
+                  style: const TextStyle(fontSize: 9, color: kTextMuted),
                 ),
               ),
             ],
@@ -449,7 +450,12 @@ class _ClassroomsPageState extends ConsumerState<ClassroomsPage> {
                     childAspectRatio: 1.9,
                   ),
                   itemCount: rooms.length,
-                  itemBuilder: (_, i) => RoomCard(name: rooms[i]),
+                  itemBuilder: (_, i) => Reveal(
+                    duration: const Duration(milliseconds: 320),
+                    offset: const Offset(0, 14),
+                    minScale: 0.98,
+                    child: RoomCard(name: rooms[i]),
+                  ),
                 ),
         ),
       ],
@@ -472,21 +478,21 @@ class _ClassroomsPageState extends ConsumerState<ClassroomsPage> {
     );
   }
 
-  /// 玻璃风小按钮的通用外壳（样式对齐 GlassDropdown：半透明白 + 细白描边 + 柔和投影）。
+  /// 玻璃风小按钮的通用外壳（样式对齐 GlassDropdown：半透明白 + 高光描边 + 冷调柔影）。
   Widget _chipShell({required Widget child, required VoidCallback onTap}) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.5),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.55)),
-          boxShadow: [
+          color: Colors.white.withValues(alpha: 0.55),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.65)),
+          boxShadow: const [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.06),
+              color: Color(0x143D4670),
               blurRadius: 8,
-              offset: const Offset(0, 3),
+              offset: Offset(0, 3),
             ),
           ],
         ),
@@ -505,14 +511,14 @@ class _ClassroomsPageState extends ConsumerState<ClassroomsPage> {
           const Icon(
             Icons.calendar_today_outlined,
             size: 13,
-            color: Color(0xFF6B7280),
+            color: kTextMuted,
           ),
           const SizedBox(width: 5),
           Text(
             '第$week周',
             style: const TextStyle(
               fontSize: 12,
-              color: Color(0xFF1F2937),
+              color: kTextMain,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -532,7 +538,7 @@ class _ClassroomsPageState extends ConsumerState<ClassroomsPage> {
             label,
             style: const TextStyle(
               fontSize: 9,
-              color: Color(0xFF6B7280),
+              color: kTextMuted,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -541,12 +547,12 @@ class _ClassroomsPageState extends ConsumerState<ClassroomsPage> {
             '${d.month}/${d.day}',
             style: const TextStyle(
               fontSize: 12,
-              color: Color(0xFF1F2937),
+              color: kTextMain,
               fontWeight: FontWeight.w600,
             ),
           ),
           const SizedBox(width: 4),
-          const Icon(Icons.arrow_drop_down, size: 16, color: Color(0xFF6B7280)),
+          const Icon(Icons.arrow_drop_down, size: 16, color: kTextMuted),
         ],
       ),
     );

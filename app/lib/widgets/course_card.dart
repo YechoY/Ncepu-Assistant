@@ -2,15 +2,19 @@ import 'package:flutter/material.dart';
 
 import '../models/course_cell.dart';
 import '../theme.dart';
+import 'glass_card.dart';
 import 'mac_card.dart';
 
 class CourseCard extends StatelessWidget {
   final CourseCell cell;
-  const CourseCard({super.key, required this.cell});
+
+  /// 页面层做过「按天冲突消解」后的颜色；不传则按课程名哈希兜底。
+  final ({Color bg, Color border, Color name})? color;
+  const CourseCard({super.key, required this.cell, this.color});
 
   @override
   Widget build(BuildContext context) {
-    final c = courseColor(cell.name);
+    final c = color ?? courseColor(cell.name);
     return MacCard(
       radius: 12,
       background: c.bg,
@@ -18,6 +22,7 @@ class CourseCard extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       onTap: () => showDialog(
         context: context,
+        barrierColor: const Color(0x402E3350),
         builder: (_) => _CourseDetailDialog(cell: cell),
       ),
       child: Column(
@@ -65,20 +70,17 @@ class _CourseDetailDialog extends StatelessWidget {
     Widget row(String k, String v) => Container(
       padding: const EdgeInsets.symmetric(vertical: 9),
       decoration: const BoxDecoration(
-        border: Border(top: BorderSide(color: Color(0xFFEEF2F9))),
+        border: Border(top: BorderSide(color: kGlassGridLine)),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(
-            k,
-            style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
-          ),
+          Text(k, style: const TextStyle(fontSize: 12, color: kTextMuted)),
           Text(
             v,
             style: const TextStyle(
               fontSize: 12,
-              color: Color(0xFF1F2937),
+              color: kTextMain,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -86,9 +88,12 @@ class _CourseDetailDialog extends StatelessWidget {
       ),
     );
     return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(18, 20, 18, 16),
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 34),
+      child: GlassCard(
+        radius: 22,
+        padding: const EdgeInsets.fromLTRB(18, 16, 14, 14),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -101,16 +106,12 @@ class _CourseDetailDialog extends StatelessWidget {
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w800,
-                      color: Color(0xFF1E3A8A),
+                      color: kInk,
                     ),
                   ),
                 ),
                 IconButton(
-                  icon: const Icon(
-                    Icons.close,
-                    size: 18,
-                    color: Color(0xFF6B7280),
-                  ),
+                  icon: const Icon(Icons.close, size: 18, color: kTextMuted),
                   onPressed: () => Navigator.pop(context),
                 ),
               ],

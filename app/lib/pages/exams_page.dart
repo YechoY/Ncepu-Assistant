@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/data_state.dart';
+import '../theme.dart';
 import '../widgets/empty_view.dart';
 import '../widgets/exam_card.dart';
 import '../widgets/glass_dropdown.dart';
@@ -37,7 +38,7 @@ class ExamsPage extends ConsumerWidget {
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
-                  color: Color(0xFF374151),
+                  color: kTextMain,
                 ),
               ),
               const SizedBox(width: 10),
@@ -92,8 +93,9 @@ class ExamsPage extends ConsumerWidget {
         final e = ordered[i];
         final done = _parseTime(e.time)?.isBefore(now) ?? false;
         return Reveal(
-          duration: const Duration(milliseconds: 420),
-          offset: const Offset(0, 20),
+          duration: const Duration(milliseconds: 320),
+          offset: const Offset(0, 14),
+          minScale: 0.98,
           child: ExamCard(exam: e, done: done),
         );
       },

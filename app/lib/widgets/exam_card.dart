@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../models/exam.dart';
-import 'mac_card.dart';
+import '../theme.dart';
+import 'glass_card.dart';
 
 class ExamCard extends StatelessWidget {
   final Exam exam;
@@ -10,62 +11,101 @@ class ExamCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final dim = done;
-    final text = dim ? const Color(0xFF9AA3AD) : const Color(0xFF1F2937);
-    return MacCard(
-      padding: const EdgeInsets.all(12),
-      margin: const EdgeInsets.only(bottom: 12),
-      background: dim ? const Color(0xFFF6F7F8) : Colors.white,
-      // 未考=绿色强调条，已考=灰色
-      accent: dim ? const Color(0xFFD1D5DB) : const Color(0xFF22C55E),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  exam.name,
-                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: text),
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(
-                  color: dim ? const Color(0xFFEEF1F6) : const Color(0xFFF0FDF4),
-                  borderRadius: BorderRadius.circular(999),
-                  border: Border.all(
-                    color: dim ? const Color(0xFFE2E6EE) : const Color(0xFFBBF7D0),
+    // 未考 = 薄荷绿功能色，已考 = 中性灰（整卡弱化）。
+    final accent = done ? const Color(0xFFB6BCC9) : const Color(0xFF5E9C80);
+    final badgeBg = done ? const Color(0xFFEFF1F5) : const Color(0xFFE3F1EC);
+    final badgeFg = done ? kTextMuted : const Color(0xFF4E8A70);
+    final titleColor = done ? kTextMuted : kTextMain;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: GlassCard(
+        radius: 18,
+        live: false,
+        opacity: kFrostAlpha,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 4,
+                  height: 20,
+                  decoration: BoxDecoration(
+                    color: accent.withValues(alpha: 0.75),
+                    borderRadius: BorderRadius.circular(2),
                   ),
                 ),
-                child: Text(
-                  dim ? '已考' : '未考',
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: dim ? const Color(0xFF9AA3AD) : const Color(0xFF16A34A),
+                const SizedBox(width: 9),
+                Expanded(
+                  child: Text(
+                    exam.name,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w700,
+                      color: titleColor,
+                    ),
                   ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Text(
-            '${exam.type} · ${exam.time}',
-            style: TextStyle(
-              fontSize: 10,
-              color: dim ? const Color(0xFF9AA3AD) : const Color(0xFF6B7280),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 9,
+                    vertical: 3,
+                  ),
+                  decoration: BoxDecoration(
+                    color: badgeBg,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        done ? Icons.check_circle_outline : Icons.schedule,
+                        size: 11,
+                        color: badgeFg,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        done ? '已考' : '未考',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          color: badgeFg,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
-          ),
-          const SizedBox(height: 3),
-          Text(
-            '${exam.location} · ${exam.teacher}',
-            style: TextStyle(
-              fontSize: 10,
-              color: dim ? const Color(0xFF9AA3AD) : const Color(0xFF6B7280),
-            ),
-          ),
-        ],
+            const SizedBox(height: 9),
+            _infoLine(Icons.event_note_outlined, '${exam.type} · ${exam.time}'),
+            const SizedBox(height: 4),
+            _infoLine(Icons.place_outlined, '${exam.location} · ${exam.teacher}'),
+          ],
+        ),
       ),
+    );
+  }
+
+  Widget _infoLine(IconData icon, String text) {
+    return Row(
+      children: [
+        const SizedBox(width: 13),
+        Icon(icon, size: 12, color: kTextMuted),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            text,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 10.5, color: kTextMuted),
+          ),
+        ),
+      ],
     );
   }
 }

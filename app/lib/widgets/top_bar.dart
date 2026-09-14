@@ -45,7 +45,7 @@ class TopBar extends StatelessWidget {
                       fontWeight: FontWeight.w800,
                       foreground: Paint()
                         ..shader = const LinearGradient(
-                          colors: [Color(0xFF1E3A8A), kPrimary],
+                          colors: [kInk, kPrimary],
                         ).createShader(const Rect.fromLTWH(0, 0, 160, 24)),
                     ),
                   ),
@@ -84,7 +84,7 @@ class TopBar extends StatelessWidget {
                   userName,
                   style: const TextStyle(
                     fontSize: 11,
-                    color: Color(0xFF1E3A8A),
+                    color: kInk,
                     fontWeight: FontWeight.w600,
                   ),
                 ),

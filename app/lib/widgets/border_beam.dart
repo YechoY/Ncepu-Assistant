@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
-/// 渐变发光边框：整个矩形边框是一圈渐变色（绿→蓝），并带柔和发光。
+import '../theme.dart';
+
+/// 渐变发光边框：整个矩形边框是一圈粉彩渐变色（樱花粉→雾蓝紫→天青蓝），并带柔和发光。
 /// 替代"单束流光"，更干净耐看。
 class BorderBeam extends StatelessWidget {
   final Widget child;
@@ -14,7 +16,7 @@ class BorderBeam extends StatelessWidget {
     this.radius = 14,
     this.strokeWidth = 1.6,
     this.borderGradient = const LinearGradient(
-      colors: [Color(0xFF22C55E), Color(0xFF3B82F6), Color(0xFF22C55E)],
+      colors: [kAccentPink, kPrimarySoft, Color(0xFFA2D2E2), kAccentPink],
     ),
   });
 
@@ -25,7 +27,7 @@ class BorderBeam extends StatelessWidget {
         borderRadius: BorderRadius.circular(radius),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF3B82F6).withValues(alpha: 0.18),
+            color: kPrimarySoft.withValues(alpha: 0.22),
             blurRadius: 12,
             spreadRadius: 0.5,
           ),
