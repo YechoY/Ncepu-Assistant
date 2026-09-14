@@ -88,7 +88,7 @@ class _GradesPageState extends ConsumerState<GradesPage> {
             decoration: BoxDecoration(
               color: Colors.white.withValues(alpha: 0.55),
               borderRadius: BorderRadius.circular(999),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.5)),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.65)),
             ),
             child: Center(
               child: GradientText(
@@ -107,21 +107,20 @@ class _GradesPageState extends ConsumerState<GradesPage> {
               const SizedBox(width: 6),
               Expanded(
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 9),
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
                   decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: const Color(0xFFE5E9F0)),
+                    color: Colors.white.withValues(alpha: 0.55),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.65),
+                    ),
                   ),
                   child: TextField(
                     onChanged: (v) => setState(() => query = v),
                     decoration: const InputDecoration(
                       hintText: '搜索课程',
                       border: InputBorder.none,
-                      hintStyle: TextStyle(
-                        fontSize: 11,
-                        color: Color(0xFF9AA3AD),
-                      ),
+                      hintStyle: TextStyle(fontSize: 11, color: kTextMuted),
                     ),
                   ),
                 ),
@@ -151,11 +150,13 @@ class _GradesPageState extends ConsumerState<GradesPage> {
                       padding: const EdgeInsets.symmetric(vertical: 7),
                       decoration: BoxDecoration(
                         color: sort == s
-                            ? kPrimary.withValues(alpha: 0.14)
+                            ? kPrimaryContainer
                             : Colors.white.withValues(alpha: 0.5),
                         borderRadius: BorderRadius.circular(999),
                         border: Border.all(
-                          color: sort == s ? kPrimary : const Color(0xFFE5E9F0),
+                          color: sort == s
+                              ? kPrimarySoft
+                              : Colors.white.withValues(alpha: 0.65),
                         ),
                       ),
                       child: Center(
@@ -163,9 +164,7 @@ class _GradesPageState extends ConsumerState<GradesPage> {
                           '$s ${sort == s ? (desc ? '▼' : '▲') : ''}',
                           style: TextStyle(
                             fontSize: 10,
-                            color: sort == s
-                                ? kPrimary
-                                : const Color(0xFF6B7280),
+                            color: sort == s ? kPrimary : kTextMuted,
                             fontWeight: sort == s
                                 ? FontWeight.w700
                                 : FontWeight.w500,
@@ -184,9 +183,11 @@ class _GradesPageState extends ConsumerState<GradesPage> {
               : ListView.builder(
                   padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
                   itemCount: list.length,
+                  // 入场淡入做缓冲：卡片本身是静态磨砂（无实时模糊），滑动流畅。
                   itemBuilder: (_, i) => Reveal(
-                    duration: const Duration(milliseconds: 420),
-                    offset: const Offset(0, 20),
+                    duration: const Duration(milliseconds: 320),
+                    offset: const Offset(0, 14),
+                    minScale: 0.98,
                     child: GradeCard(grade: list[i]),
                   ),
                 ),

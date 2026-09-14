@@ -330,8 +330,16 @@ class _MainShellState extends ConsumerState<_MainShell> {
               // Expanded：在 Column/Row 里「占满剩余空间」。
               // IndexedStack：把所有子页面都建出来叠在一起，只显示 index 指定的那个。
               // 好处是切 Tab 时其它页面不会被销毁，滚动位置/输入内容都能保留。
+              // 外层再包一层 _TabFade：切页时新页面淡入 + 轻微放大，
+              // 既符合玻璃风的轻盈感，也掩盖了页面首帧光栅化可能造成的顿挫。
               Expanded(
-                child: IndexedStack(index: tab, children: pages),
+                child: IndexedStack(
+                  index: tab,
+                  children: [
+                    for (var i = 0; i < pages.length; i++)
+                      _TabFade(active: i == tab, child: pages[i]),
+                  ],
+                ),
               ),
               // 底部 4 标签胶囊导航；点击时 setState 改 tab，触发重建切页。
               CapsuleNav(index: tab, onTap: (i) => setState(() => tab = i)),
@@ -358,6 +366,53 @@ class _MainShellState extends ConsumerState<_MainShell> {
             child: const Text('好的'),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Tab 切换时的淡入 + 轻微缩放过渡。
+/// 只有「从非激活变为激活」的那一页会播放动画（forward from 0）；
+/// 首次进入时激活的首屏直接显示（控制器初值 1），不做多余动画。
+class _TabFade extends StatefulWidget {
+  final bool active;
+  final Widget child;
+  const _TabFade({required this.active, required this.child});
+
+  @override
+  State<_TabFade> createState() => _TabFadeState();
+}
+
+class _TabFadeState extends State<_TabFade>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 280),
+    value: widget.active ? 1 : 0,
+  );
+
+  @override
+  void didUpdateWidget(covariant _TabFade oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!oldWidget.active && widget.active) {
+      _controller.forward(from: 0);
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final curved = CurvedAnimation(parent: _controller, curve: kSpring);
+    return FadeTransition(
+      opacity: curved,
+      child: ScaleTransition(
+        scale: Tween<double>(begin: 0.985, end: 1).animate(curved),
+        child: widget.child,
       ),
     );
   }

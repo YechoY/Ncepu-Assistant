@@ -66,7 +66,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       body: GlassBackground(
         child: SafeArea(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 48),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 48),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -77,13 +77,15 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
                     gradient: const LinearGradient(
-                      colors: [Color(0xFF7DB4FF), kPrimaryDark],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [kPrimarySoft, kPrimary],
                     ),
-                    borderRadius: BorderRadius.circular(18),
+                    borderRadius: BorderRadius.circular(20),
                     boxShadow: [
                       BoxShadow(
-                        color: kPrimary.withValues(alpha: 0.3),
-                        blurRadius: 18,
+                        color: kPrimary.withValues(alpha: 0.35),
+                        blurRadius: 20,
                         offset: const Offset(0, 8),
                       ),
                     ],
@@ -101,20 +103,19 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.w800,
-                    color: Color(0xFF1E3A8A),
+                    color: kInk,
                   ),
                 ),
                 const SizedBox(height: 4),
                 const Text(
                   '请使用教务系统账号登录',
                   textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
+                  style: TextStyle(fontSize: 12, color: kTextMuted),
                 ),
                 const SizedBox(height: 26),
                 GlassCard(
-                  radius: 20,
-                  opacity: 0.18,
-                  padding: const EdgeInsets.fromLTRB(18, 20, 18, 8),
+                  radius: 24,
+                  padding: const EdgeInsets.fromLTRB(16, 22, 16, 12),
                   child: Column(
                     children: [
                       _field(_user, '学号', obscure: false),
@@ -127,7 +128,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                           setState(() => _showPass = !_showPass);
                         },
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 18),
                       Row(
                         children: [
                           _check(
@@ -137,7 +138,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                           ),
                         ],
                       ),
-                      const SizedBox(height: 18),
+                      const SizedBox(height: 20),
                       _loginButton(),
                     ],
                   ),
@@ -161,14 +162,14 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       onPressed: submitting ? null : _submit,
       style: FilledButton.styleFrom(
         backgroundColor: kPrimary,
-        padding: const EdgeInsets.symmetric(vertical: 13),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        minimumSize: const Size.fromHeight(50),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
         elevation: 6,
         shadowColor: kPrimary.withValues(alpha: 0.4),
       ),
       child: Text(
         submitting ? '登录中…' : '登 录',
-        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
       ),
     );
   }
@@ -181,9 +182,9 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   }) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 13),
     decoration: BoxDecoration(
-      color: Colors.white.withValues(alpha: 0.5),
-      borderRadius: BorderRadius.circular(12),
-      border: Border.all(color: Colors.white.withValues(alpha: 0.5)),
+      color: Colors.white.withValues(alpha: 0.55),
+      borderRadius: BorderRadius.circular(14),
+      border: Border.all(color: Colors.white.withValues(alpha: 0.65)),
     ),
     child: TextField(
       controller: c,
@@ -191,7 +192,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       decoration: InputDecoration(
         hintText: hint,
         border: InputBorder.none,
-        hintStyle: const TextStyle(fontSize: 13, color: Color(0xFF9AA3AD)),
+        hintStyle: const TextStyle(fontSize: 13, color: kTextMuted),
         suffixIcon: onToggleVisible == null
             ? null
             : IconButton(
@@ -200,7 +201,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                       ? Icons.visibility_off_outlined
                       : Icons.visibility_outlined,
                   size: 20,
-                  color: const Color(0xFF9AA3AD),
+                  color: kTextMuted,
                 ),
                 onPressed: onToggleVisible,
               ),
@@ -215,24 +216,28 @@ class _LoginPageState extends ConsumerState<LoginPage> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: 15,
-              height: 15,
+              width: 19,
+              height: 19,
               alignment: Alignment.center,
               decoration: BoxDecoration(
                 color: value ? kPrimary : Colors.white.withValues(alpha: 0.6),
-                borderRadius: BorderRadius.circular(5),
+                borderRadius: BorderRadius.circular(6),
                 border: Border.all(
                   color: value ? kPrimary : const Color(0xFFCBD5E1),
                 ),
               ),
               child: value
-                  ? const Icon(Icons.check, size: 11, color: Colors.white)
+                  ? const Icon(Icons.check, size: 14, color: Colors.white)
                   : null,
             ),
-            const SizedBox(width: 5),
+            const SizedBox(width: 8),
             Text(
               label,
-              style: const TextStyle(fontSize: 11, color: Color(0xFF374151)),
+              style: const TextStyle(
+                fontSize: 13,
+                color: kTextMain,
+                fontWeight: FontWeight.w500,
+              ),
             ),
           ],
         ),

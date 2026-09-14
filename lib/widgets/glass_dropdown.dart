@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 
+import '../theme.dart';
 import 'glass_card.dart';
 
 /// 玻璃拟态下拉框：点击后从底部弹出玻璃拟态（毛玻璃模糊）选项面板。
-/// 按钮半透明磨砂 + 细白描边 + 柔和发光；弹窗用 GlassCard（BackdropFilter 真模糊 + 白描边 + 大圆角）。
+/// 按钮为半透明磨砂芯片 + 高光描边；弹窗是浮起的 GlassCard，
+/// 选项彼此留白（不再紧挨），选中项用浅紫承托 + 墨紫文字。
 class GlassDropdown extends StatelessWidget {
   final String value;
   final List<String> items;
@@ -41,7 +43,7 @@ class GlassDropdown extends StatelessWidget {
       overflow: TextOverflow.ellipsis,
       style: const TextStyle(
         fontSize: 12,
-        color: Color(0xFF1F2937),
+        color: kTextMain,
         fontWeight: FontWeight.w600,
       ),
     );
@@ -49,16 +51,16 @@ class GlassDropdown extends StatelessWidget {
       onTap: () => _open(context),
       child: Container(
         width: expand ? double.infinity : null,
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.5),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.55)),
-          boxShadow: [
+          color: Colors.white.withValues(alpha: 0.55),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.65)),
+          boxShadow: const [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.06),
+              color: Color(0x143D4670),
               blurRadius: 8,
-              offset: const Offset(0, 3),
+              offset: Offset(0, 3),
             ),
           ],
         ),
@@ -70,11 +72,11 @@ class GlassDropdown extends StatelessWidget {
                 label!,
                 style: const TextStyle(
                   fontSize: 9,
-                  color: Color(0xFF6B7280),
+                  color: kTextMuted,
                   fontWeight: FontWeight.w600,
                 ),
               ),
-              const SizedBox(width: 4),
+              const SizedBox(width: 5),
             ],
             if (expand)
               Expanded(child: valueText)
@@ -84,11 +86,7 @@ class GlassDropdown extends StatelessWidget {
                 child: valueText,
               ),
             const SizedBox(width: 4),
-            const Icon(
-              Icons.arrow_drop_down,
-              size: 16,
-              color: Color(0xFF6B7280),
-            ),
+            const Icon(Icons.arrow_drop_down, size: 17, color: kPrimary),
           ],
         ),
       ),
@@ -99,65 +97,106 @@ class GlassDropdown extends StatelessWidget {
     final sel = await showModalBottomSheet<String>(
       context: context,
       backgroundColor: Colors.transparent,
-      barrierColor: Colors.black.withValues(alpha: 0.2),
-      builder: (ctx) => GlassCard(
-        radius: 20,
-        opacity: 0.12,
-        padding: const EdgeInsets.fromLTRB(18, 18, 18, 12),
-        child: SafeArea(
-          top: false,
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (label != null) ...[
-                  Text(
-                    label!,
-                    style: const TextStyle(
-                      fontSize: 11,
-                      color: Color(0xFF6B7280),
-                      fontWeight: FontWeight.w600,
+      barrierColor: const Color(0x4D2E3350),
+      builder: (ctx) => Padding(
+        // 面板四周浮起留白，与屏幕边缘分开，强化"玻璃片悬浮"感
+        padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+        child: GlassCard(
+          padding: const EdgeInsets.fromLTRB(14, 18, 14, 12),
+          child: SafeArea(
+            top: false,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (label != null) ...[
+                    Text(
+                      label!,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: kTextMuted,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 8),
+                    const SizedBox(height: 10),
+                  ],
+                  // 选项之间留 8px 空隙（最后一项不留），不再彼此紧挨
+                  for (var i = 0; i < items.length; i++)
+                    Padding(
+                      padding: EdgeInsets.only(
+                        bottom: i == items.length - 1 ? 0 : 8,
+                      ),
+                      child: _OptionTile(
+                        label: _display(items[i]),
+                        selected: items[i] == value,
+                        onTap: () => Navigator.pop(ctx, items[i]),
+                      ),
+                    ),
                 ],
-                for (final it in items)
-                  InkWell(
-                    onTap: () => Navigator.pop(ctx, it),
-                    borderRadius: BorderRadius.circular(10),
-                    child: Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(
-                        vertical: 11,
-                        horizontal: 8,
-                      ),
-                      decoration: BoxDecoration(
-                        color: it == value
-                            ? const Color(0xFF3B82F6)
-                            : Colors.white.withValues(alpha: 0.4),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Text(
-                        _display(it),
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: it == value
-                              ? FontWeight.w700
-                              : FontWeight.w500,
-                          color: it == value
-                              ? Colors.white
-                              : const Color(0xFF1F2937),
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
+              ),
             ),
           ),
         ),
       ),
     );
     if (sel != null) onChanged(sel);
+  }
+}
+
+/// 下拉面板中的单个选项：圆角大、可点区域铺满整行，选中态浅紫承托。
+class _OptionTile extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  const _OptionTile({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          curve: kSpring,
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
+          decoration: BoxDecoration(
+            color: selected
+                ? kPrimaryContainer
+                : Colors.white.withValues(alpha: 0.5),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: selected
+                  ? kPrimarySoft.withValues(alpha: 0.8)
+                  : Colors.white.withValues(alpha: 0.6),
+            ),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                    color: selected ? kInk : kTextMain,
+                  ),
+                ),
+              ),
+              if (selected)
+                const Icon(Icons.check_rounded, size: 16, color: kPrimary),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }

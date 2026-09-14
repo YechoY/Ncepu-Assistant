@@ -1,5 +1,3 @@
-import 'dart:ui';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -8,6 +6,7 @@ import '../providers/app_state.dart';
 import '../providers/data_state.dart' show formatUpdatedAt;
 import '../theme.dart';
 import '../widgets/glass_background.dart';
+import '../widgets/glass_card.dart';
 import '../widgets/mac_card.dart';
 
 /// 周次显示：在接口原文（如 "1-12(周)"）前加「上课周次：」前缀。
@@ -30,7 +29,8 @@ class _FullTimetablePageState extends ConsumerState<FullTimetablePage> {
   static const _secW = 33.0;
   static const _cardSlot = 76.0; // 单张课程卡高度（含卡间距）；整行高度 = 该节最多课程数 × 此值
   static const _hGap = 3.0; // 列水平间距（左右各一半）
-  static const _rowGap = 8.0; // 行之间的竖直间距
+  static const _pitch = _colW + _hGap * 2; // 单列步距（列宽+两侧间隙），网格按此步距画线
+  static const _rowGap = 8.0; // 表头与网格板之间的竖直间距（网格内部行之间只画线、不留缝）
   static const _headerH = 28.0; // 星期表头行高（左右两侧共用以对齐）
 
   /// 五行统一的行高：取「整张表」所有格子中课程数最多的张数 × 单卡高度。
@@ -184,7 +184,7 @@ class _FullTimetablePageState extends ConsumerState<FullTimetablePage> {
                           style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.w800,
-                            color: Color(0xFF1E3A8A),
+                            color: kInk,
                           ),
                         ),
                         Text(
@@ -238,6 +238,12 @@ class _FullTimetablePageState extends ConsumerState<FullTimetablePage> {
         ),
       );
     }
+    // 收集每门课出现在星期几，做「同天不同色」的颜色冲突消解。
+    final courseDays = <String, Set<int>>{};
+    for (final c in _courses) {
+      (courseDays[c.name] ??= <int>{}).add(c.day);
+    }
+    final colorMap = assignCourseIndices(courseDays);
     // 左侧节次列固定不动；右侧 7 天区域可横向滚动。两者放在同一个纵向滚动里，
     // 因此上下滚动时左右同步、左侧节次列不会随横向滚动移动。
     return SingleChildScrollView(
@@ -251,10 +257,7 @@ class _FullTimetablePageState extends ConsumerState<FullTimetablePage> {
               scrollDirection: Axis.horizontal,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _dayHeaderRow(),
-                  for (var s = 1; s <= 5; s++) _dayRow(s),
-                ],
+                children: [_dayHeaderRow(), _gridBoard(colorMap)],
               ),
             ),
           ),
@@ -263,35 +266,65 @@ class _FullTimetablePageState extends ConsumerState<FullTimetablePage> {
     );
   }
 
-  /// 固定在左侧的节次列：顶部占位对齐星期表头，其下每个大节一个框。
+  /// 固定在左侧的节次列：一整块连续磨砂玻璃条，内部用横线分 5 行，
+  /// 与右侧网格板的行线严格对齐（等高 [_rowH]、行间距为零）。
   Widget _leftColumn() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // 顶部占位：与右侧星期表头等高（表头文字 + 上下 padding 4*2 + 下方间距）
+        // 顶部占位：与右侧星期表头 + 表头下间距等高
         const SizedBox(width: _secW, height: _headerH + _rowGap),
-        for (var s = 1; s <= 5; s++)
-          _GlassLabel(
-            width: _secW,
-            height: _rowH,
-            margin: const EdgeInsets.only(bottom: _rowGap, right: _hGap),
-            child: Text(
-              // 逐字竖排（第/一/大/节），列窄也不挤
-              _sections[s - 1].split('').join('\n'),
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF4B5563),
-                height: 1.35,
+        Padding(
+          padding: const EdgeInsets.only(right: 7),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(14),
+            child: BackdropFilter(
+              filter: glassBlurFilter(sigma: 12),
+              child: Container(
+                width: _secW,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.42),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: kGlassBorder),
+                ),
+                child: Column(
+                  children: [
+                    for (var s = 1; s <= 5; s++)
+                      Container(
+                        height: _rowH,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          border: Border(
+                            top: BorderSide(
+                              color: s == 1
+                                  ? Colors.transparent
+                                  : kGlassGridLine,
+                            ),
+                          ),
+                        ),
+                        child: Text(
+                          // 逐字竖排（第/一/大/节），列窄也不挤
+                          _sections[s - 1].split('').join('\n'),
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: kTextMuted,
+                            height: 1.35,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
               ),
             ),
           ),
+        ),
       ],
     );
   }
 
-  /// 右侧顶部的星期表头行。
+  /// 右侧顶部的星期表头行：7 个独立磨砂小胶囊，位置与网格各列中心对齐。
   Widget _dayHeaderRow() {
     return Padding(
       padding: const EdgeInsets.only(bottom: _rowGap),
@@ -307,9 +340,7 @@ class _FullTimetablePageState extends ConsumerState<FullTimetablePage> {
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
-                  color: (i == 5 || i == 6)
-                      ? const Color(0xFFDC2626)
-                      : const Color(0xFF1F2937),
+                  color: (i == 5 || i == 6) ? kWeekend : kTextMain,
                 ),
               ),
             ),
@@ -318,27 +349,56 @@ class _FullTimetablePageState extends ConsumerState<FullTimetablePage> {
     );
   }
 
-  /// 右侧某一大节的一行：7 天的课程格，行高五行统一（见 [_rowH]）。
-  Widget _dayRow(int section) {
+  /// 课程网格板：一块大磨砂玻璃，内部横纵细线把 5 行 × 7 列划成规整网格。
+  /// 横向、纵向都只有一个 BackdropFilter（按整块模糊），线用单元格描边拼出。
+  Widget _gridBoard(Map<String, int> colorMap) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: BackdropFilter(
+        filter: glassBlurFilter(sigma: 16),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.34),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: kGlassBorder),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [for (var s = 1; s <= 5; s++) _gridRow(s, colorMap)],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 网格板中的一行：7 个步距等宽的格子，每格画左竖线 + 上横线（首行上沿由外框承担）。
+  Widget _gridRow(int section, Map<String, int> colorMap) {
     final h = _rowH;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: _rowGap),
+    return SizedBox(
+      height: h,
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           for (var day = 1; day <= 7; day++)
             Container(
-              width: _colW,
-              height: h,
-              margin: const EdgeInsets.symmetric(horizontal: _hGap),
-              child: _cell(_at(day, section)),
+              width: _pitch,
+              padding: const EdgeInsets.fromLTRB(4, 5, 4, 5),
+              decoration: BoxDecoration(
+                // 周末两列铺极淡的粉色底，呼应粉彩配色、也便于区分工作日
+                color: day >= 6 ? kAccentPink.withValues(alpha: 0.09) : null,
+                border: Border(
+                  left: const BorderSide(color: kGlassGridLine),
+                  top: const BorderSide(color: kGlassGridLine),
+                ),
+              ),
+              child: _cell(_at(day, section), colorMap),
             ),
         ],
       ),
     );
   }
 
-  Widget _cell(List<FullCourse> courses) {
+  Widget _cell(List<FullCourse> courses, Map<String, int> colorMap) {
     if (courses.isEmpty) return const SizedBox.shrink();
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -347,18 +407,21 @@ class _FullTimetablePageState extends ConsumerState<FullTimetablePage> {
         for (final c in courses)
           Padding(
             padding: const EdgeInsets.only(bottom: 6),
-            child: _FullCourseCard(course: c),
+            child: _FullCourseCard(
+              course: c,
+              color: coursePalette[colorMap[c.name]!],
+            ),
           ),
       ],
     );
   }
 }
 
-/// 节次列 / 星期表头用的毛玻璃标签格。
+/// 星期表头用的毛玻璃标签格。
 ///
 /// 与课程卡（实色 MacCard）区分：标签要能透出背后的渐变底色，故用
-/// BackdropFilter 做真模糊 + 较深的白色 tint + 细白高光描边。
-/// 刻意不带 GlassCard 那种 32 大扩散阴影——一页有 12 个这种密集小格，
+/// BackdropFilter 做真模糊（含饱和度增强）+ 白色 tint + 高光描边。
+/// 刻意不带 GlassCard 那种大扩散阴影——一页有 7 个这种密集小格，
 /// 大阴影互相叠加会显脏且增加绘制负担。
 class _GlassLabel extends StatelessWidget {
   final Widget child;
@@ -378,21 +441,18 @@ class _GlassLabel extends StatelessWidget {
     return Padding(
       padding: margin,
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(10),
         child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          filter: glassBlurFilter(sigma: 12),
           child: Container(
             width: width,
             height: height,
             alignment: Alignment.center,
             decoration: BoxDecoration(
-              // 比原 0.35 更深的白 tint；叠上背景模糊后呈磨砂质感
-              color: Colors.white.withValues(alpha: 0.5),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(
-                color: Colors.white.withValues(alpha: 0.6),
-                width: 1,
-              ),
+              // 白色 tint 叠上背景模糊与饱和度增强后呈磨砂质感
+              color: Colors.white.withValues(alpha: 0.48),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: kGlassBorder, width: 1),
             ),
             child: child,
           ),
@@ -405,11 +465,14 @@ class _GlassLabel extends StatelessWidget {
 /// 外层课程卡：只展示课程名 + 上课地点，点击弹详情。
 class _FullCourseCard extends StatelessWidget {
   final FullCourse course;
-  const _FullCourseCard({required this.course});
+
+  /// 页面层做过「按天冲突消解」后的颜色；不传则按课程名哈希兜底。
+  final ({Color bg, Color border, Color name})? color;
+  const _FullCourseCard({required this.course, this.color});
 
   @override
   Widget build(BuildContext context) {
-    final c = courseColor(course.name);
+    final c = color ?? courseColor(course.name);
     return MacCard(
       radius: 12,
       background: c.bg,
@@ -417,6 +480,7 @@ class _FullCourseCard extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       onTap: () => showDialog(
         context: context,
+        barrierColor: const Color(0x402E3350),
         builder: (_) => _FullCourseDialog(course: course),
       ),
       child: Column(
@@ -481,7 +545,7 @@ class _FullCourseDialog extends StatelessWidget {
       return Container(
         padding: const EdgeInsets.symmetric(vertical: 9),
         decoration: const BoxDecoration(
-          border: Border(top: BorderSide(color: Color(0xFFEEF2F9))),
+          border: Border(top: BorderSide(color: kGlassGridLine)),
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -490,7 +554,7 @@ class _FullCourseDialog extends StatelessWidget {
               width: 64,
               child: Text(
                 k,
-                style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
+                style: const TextStyle(fontSize: 12, color: kTextMuted),
               ),
             ),
             Expanded(
@@ -498,7 +562,7 @@ class _FullCourseDialog extends StatelessWidget {
                 v,
                 style: const TextStyle(
                   fontSize: 12,
-                  color: Color(0xFF1F2937),
+                  color: kTextMain,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -514,9 +578,12 @@ class _FullCourseDialog extends StatelessWidget {
         '${course.day >= 1 && course.day <= 7 ? days[course.day] : ''} ${course.section >= 1 && course.section <= 5 ? secs[course.section] : ''}'
             .trim();
     return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(18, 20, 18, 16),
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 34),
+      child: GlassCard(
+        radius: 22,
+        padding: const EdgeInsets.fromLTRB(18, 16, 14, 14),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -529,16 +596,12 @@ class _FullCourseDialog extends StatelessWidget {
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w800,
-                      color: Color(0xFF1E3A8A),
+                      color: kInk,
                     ),
                   ),
                 ),
                 IconButton(
-                  icon: const Icon(
-                    Icons.close,
-                    size: 18,
-                    color: Color(0xFF6B7280),
-                  ),
+                  icon: const Icon(Icons.close, size: 18, color: kTextMuted),
                   onPressed: () => Navigator.pop(context),
                 ),
               ],

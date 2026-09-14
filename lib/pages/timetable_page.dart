@@ -23,8 +23,7 @@ class TimetablePage extends ConsumerWidget {
         Padding(
           padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 14),
           child: GlassCard(
-            radius: 16,
-            opacity: 0.16,
+            radius: 18,
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
             child: Row(
               children: [
@@ -184,6 +183,19 @@ class _TimetableGridState extends State<_TimetableGrid> {
       secList.add(s);
     }
     if (secList.isEmpty) return const EmptyView(text: '暂无课表，联网后自动更新');
+    // 收集每门课出现在星期几，做「同天不同色」的颜色冲突消解。
+    final courseDays = <String, Set<int>>{};
+    for (final s in secList) {
+      final row = bySection[s];
+      if (row == null) continue;
+      for (var col = 0; col < 7 && col < row.cells.length; col++) {
+        final cell = row.cells[col];
+        if (!cell.isEmpty) {
+          (courseDays[cell.name] ??= <int>{}).add(col + 1);
+        }
+      }
+    }
+    final colorMap = assignCourseIndices(courseDays);
     final todayCol = DateTime.now().weekday - 1;
     // 首次渲染课表网格时自动聚焦今天列（_didAutoScroll 保证只聚焦一次，切换周次不会重复聚焦）
     WidgetsBinding.instance.addPostFrameCallback((_) => _autoscrollIfNeeded());
@@ -217,7 +229,7 @@ class _TimetableGridState extends State<_TimetableGrid> {
                         textAlign: TextAlign.center,
                         style: const TextStyle(
                           fontSize: 10,
-                          color: Color(0xFF6B7280),
+                          color: kTextMuted,
                           height: 1.1,
                         ),
                       ),
@@ -259,8 +271,8 @@ class _TimetableGridState extends State<_TimetableGrid> {
                                         ? FontWeight.w700
                                         : FontWeight.w600,
                                     color: (i == 5 || i == 6)
-                                        ? const Color(0xFFDC2626)
-                                        : const Color(0xFF374151),
+                                        ? kWeekend
+                                        : kTextMain,
                                   ),
                                 ),
                               ),
@@ -289,7 +301,7 @@ class _TimetableGridState extends State<_TimetableGrid> {
                                       ? kPrimary.withValues(alpha: 0.06)
                                       : null,
                                 ),
-                                child: _cell(bySection[s], i),
+                                child: _cell(bySection[s], i, colorMap),
                               ),
                           ],
                         ),
@@ -304,9 +316,9 @@ class _TimetableGridState extends State<_TimetableGrid> {
     );
   }
 
-  Widget _cell(TimetableRow? row, int col) {
+  Widget _cell(TimetableRow? row, int col, Map<String, int> colorMap) {
     final cell = row != null && col < row.cells.length ? row.cells[col] : null;
     if (cell == null || cell.isEmpty) return const SizedBox.shrink();
-    return CourseCard(cell: cell);
+    return CourseCard(cell: cell, color: coursePalette[colorMap[cell.name]!]);
   }
 }

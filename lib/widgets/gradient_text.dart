@@ -11,7 +11,7 @@ class GradientText extends StatefulWidget {
     super.key,
     required this.text,
     this.style,
-    this.colors = const [Color(0xFF1E3A8A), Color(0xFF3B82F6), Color(0xFF7DB4FF), Color(0xFF3B82F6), Color(0xFF1E3A8A)],
+    this.colors = const [Color(0xFF454C84), Color(0xFF6E77B5), Color(0xFFA4ABD6), Color(0xFF6E77B5), Color(0xFF454C84)],
     this.fontSize = 12,
   });
 

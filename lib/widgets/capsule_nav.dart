@@ -14,25 +14,31 @@ class CapsuleNav extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.fromLTRB(14, 8, 14, 12),
       child: GlassCard(
-        radius: 22,
-        opacity: 0.12,
-        padding: const EdgeInsets.all(4),
+        radius: 24,
+        padding: const EdgeInsets.all(5),
         child: Row(
           children: [
             for (var i = 0; i < labels.length; i++)
               Expanded(
                 child: GestureDetector(
                   onTap: () => onTap(i),
+                  behavior: HitTestBehavior.opaque,
                   child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 180),
-                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    duration: kSpringDur,
+                    curve: kSpring,
+                    padding: const EdgeInsets.symmetric(vertical: 9),
                     decoration: BoxDecoration(
-                      gradient: i == index
-                          ? const LinearGradient(colors: [Color(0xFF7DB4FF), kPrimary])
-                          : null,
-                      borderRadius: BorderRadius.circular(18),
+                      // 选中：雾蓝紫实底 + 同色柔光；未选：透明（露出玻璃条本身）
+                      color: i == index ? kPrimary : Colors.transparent,
+                      borderRadius: BorderRadius.circular(19),
                       boxShadow: i == index
-                          ? [BoxShadow(color: kPrimary.withValues(alpha: .28), blurRadius: 6)]
+                          ? [
+                              BoxShadow(
+                                color: kPrimary.withValues(alpha: 0.38),
+                                blurRadius: 12,
+                                offset: const Offset(0, 4),
+                              ),
+                            ]
                           : null,
                     ),
                     child: Text(
@@ -40,8 +46,9 @@ class CapsuleNav extends StatelessWidget {
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 12,
-                        fontWeight: i == index ? FontWeight.w700 : FontWeight.w400,
-                        color: i == index ? Colors.white : const Color(0xFF5B6B85),
+                        fontWeight:
+                            i == index ? FontWeight.w700 : FontWeight.w500,
+                        color: i == index ? Colors.white : kTextMuted,
                       ),
                     ),
                   ),

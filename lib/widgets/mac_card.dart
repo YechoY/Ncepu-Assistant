@@ -36,20 +36,20 @@ class MacCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(radius),
         // 细微高光描边：半透明白，弱化边界又保留层次
         border: Border.all(color: Colors.white.withValues(alpha: 0.7), width: 1),
-        boxShadow: [
-          // 远处大扩散阴影：营造悬浮感
+        boxShadow: const [
+          // 远处大扩散冷影：营造悬浮感（紫灰调，与玻璃面板阴影统一）
           BoxShadow(
-            color: const Color(0xFF1E293B).withValues(alpha: 0.10),
+            color: Color(0x1A5B6691),
             blurRadius: 20,
             spreadRadius: -4,
-            offset: const Offset(0, 10),
+            offset: Offset(0, 10),
           ),
           // 近处小阴影：贴地、加重边缘立体感
           BoxShadow(
-            color: const Color(0xFF1E293B).withValues(alpha: 0.06),
+            color: Color(0x0F3D4670),
             blurRadius: 6,
             spreadRadius: -2,
-            offset: const Offset(0, 2),
+            offset: Offset(0, 2),
           ),
         ],
       ),
