@@ -179,17 +179,17 @@ class _MainShellState extends ConsumerState<_MainShell> {
   @override
   void initState() {
     super.initState();
-    // 进入主界面即拉取最新课表/成绩/考试（登录后自动查询）。
-    // addPostFrameCallback：注册一个「本帧渲染完成后」再执行的回调。
+    // 进入主界面后的自动刷新（节流，缓存优先，不打扰）：
+    // addPostFrameCallback：注册一个「本帧渲染完成后」再执行的回调，
     // 之所以不在 initState 里直接调用，是因为此时界面还没画出来，
     // 等首帧画完再触发网络刷新，体验更顺、也避免在 build 过程中改状态报错。
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      // 缓存优先模式下，可能是「没登录、只看缓存」进来的。
-      // 只有本会话确实已登录（有有效会话）时才强制联网刷新，
-      // 否则会发无效请求、还可能用空结果覆盖掉本地好缓存。
+      // 不强制刷新：周课表/学期周次按天节流（今天刷过就跳过），
+      // 成绩、当前学期考试缓存 7 天内直接用；各类数据都可由右上角按钮手动刷新。
+      // 每次启动还会顺带清理本周之前的历史周课表缓存（在该方法内部完成）。
       if (ref.read(authStateProvider).loggedIn) {
-        ref.read(dataStateProvider.notifier).dailyRefreshIfNeeded(force: true);
+        ref.read(dataStateProvider.notifier).dailyRefreshIfNeeded();
       }
       // 进主界面即按缓存课表重排一次上课提醒（开关没开则内部直接返回）。
       ref.read(settingsProvider.notifier).rescheduleIfEnabled();
@@ -333,7 +333,7 @@ class _MainShellState extends ConsumerState<_MainShell> {
                   _ =>
                     () => ref
                         .read(dataStateProvider.notifier)
-                        .refreshExams(), // _ 是默认分支
+                        .refreshExams(force: true), // _ 是默认分支：手动刷新强制联网
                 },
                 userName: userLabel,
                 // 点用户胶囊 → 从底部弹出「上课提醒 / 关于 / 退出登录」菜单。
@@ -415,23 +415,17 @@ class _UserMenuSheet extends ConsumerWidget {
               if (v) {
                 // 首次开启：请求通知/精确闹钟权限，注册后台任务并立即重排。
                 final r = await notifier.enable();
+                if (!context.mounted) return;
                 if (!r.granted) {
                   messenger.showSnackBar(
                     const SnackBar(content: Text('需要通知权限才能上课提醒，可在系统设置中开启')),
                   );
-                } else if (!r.exact) {
-                  messenger.showSnackBar(
-                    const SnackBar(
-                      content: Text('已开启；为保证准时，建议在系统设置允许「闹钟和提醒」权限'),
-                    ),
-                  );
                 } else {
-                  messenger.showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        '已开启，将在每节课前 ${settings.reminderLeadMinutes} 分钟提醒',
-                      ),
-                    ),
+                  // 开启成功：弹窗说明功能与国产 ROM 的保活注意事项。
+                  await _showReminderInfo(
+                    context,
+                    minutes: settings.reminderLeadMinutes,
+                    exactAlarm: r.exact,
                   );
                 }
               } else {
@@ -481,6 +475,81 @@ class _UserMenuSheet extends ConsumerWidget {
       ),
     );
   }
+
+  /// 开启上课提醒后的功能说明弹窗：讲清提醒规则、续排/重启恢复机制，
+  /// 以及国产 ROM（vivo i管家等）必须放行通知与后台运行，否则到点不弹。
+  Future<void> _showReminderInfo(
+    BuildContext context, {
+    required int minutes,
+    required bool exactAlarm,
+  }) async {
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: Row(
+          children: [
+            const Icon(Icons.alarm_add_outlined, color: kPrimary, size: 20),
+            const SizedBox(width: 8),
+            const Text('上课提醒已开启', style: TextStyle(fontSize: 16)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _bullet('每节课前 $minutes 分钟发送本地通知，响铃时无需联网、不耗流量。'),
+            _bullet('自动安排未来 7 天的课程，每天后台续排；重启手机后也会自动恢复。'),
+            _bullet('调课或更换周次后，下拉刷新课表即可按最新课表重新排程。'),
+            if (!exactAlarm) _bullet('当前未获得精确闹钟权限，提醒可能略有延迟，建议在系统设置允许「闹钟和提醒」。'),
+            const SizedBox(height: 6),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFF7ED),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFFFED7AA)),
+              ),
+              child: const Text(
+                '若到点收不到通知：请在 i管家/系统设置中允许本应用通知与锁屏显示，'
+                '并允许后台运行、加入耗电白名单，勿一键清理本应用。',
+                style: TextStyle(
+                  fontSize: 11.5,
+                  height: 1.5,
+                  color: Color(0xFF9A3412),
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('我知道了'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static Widget _bullet(String text) => Padding(
+    padding: const EdgeInsets.only(bottom: 8),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: EdgeInsets.only(top: 5, right: 8),
+          child: CircleAvatar(radius: 2.5, backgroundColor: kPrimary),
+        ),
+        Expanded(
+          child: Text(
+            text,
+            style: const TextStyle(fontSize: 12, height: 1.5, color: kTextMain),
+          ),
+        ),
+      ],
+    ),
+  );
 
   /// 选择提前提醒分钟数：预设 10 / 20（默认），其余当前值归到「自定义」。
   Future<void> _pickLeadMinutes(

@@ -99,6 +99,22 @@ class CacheService {
 
   // 清空整张表（退出登录时用，把所有缓存一并删掉）。
   Future<void> clearAll() => _db.delete('kv');
+
+  /// 删除指定 key 的缓存（用于清理过期的历史周课表等）。
+  Future<void> delete(String key) =>
+      _db.delete('kv', where: 'key = ?', whereArgs: [key]);
+
+  /// 列出所有以 [prefix] 开头的键（如 'timetable_' → 各周课表缓存键）。
+  Future<List<String>> keysWithPrefix(String prefix) async {
+    final rows = await _db.query(
+      'kv',
+      columns: ['key'],
+      where: 'key LIKE ?',
+      // LIKE 的 % 匹配任意后缀；前缀本身不含通配符，安全。
+      whereArgs: ['$prefix%'],
+    );
+    return rows.map((r) => r['key'] as String).toList();
+  }
   // 关闭数据库连接。
   Future<void> close() => _db.close();
 }
