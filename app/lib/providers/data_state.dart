@@ -4,6 +4,7 @@ import '../models/course_cell.dart';
 import '../models/exam.dart';
 import '../models/grade.dart';
 import '../models/timetable_row.dart';
+import '../services/cache_service.dart';
 import 'app_state.dart';
 
 final dataStateProvider = NotifierProvider<DataNotifier, DataState>(
@@ -126,9 +127,19 @@ List<TimetableRow> ttFromJson(dynamic v) => (v as List)
     .toList();
 
 class DataNotifier extends Notifier<DataState> {
+  /// 成绩/考试缓存有效期：7 天内启动 App 直接用缓存、不联网；超过 7 天才自动刷新，
+  /// 其余情况靠各页刷新按钮手动更新。
+  static const int gradesCacheDays = 7;
+  static const int examsCacheDays = 7;
+
   @override
   DataState build() => const DataState();
 
+  /// 启动后的按需刷新（后台静默，失败不打扰）：
+  /// - 周课表/学期周次：保持「每天首次启动刷新一次」的粒度（last_daily_update）；
+  /// - 成绩/考试：各自缓存超过 7 天（或从无缓存）才联网；
+  /// - 每次启动顺带清理本周之前的历史周课表缓存。
+  /// [force]（手动刷新）时忽略上述节流，三类数据全部重查。
   Future<void> dailyRefreshIfNeeded({bool force = false}) async {
     final cache = ref.read(cacheServiceProvider);
     final api = ref.read(apiClientProvider);
@@ -143,16 +154,25 @@ class DataNotifier extends Notifier<DataState> {
         currentWeekBase: cachedBase as String,
       );
     }
-    if (!force && last == today) {
-      // 今日已刷新过但缓存里没有 current_week：补一次获取，保证周次能显示
+    // 清理上周及更早的周课表缓存（只保留本周及以后）。
+    await _cleanupOldTimetableCache(cache);
+
+    final ttDue = force || last != today;
+    final gradesDue =
+        force || await _isCacheStale(cache, 'grades', gradesCacheDays);
+    final examsDue =
+        force || await _isCacheStale(cache, 'exams', examsCacheDays);
+    if (!ttDue && !gradesDue && !examsDue) {
+      // 今日课表已刷新、成绩考试缓存也新鲜：仅在缺周次信息时补一次获取。
       if (cachedWeek == null || cachedBase == null) {
         final info = await api.fetchSemesterInfo();
         if (info != null) {
           final base = mondayOf(DateTime.now());
           await cache.saveJson('current_week', info.current);
           await cache.saveJson('current_week_base', base);
-          if (info.total != null)
+          if (info.total != null) {
             await cache.saveJson('total_weeks', info.total as int);
+          }
           state = state.copyWith(
             currentWeek: info.current,
             currentWeekBase: base,
@@ -163,50 +183,82 @@ class DataNotifier extends Notifier<DataState> {
       return;
     }
     state = state.copyWith(loading: true);
-    final week = mondayOf(DateTime.now());
-    try {
-      final tt = await api.fetchTimetable(week);
-      await cache.saveJson('timetable_$week', ttToJson(tt));
-      // 联网成功：标记 online=true，用于摘掉离线横幅
-      state = state.copyWith(
-        timetable: tt,
-        timetableWeek: week,
-        online: true,
-        timetableUpdatedAt: DateTime.now().millisecondsSinceEpoch,
-      );
-    } catch (_) {}
-    final info = await api.fetchSemesterInfo();
-    if (info != null) {
-      await cache.saveJson('current_week', info.current);
-      await cache.saveJson('current_week_base', week);
-      if (info.total != null)
-        await cache.saveJson('total_weeks', info.total as int);
-      state = state.copyWith(
-        currentWeek: info.current,
-        currentWeekBase: week,
-        totalWeeks: info.total,
-      );
+    if (ttDue) {
+      final week = mondayOf(DateTime.now());
+      try {
+        final tt = await api.fetchTimetable(week);
+        await cache.saveJson('timetable_$week', ttToJson(tt));
+        // 联网成功：标记 online=true，用于摘掉离线横幅
+        state = state.copyWith(
+          timetable: tt,
+          timetableWeek: week,
+          online: true,
+          timetableUpdatedAt: DateTime.now().millisecondsSinceEpoch,
+        );
+      } catch (_) {}
+      final info = await api.fetchSemesterInfo();
+      if (info != null) {
+        await cache.saveJson('current_week', info.current);
+        await cache.saveJson('current_week_base', week);
+        if (info.total != null) {
+          await cache.saveJson('total_weeks', info.total as int);
+        }
+        state = state.copyWith(
+          currentWeek: info.current,
+          currentWeekBase: week,
+          totalWeeks: info.total,
+        );
+      }
+      await cache.saveJson('last_daily_update', today);
     }
-    try {
-      final g = await api.fetchGrades();
-      await cache.saveJson('grades', g.map((e) => e.toJson()).toList());
-      state = state.copyWith(
-        grades: g,
-        online: true,
-        gradesUpdatedAt: DateTime.now().millisecondsSinceEpoch,
-      );
-    } catch (_) {}
-    try {
-      final e = await api.fetchExams();
-      await cache.saveJson('exams', e.map((x) => x.toJson()).toList());
-      state = state.copyWith(
-        exams: e,
-        online: true,
-        examsUpdatedAt: DateTime.now().millisecondsSinceEpoch,
-      );
-    } catch (_) {}
-    await cache.saveJson('last_daily_update', today);
+    if (gradesDue) {
+      try {
+        final g = await api.fetchGrades();
+        await cache.saveJson('grades', g.map((e) => e.toJson()).toList());
+        state = state.copyWith(
+          grades: g,
+          online: true,
+          gradesUpdatedAt: DateTime.now().millisecondsSinceEpoch,
+        );
+      } catch (_) {}
+    }
+    if (examsDue) {
+      try {
+        final e = await api.fetchExams();
+        await cache.saveJson('exams', e.map((x) => x.toJson()).toList());
+        state = state.copyWith(
+          exams: e,
+          online: true,
+          examsUpdatedAt: DateTime.now().millisecondsSinceEpoch,
+        );
+      } catch (_) {}
+    }
     state = state.copyWith(loading: false);
+  }
+
+  /// 缓存是否「需要刷新」：从无缓存（null）视为需要；否则比较是否已超过 [days] 天。
+  Future<bool> _isCacheStale(CacheService cache, String key, int days) async {
+    final at = await cache.updatedAt(key);
+    if (at == null) return true;
+    return DateTime.now().difference(DateTime.fromMillisecondsSinceEpoch(at)) >
+        Duration(days: days);
+  }
+
+  /// 删除本周周一之前的所有周课表缓存（上周及更早）。
+  /// 键名后缀是定长 yyyy-MM-dd，字典序与时间序一致，可直接字符串比较。
+  /// 顺带清理旧版本曾为历史学期考试写入的 `exams_<term>` 缓存（现已不再使用）。
+  Future<void> _cleanupOldTimetableCache(CacheService cache) async {
+    final currentMonday = mondayOf(DateTime.now());
+    final keys = await cache.keysWithPrefix('timetable_');
+    for (final k in keys) {
+      final d = k.substring('timetable_'.length);
+      if (d.length == 10 && d.compareTo(currentMonday) < 0) {
+        await cache.delete(k);
+      }
+    }
+    for (final k in await cache.keysWithPrefix('exams_')) {
+      await cache.delete(k);
+    }
   }
 
   /// 加载指定周(周一日期)的课表。
@@ -279,29 +331,67 @@ class DataNotifier extends Notifier<DataState> {
     }
   }
 
-  // 考试缓存键：当前学期（默认）沿用 'exams'，指定学期则用 'exams_<term>'。
-  // 这样可离线保留每个学期各自查过的考试，切回来无需重新联网。
-  String _examCacheKey(String term) => term.isEmpty ? 'exams' : 'exams_$term';
+  // 注：历史学期考试按需求不缓存，仅当前学期使用固定键 'exams'。
 
   /// 刷新考试安排。
   /// [term] 指定学期（xnxqid，如 2025-2026-2）；不传/空串表示当前学期。
-  Future<void> refreshExams({String? term}) async {
+  /// - 其他学期（手动切换过去）：实时联网查询、不缓存（按需求不自动查、不留缓存）；
+  /// - 当前学期：缓存 7 天内直接展示，[force]=true（手动刷新）或超 7 天/无缓存才联网。
+  Future<void> refreshExams({String? term, bool force = false}) async {
     final t = term ?? state.examTerm;
     final cache = ref.read(cacheServiceProvider);
     final api = ref.read(apiClientProvider);
-    // 切换学期时先记录选中项，并尝试展示该学期的缓存，避免加载期间显示上一学期数据。
-    final cached = await cache.loadJson(_examCacheKey(t));
+
+    // 其他学期：仅手动切换时实时查询，不走缓存。
+    if (t.isNotEmpty) {
+      state = state.copyWith(
+        loading: true,
+        examTerm: t,
+        exams: const [],
+        examsUpdatedAt: null,
+      );
+      try {
+        final e = await api.fetchExams(term: t);
+        state = state.copyWith(
+          exams: e,
+          loading: false,
+          notice: null,
+          online: true,
+          examsUpdatedAt: DateTime.now().millisecondsSinceEpoch,
+        );
+      } catch (_) {
+        state = state.copyWith(loading: false, notice: '获取失败，请确认已连接校园网后重试');
+      }
+      return;
+    }
+
+    // 当前学期：缓存优先（7 天）。
+    const key = 'exams';
+    final cached = await cache.loadJson(key);
+    final cachedAt = await cache.updatedAt(key);
+    final cachedList = cached is List
+        ? cached.map((e) => Exam.fromJson(e as Map<String, dynamic>)).toList()
+        : <Exam>[];
     state = state.copyWith(
       loading: true,
       examTerm: t,
-      exams: cached is List
-          ? cached.map((e) => Exam.fromJson(e as Map<String, dynamic>)).toList()
-          : <Exam>[],
-      examsUpdatedAt: await cache.updatedAt(_examCacheKey(t)),
+      exams: cachedList,
+      examsUpdatedAt: cachedAt,
     );
+    // 非手动刷新且有 7 天内的非空缓存：直接用，不联网。
+    final fresh =
+        cachedAt != null &&
+        DateTime.now().difference(
+              DateTime.fromMillisecondsSinceEpoch(cachedAt),
+            ) <=
+            const Duration(days: examsCacheDays);
+    if (!force && cachedList.isNotEmpty && fresh) {
+      state = state.copyWith(loading: false, notice: null);
+      return;
+    }
     try {
-      final e = await api.fetchExams(term: t.isEmpty ? null : t);
-      await cache.saveJson(_examCacheKey(t), e.map((x) => x.toJson()).toList());
+      final e = await api.fetchExams();
+      await cache.saveJson(key, e.map((x) => x.toJson()).toList());
       state = state.copyWith(
         exams: e,
         loading: false,
@@ -310,7 +400,10 @@ class DataNotifier extends Notifier<DataState> {
         examsUpdatedAt: DateTime.now().millisecondsSinceEpoch,
       );
     } catch (_) {
-      state = state.copyWith(loading: false, notice: '获取失败，已显示缓存数据');
+      state = state.copyWith(
+        loading: false,
+        notice: cachedList.isNotEmpty ? '获取失败，已显示缓存数据' : null,
+      );
     }
   }
 

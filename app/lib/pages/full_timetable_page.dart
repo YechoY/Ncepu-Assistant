@@ -50,6 +50,9 @@ class _FullTimetablePageState extends ConsumerState<FullTimetablePage> {
 
   // 整学期课表缓存键：页面只查当前学期，故用固定键；联网成功会持续续期。
   static const _cacheKey = 'full_timetable_current';
+  // 缓存有效期：7 天内进入页面直接用缓存、不联网；超过 7 天才后台静默自动刷新。
+  // 其余情况一律靠右上角刷新按钮手动更新。
+  static const _cacheMaxAge = Duration(days: 7);
 
   bool _loading = true;
   bool _refreshing = false; // 已有内容时的联网刷新中（后台静默或手动）
@@ -63,8 +66,9 @@ class _FullTimetablePageState extends ConsumerState<FullTimetablePage> {
     _load();
   }
 
-  /// 缓存优先：有非空缓存立即渲染，再后台静默联网刷新；无缓存才转圈等结果。
-  /// 离线（非校园网）也能看到上次成功获取的整学期课表。
+  /// 缓存优先：有非空缓存立即渲染，且 7 天内不再自动联网；仅当缓存超过 7 天
+  /// （或读不到写入时间）时才后台静默刷新一次。无缓存才转圈等联网结果。
+  /// 想随时更新可点右上角刷新按钮手动触发。离线（非校园网）也能看到缓存课表。
   Future<void> _load() async {
     final cache = ref.read(cacheServiceProvider);
     final cached = await cache.loadJson(_cacheKey, ttlDays: 30);
@@ -76,13 +80,19 @@ class _FullTimetablePageState extends ConsumerState<FullTimetablePage> {
         : <FullCourse>[];
     if (!mounted) return;
     if (cachedList.isNotEmpty) {
+      final stale =
+          cachedAt == null ||
+          DateTime.now().difference(
+                DateTime.fromMillisecondsSinceEpoch(cachedAt),
+              ) >
+              _cacheMaxAge;
       setState(() {
         _courses = cachedList;
         _updatedAt = cachedAt;
         _loading = false;
-        _refreshing = true;
+        _refreshing = stale;
       });
-      await _fetch();
+      if (stale) await _fetch(); // 仅缓存超 7 天才自动更新
     } else {
       await _fetch(); // 无缓存：保持转圈，等联网结果
     }
