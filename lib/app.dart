@@ -21,7 +21,6 @@ import 'pages/timetable_page.dart';
 import 'providers/app_state.dart';
 import 'providers/auth_state.dart';
 import 'providers/data_state.dart';
-import 'providers/settings_state.dart';
 import 'theme.dart';
 import 'widgets/capsule_nav.dart';
 import 'widgets/glass_background.dart';
@@ -191,8 +190,6 @@ class _MainShellState extends ConsumerState<_MainShell> {
       if (ref.read(authStateProvider).loggedIn) {
         ref.read(dataStateProvider.notifier).dailyRefreshIfNeeded();
       }
-      // 进主界面即按缓存课表重排一次上课提醒（开关没开则内部直接返回）。
-      ref.read(settingsProvider.notifier).rescheduleIfEnabled();
     });
   }
 
@@ -220,8 +217,6 @@ class _MainShellState extends ConsumerState<_MainShell> {
       ),
     );
     if (ok == true) {
-      // 退出登录意味着本地不再有课表数据来源：一并关闭上课提醒、取消已排通知与后台任务。
-      await ref.read(settingsProvider.notifier).disable();
       await ref.read(authStateProvider.notifier).logout(); // 清账号密码 + 缓存
       // 又是 async 后用 context，先判 mounted 更安全。
       if (mounted) {
@@ -246,23 +241,6 @@ class _MainShellState extends ConsumerState<_MainShell> {
     ];
     final user = ref.watch(authStateProvider); // 监听登录信息（姓名/班级）
     final state = ref.watch(dataStateProvider); // 监听数据状态（是否有提示 notice）
-    // 课表数据更新（自动登录后的每日刷新/手动刷新/切周写入缓存）后，强制重排。
-    // 必须 force：冷启动第一次重排可能发生在会话恢复之前、补拉下周课表失败，
-    // 登录成功刷新数据时若被 10 秒节流挡掉，下周闹钟就永远排不上。
-    ref.listen(dataStateProvider, (prev, next) {
-      if (prev?.timetableUpdatedAt != next.timetableUpdatedAt ||
-          prev?.timetableWeek != next.timetableWeek) {
-        ref.read(settingsProvider.notifier).rescheduleIfEnabled(force: true);
-      }
-    });
-    // 会话恢复（自动登录成功）是补拉下周课表的最佳时机：cookie 此刻才有效。
-    // 不能只靠 dataState 更新——若当天已刷过，dailyRefresh 会跳过网络、
-    // 不产生 state 变化，重排就永远不触发。
-    ref.listen(authStateProvider, (prev, next) {
-      if (prev?.loggedIn != true && next.loggedIn) {
-        ref.read(settingsProvider.notifier).rescheduleIfEnabled(force: true);
-      }
-    });
     // 顶部用户胶囊要显示的文字：优先「姓名 · 班级」，否则学号，否则“未登录”。
     // 这是 Dart 的三元表达式嵌套写法。
     final userLabel = user.name.isNotEmpty
@@ -336,7 +314,7 @@ class _MainShellState extends ConsumerState<_MainShell> {
                         .refreshExams(force: true), // _ 是默认分支：手动刷新强制联网
                 },
                 userName: userLabel,
-                // 点用户胶囊 → 从底部弹出「上课提醒 / 关于 / 退出登录」菜单。
+                // 点用户胶囊 → 从底部弹出「关于 / 退出登录」菜单。
                 onUserTap: () => showModalBottomSheet(
                   context: context,
                   builder: (_) =>
@@ -385,73 +363,18 @@ class _MainShellState extends ConsumerState<_MainShell> {
   }
 }
 
-/// 用户胶囊弹出的底部菜单。独立成 ConsumerWidget：
-/// 底部弹窗用的是自己的 context，放在 _MainShellState.build 里不会随
-/// settingsProvider 变化重建，开关打开后 UI 不刷新；抽出来 watch 即可实时更新。
-class _UserMenuSheet extends ConsumerWidget {
+/// 用户胶囊弹出的底部菜单。
+class _UserMenuSheet extends StatelessWidget {
   final VoidCallback onAbout;
   final VoidCallback onLogout;
   const _UserMenuSheet({required this.onAbout, required this.onLogout});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final settings = ref.watch(settingsProvider);
-    final notifier = ref.read(settingsProvider.notifier);
-    final messenger = ScaffoldMessenger.of(context);
-
+  Widget build(BuildContext context) {
     return SafeArea(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          SwitchListTile(
-            secondary: const Icon(Icons.alarm_add_outlined, color: kPrimary),
-            title: const Text('上课提醒', style: TextStyle(fontSize: 14)),
-            subtitle: Text(
-              '上课前 ${settings.reminderLeadMinutes} 分钟本地通知',
-              style: const TextStyle(fontSize: 11),
-            ),
-            value: settings.reminderEnabled,
-            onChanged: (v) async {
-              if (v) {
-                // 首次开启：请求通知/精确闹钟权限，注册后台任务并立即重排。
-                final r = await notifier.enable();
-                if (!context.mounted) return;
-                if (!r.granted) {
-                  messenger.showSnackBar(
-                    const SnackBar(content: Text('需要通知权限才能上课提醒，可在系统设置中开启')),
-                  );
-                } else {
-                  // 开启成功：弹窗说明功能与国产 ROM 的保活注意事项。
-                  await _showReminderInfo(
-                    context,
-                    minutes: settings.reminderLeadMinutes,
-                    exactAlarm: r.exact,
-                  );
-                }
-              } else {
-                await notifier.disable();
-                messenger.showSnackBar(
-                  const SnackBar(content: Text('已关闭上课提醒')),
-                );
-              }
-            },
-          ),
-          ListTile(
-            enabled: settings.reminderEnabled,
-            leading: const Icon(Icons.timer_outlined),
-            title: const Text('提醒时间', style: TextStyle(fontSize: 14)),
-            trailing: Text(
-              '提前 ${settings.reminderLeadMinutes} 分钟',
-              style: const TextStyle(fontSize: 12, color: kTextMuted),
-            ),
-            onTap: settings.reminderEnabled
-                ? () => _pickLeadMinutes(
-                    context,
-                    ref,
-                    settings.reminderLeadMinutes,
-                  )
-                : null,
-          ),
           ListTile(
             leading: const Icon(Icons.info_outline),
             title: const Text('关于', style: TextStyle(fontSize: 14)),
@@ -470,177 +393,6 @@ class _UserMenuSheet extends ConsumerWidget {
               Navigator.pop(context); // 先关掉底部菜单
               onLogout();
             },
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// 开启上课提醒后的功能说明弹窗：讲清提醒规则、续排/重启恢复机制，
-  /// 以及国产 ROM（vivo i管家等）必须放行通知与后台运行，否则到点不弹。
-  Future<void> _showReminderInfo(
-    BuildContext context, {
-    required int minutes,
-    required bool exactAlarm,
-  }) async {
-    await showDialog<void>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        title: Row(
-          children: [
-            const Icon(Icons.alarm_add_outlined, color: kPrimary, size: 20),
-            const SizedBox(width: 8),
-            const Text('上课提醒已开启', style: TextStyle(fontSize: 16)),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _bullet('每节课前 $minutes 分钟发送本地通知，响铃时无需联网、不耗流量。'),
-            _bullet('自动安排未来 7 天的课程，每天后台续排；重启手机后也会自动恢复。'),
-            _bullet('调课或更换周次后，下拉刷新课表即可按最新课表重新排程。'),
-            if (!exactAlarm) _bullet('当前未获得精确闹钟权限，提醒可能略有延迟，建议在系统设置允许「闹钟和提醒」。'),
-            const SizedBox(height: 6),
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFFF7ED),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: const Color(0xFFFED7AA)),
-              ),
-              child: const Text(
-                '若到点收不到通知：请在 i管家/系统设置中允许本应用通知与锁屏显示，'
-                '并允许后台运行、加入耗电白名单，勿一键清理本应用。',
-                style: TextStyle(
-                  fontSize: 11.5,
-                  height: 1.5,
-                  color: Color(0xFF9A3412),
-                ),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('我知道了'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  static Widget _bullet(String text) => Padding(
-    padding: const EdgeInsets.only(bottom: 8),
-    child: Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Padding(
-          padding: EdgeInsets.only(top: 5, right: 8),
-          child: CircleAvatar(radius: 2.5, backgroundColor: kPrimary),
-        ),
-        Expanded(
-          child: Text(
-            text,
-            style: const TextStyle(fontSize: 12, height: 1.5, color: kTextMain),
-          ),
-        ),
-      ],
-    ),
-  );
-
-  /// 选择提前提醒分钟数：预设 10 / 20（默认），其余当前值归到「自定义」。
-  Future<void> _pickLeadMinutes(
-    BuildContext context,
-    WidgetRef ref,
-    int current,
-  ) async {
-    const presets = [10, 20];
-    final isCustom = !presets.contains(current);
-    final picked = await showModalBottomSheet<int>(
-      context: context,
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Padding(
-              padding: EdgeInsets.fromLTRB(16, 14, 16, 6),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  '提前多久提醒',
-                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
-                ),
-              ),
-            ),
-            for (final m in presets)
-              ListTile(
-                title: Text('$m 分钟'),
-                trailing: current == m
-                    ? const Icon(Icons.check, color: kPrimary)
-                    : null,
-                onTap: () => Navigator.pop(ctx, m),
-              ),
-            ListTile(
-              title: Text(isCustom ? '自定义（$current 分钟）' : '自定义'),
-              trailing: isCustom
-                  ? const Icon(Icons.check, color: kPrimary)
-                  : null,
-              onTap: () => Navigator.pop(ctx, 0), // 0 = 去自定义输入
-            ),
-          ],
-        ),
-      ),
-    );
-    if (picked == null || !context.mounted) return;
-
-    var minutes = picked;
-    if (picked == 0) {
-      minutes = await _showCustomInput(context, current) ?? -1;
-      if (minutes < 1 || !context.mounted) return;
-    }
-    await ref.read(settingsProvider.notifier).setLeadMinutes(minutes);
-    if (context.mounted) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('已设置为上课前 $minutes 分钟提醒，并重新排程')));
-    }
-  }
-
-  /// 自定义分钟数输入对话框（1~180 的整数）。
-  Future<int?> _showCustomInput(BuildContext context, int initial) async {
-    final ctrl = TextEditingController(text: '$initial');
-    return showDialog<int>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('自定义提醒时间', style: TextStyle(fontSize: 16)),
-        content: TextField(
-          controller: ctrl,
-          autofocus: true,
-          keyboardType: TextInputType.number,
-          decoration: const InputDecoration(
-            suffixText: '分钟',
-            hintText: '1 ~ 180',
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('取消'),
-          ),
-          TextButton(
-            onPressed: () {
-              final v = int.tryParse(ctrl.text.trim());
-              if (v == null || v < 1 || v > 180) {
-                ScaffoldMessenger.of(ctx).showSnackBar(
-                  const SnackBar(content: Text('请输入 1 ~ 180 之间的分钟数')),
-                );
-                return;
-              }
-              Navigator.pop(ctx, v);
-            },
-            child: const Text('确定'),
           ),
         ],
       ),

@@ -9,26 +9,16 @@
 import 'package:flutter/material.dart'; // Material Design 组件库（Widget、主题、颜色等）
 import 'package:flutter_riverpod/flutter_riverpod.dart'; // 状态管理框架 Riverpod
 import 'package:path_provider/path_provider.dart'; // 拿到手机上「应用专属目录」的路径
-import 'package:shared_preferences/shared_preferences.dart'; // 读取提醒开关等简单设置
-import 'package:workmanager/workmanager.dart'; // 上课提醒的每日后台重排任务
 
 import 'app.dart'; // 根组件 HdjwApp
 import 'providers/app_state.dart'; // 里面定义了 cacheServiceProvider（缓存服务的“插座”）
-import 'providers/settings_state.dart'; // SettingsNotifier.reminderEnabledKey
 import 'services/cache_service.dart'; // SQLite 缓存服务
-import 'services/notification_service.dart'; // 本地通知服务（上课提醒）
-import 'services/reminder_jobs.dart'; // WorkManager 后台回调与任务注册
 
 // Dart 里 async 函数返回 Future；main 需要 await 一些异步初始化，所以声明成 `Future<void> async`。
 Future<void> main() async {
   // 只要在 runApp 之前调用了异步代码（比如下面读文件目录、打开数据库），
   // 就必须先手动初始化 Flutter 引擎与 Widget 绑定，否则会报错。
   WidgetsFlutterBinding.ensureInitialized();
-
-  // 上课提醒：初始化通知渠道与中国时区；注册 WorkManager 后台入口。
-  // 两者都要在 App 启动早期就绪，保证后台任务与开机恢复可用。
-  await NotificationService.instance.init();
-  await Workmanager().initialize(reminderCallbackDispatcher);
 
   // 获取「应用文档目录」——这是系统分配给本 App 的私有目录，卸载 App 时会一起清除，
   // 适合存数据库、缓存等。await 表示等这个异步操作完成再往下走。
@@ -37,13 +27,6 @@ Future<void> main() async {
   // 在这个目录下打开（或首次创建）SQLite 缓存数据库。
   // 放在 runApp 之前打开，是为了让缓存服务「就绪后」再注入给整个 App 使用。
   final cache = await CacheService.open(dir.path);
-
-  // 若上次已开启上课提醒，启动时确保每日后台任务在位（keep：已注册则不重复创建）。
-  // 手机重启后 App 首次被系统/用户拉起时，靠这里重新挂上任务。
-  final prefs = await SharedPreferences.getInstance();
-  if (prefs.getBool(SettingsNotifier.reminderEnabledKey) ?? false) {
-    await registerReminderJob();
-  }
 
   // runApp 启动 App，参数是根 Widget。
   runApp(
