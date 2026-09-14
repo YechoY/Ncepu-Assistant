@@ -1,15 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- 联网权限：主 manifest 必须有，否则 release 无法访问教务系统（debug 靠 debug manifest 额外加，release 不加） -->
     <uses-permission android:name="android.permission.INTERNET"/>
-    <!-- 上课提醒：Android 13+ 发送通知需要运行时申请 -->
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
-    <!-- 上课提醒：Android 12+ 精确闹钟（到点准时，不被 Doze 推迟）。
-         API 31-32 用 SCHEDULE_EXACT_ALARM（安装即授予）；API 33+ 用 USE_EXACT_ALARM（安装即授予，
-         本应用为自用课程提醒工具、不上架商店）。未授予时代码会自动降级为非精确闹钟。 -->
-    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>
-    <uses-permission android:name="android.permission.USE_EXACT_ALARM"/>
-    <!-- WorkManager 手机重启后自动重新注册每日重排任务 -->
-    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
     <application
         android:label="华电教务助手"
         android:name="${applicationName}"
@@ -36,22 +27,6 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
-        <!-- 上课提醒：flutter_local_notifications 18+ 要求在 App manifest 手动声明
-             Receiver（插件自身不再合并这些声明，漏声明会导致闹钟到点广播被系统
-             静默丢弃、通知永不弹出——2026-09-14 实测踩坑）。 -->
-        <receiver
-            android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver"
-            android:exported="false" />
-        <receiver
-            android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationBootReceiver"
-            android:exported="false">
-            <intent-filter>
-                <action android:name="android.intent.action.BOOT_COMPLETED"/>
-                <action android:name="android.intent.action.MY_PACKAGE_REPLACED"/>
-                <action android:name="android.intent.action.QUICKBOOT_POWERON"/>
-                <action android:name="com.htc.intent.action.QUICKBOOT_POWERON"/>
-            </intent-filter>
-        </receiver>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data
