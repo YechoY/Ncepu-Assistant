@@ -41,19 +41,40 @@ class _GradesPageState extends ConsumerState<GradesPage> {
   String sort = '';
   bool desc = false;
 
+  // —— 勾选计算模式：开启后学分绩按手动勾选的必修课实时计算；退出即清空 ——
+  bool selectMode = false;
+
+  /// 勾选的课程（Grade 未重写 ==，按对象同一性判等；列表元素即数据源对象，可安全用 Set）。
+  final Set<Grade> selected = {};
+
+  /// 学期快捷勾选：勾选某学期 = 一次性选中/移出该学期全部必修课。
+  Set<String> checkedTerms = {};
+
+  /// 某学期的全部必修课。
+  Iterable<Grade> _mustOfTerm(String t, List<Grade> grades) =>
+      grades.where((g) => g.term == t && g.attr.startsWith('必修'));
+
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(dataStateProvider);
     final terms = <String>{'全部学期', for (final g in state.grades) g.term};
     final attrs = <String>{'全部属性', for (final g in state.grades) g.attr};
-    var list = state.grades
-        .where(
-          (g) =>
-              (term == '全部学期' || g.term == term) &&
-              (attr == '全部属性' || g.attr == attr) &&
-              (query.isEmpty || g.name.contains(query)),
-        )
-        .toList();
+    // 勾选模式：学期下拉变成选课工具（不再过滤显示），但勾了哪些学期就让列表
+    // 只显示哪些学期，方便核对；搜索框/属性筛选仍只管显示——被筛出视野的
+    // 已勾课程依旧计入计算。
+    final termNames = terms.where((t) => t != '全部学期').toList();
+    var list = state.grades.where((g) {
+      if (selectMode) {
+        if (checkedTerms.isNotEmpty && !checkedTerms.contains(g.term)) {
+          return false;
+        }
+      } else if (term != '全部学期' && g.term != term) {
+        return false;
+      }
+      if (attr != '全部属性' && g.attr != attr) return false;
+      if (query.isNotEmpty && !g.name.contains(query)) return false;
+      return true;
+    }).toList();
     if (sort == '学期') {
       list.sort(
         (a, b) => desc ? b.term.compareTo(a.term) : a.term.compareTo(b.term),
@@ -78,24 +99,41 @@ class _GradesPageState extends ConsumerState<GradesPage> {
       );
     }
 
+    // 学期「部分选中」：该学期必修只勾了一部分 → 学期勾选框显示 "-"。
+    final partialTerms = <String>{};
+    for (final t in termNames) {
+      final must = _mustOfTerm(t, state.grades).toList();
+      if (must.isEmpty) continue;
+      final n = must.where(selected.contains).length;
+      if (n > 0 && n < must.length) partialTerms.add(t);
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 14),
           child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 8),
+            padding: const EdgeInsets.fromLTRB(8, 5, 6, 5),
             decoration: BoxDecoration(
               color: Colors.white.withValues(alpha: 0.55),
               borderRadius: BorderRadius.circular(999),
               border: Border.all(color: Colors.white.withValues(alpha: 0.65)),
             ),
-            child: Center(
-              child: GradientText(
-                text:
-                    '必修 ${state.grades.where((g) => g.attr.startsWith('必修')).length} 门 · 平均学分绩 ${gpa(state.grades).toStringAsFixed(4)}',
-                fontSize: 12,
-              ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Center(
+                    child: GradientText(
+                      text: selectMode
+                          ? '已选 ${selected.length} 门 · 必修平均学分绩 ${gpa(selected.toList()).toStringAsFixed(4)}'
+                          : '必修 ${state.grades.where((g) => g.attr.startsWith('必修')).length} 门 · 平均学分绩 ${gpa(state.grades).toStringAsFixed(4)}',
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+                _selectToggle(),
+              ],
             ),
           ),
         ),
@@ -103,7 +141,33 @@ class _GradesPageState extends ConsumerState<GradesPage> {
           padding: const EdgeInsets.fromLTRB(14, 10, 14, 8),
           child: Row(
             children: [
-              _dropdown(term, terms.toList(), (v) => setState(() => term = v)),
+              selectMode
+                  // 勾选模式：学期下拉变多选工具，勾选 = 快速选中该学期全部必修。
+                  ? GlassDropdown(
+                      value: checkedTerms.isEmpty
+                          ? '选择学期'
+                          : checkedTerms.join(' · '),
+                      items: termNames,
+                      multi: true,
+                      multiValues: checkedTerms,
+                      multiPartial: partialTerms,
+                      // 面板传来新的学期集合：与当前差量比对，
+                      // 新勾的学期 → 必修全加入；取消的学期 → 必修全移出。
+                      onMultiChanged: (v) => setState(() {
+                        for (final t in v.difference(checkedTerms)) {
+                          selected.addAll(_mustOfTerm(t, state.grades));
+                        }
+                        for (final t in checkedTerms.difference(v)) {
+                          selected.removeAll(_mustOfTerm(t, state.grades));
+                        }
+                        checkedTerms = v;
+                      }),
+                    )
+                  : _dropdown(
+                      term,
+                      terms.toList(),
+                      (v) => setState(() => term = v),
+                    ),
               const SizedBox(width: 6),
               Expanded(
                 child: Container(
@@ -188,7 +252,17 @@ class _GradesPageState extends ConsumerState<GradesPage> {
                     duration: const Duration(milliseconds: 320),
                     offset: const Offset(0, 14),
                     minScale: 0.98,
-                    child: GradeCard(grade: list[i]),
+                    child: GradeCard(
+                      grade: list[i],
+                      // 只有必修可勾（学分绩只统计必修）；非必修卡片无勾选框。
+                      selectable: selectMode && list[i].attr.startsWith('必修'),
+                      selected: selectMode && selected.contains(list[i]),
+                      onToggle: () => setState(() {
+                        selected.contains(list[i])
+                            ? selected.remove(list[i])
+                            : selected.add(list[i]);
+                      }),
+                    ),
                   ),
                 ),
         ),
@@ -201,4 +275,36 @@ class _GradesPageState extends ConsumerState<GradesPage> {
     List<String> items,
     ValueChanged<String> onChanged,
   ) => GlassDropdown(value: value, items: items, onChanged: onChanged);
+
+  /// 胶囊行右侧的勾选模式开关：开启 = 学分绩改按勾选课程实时计算；
+  /// 关闭即清空全部勾选（学期勾选 + 课程勾选），回到默认「全部必修」口径。
+  Widget _selectToggle() {
+    return GestureDetector(
+      onTap: () => setState(() {
+        selectMode = !selectMode;
+        if (!selectMode) {
+          selected.clear();
+          checkedTerms = {};
+        }
+      }),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        curve: kSpring,
+        width: 30,
+        height: 30,
+        decoration: BoxDecoration(
+          color: selectMode ? kPrimary : Colors.white.withValues(alpha: 0.5),
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: selectMode ? kPrimary : Colors.white.withValues(alpha: 0.65),
+          ),
+        ),
+        child: Icon(
+          Icons.checklist_rounded,
+          size: 17,
+          color: selectMode ? Colors.white : kTextMuted,
+        ),
+      ),
+    );
+  }
 }

@@ -24,6 +24,7 @@ import 'providers/data_state.dart';
 import 'theme.dart';
 import 'widgets/capsule_nav.dart';
 import 'widgets/glass_background.dart';
+import 'widgets/glass_card.dart';
 import 'widgets/offline_banner.dart';
 import 'widgets/top_bar.dart';
 
@@ -198,22 +199,14 @@ class _MainShellState extends ConsumerState<_MainShell> {
     // showDialog 返回一个 Future<bool?>：用户点了哪个按钮通过 Navigator.pop 带回来。
     final ok = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('退出登录', style: TextStyle(fontSize: 16)),
-        content: const Text(
-          '退出将清除本地登录信息，需要重新输入账号密码才能登录，确定吗？',
-          style: TextStyle(fontSize: 13),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false), // 关闭对话框并返回 false
-            child: const Text('取消'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true), // 返回 true
-            child: const Text('退出', style: TextStyle(color: Colors.red)),
-          ),
-        ],
+      barrierColor: const Color(0x402E3350), // 墨紫半透遮罩，比系统黑遮罩柔和
+      builder: (_) => const _GlassDialog(
+        title: '退出登录',
+        content: '退出将清除本地登录信息，需要重新输入账号密码才能登录，确定吗？',
+        cancelText: '取消',
+        confirmText: '退出',
+        destructive: true,
+        popResult: true, // 点「退出」→ pop(true)
       ),
     );
     if (ok == true) {
@@ -315,8 +308,11 @@ class _MainShellState extends ConsumerState<_MainShell> {
                 },
                 userName: userLabel,
                 // 点用户胶囊 → 从底部弹出「关于 / 退出登录」菜单。
+                // 透明底 + 墨紫遮罩，菜单本体是浮起的 GlassCard（与下拉面板同款）。
                 onUserTap: () => showModalBottomSheet(
                   context: context,
+                  backgroundColor: Colors.transparent,
+                  barrierColor: const Color(0x4D2E3350),
                   builder: (_) =>
                       _UserMenuSheet(onAbout: _about, onLogout: _logout),
                 ),
@@ -354,18 +350,133 @@ class _MainShellState extends ConsumerState<_MainShell> {
   void _about() {
     showDialog(
       context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('华电教务助手', style: TextStyle(fontSize: 17)),
-        content: const Text(
-          '华北电力大学教务系统助手\n版本 1.0.0\n数据来自 jwxt.ncepu.edu.cn',
-          style: TextStyle(fontSize: 12),
+      barrierColor: const Color(0x402E3350),
+      builder: (_) => const _GlassDialog(
+        title: '华电教务助手',
+        content: '华北电力大学教务系统助手\n版本 1.0.0\n数据来自 jwxt.ncepu.edu.cn',
+        confirmText: '好的',
+      ),
+    );
+  }
+}
+
+/// 统一的玻璃拟态弹窗：透明 Dialog + GlassCard 面板，替代系统 AlertDialog。
+/// [cancelText] 为空时只显示一个确认按钮（铺满整行）；否则「取消 + 确认」并排。
+/// [destructive] = 确认按钮用柔和红（退出登录等危险操作）。
+/// 点确认 → `Navigator.pop(context, [popResult])`，由 showDialog 的返回值接住。
+class _GlassDialog extends StatelessWidget {
+  final String title;
+  final String content;
+  final String confirmText;
+  final String? cancelText;
+  final bool destructive;
+  final Object? popResult;
+  const _GlassDialog({
+    required this.title,
+    required this.content,
+    required this.confirmText,
+    this.cancelText,
+    this.destructive = false,
+    this.popResult,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final tone = destructive ? const Color(0xFFB85450) : kPrimary;
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      child: GlassCard(
+        radius: 22,
+        padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: kInk,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              content,
+              style: const TextStyle(
+                fontSize: 12.5,
+                height: 1.55,
+                color: kTextMuted,
+              ),
+            ),
+            const SizedBox(height: 16),
+            if (cancelText == null)
+              _pill(
+                context,
+                confirmText,
+                Colors.white,
+                bg: tone.withValues(alpha: 0.92),
+                onTap: () => Navigator.pop(context, popResult),
+              )
+            else
+              Row(
+                children: [
+                  Expanded(
+                    child: _pill(
+                      context,
+                      cancelText!,
+                      kTextMain,
+                      bg: Colors.white.withValues(alpha: 0.5),
+                      // 取消：只关弹窗，返回 null
+                      onTap: () => Navigator.pop(context),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _pill(
+                      context,
+                      confirmText,
+                      Colors.white,
+                      bg: tone.withValues(alpha: 0.92),
+                      onTap: () => Navigator.pop(context, popResult),
+                    ),
+                  ),
+                ],
+              ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('好的'),
+      ),
+    );
+  }
+
+  Widget _pill(
+    BuildContext context,
+    String label,
+    Color textColor, {
+    required Color bg,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        curve: kSpring,
+        height: 40,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: BorderRadius.circular(13),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.55)),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w700,
+            color: textColor,
           ),
-        ],
+        ),
       ),
     );
   }
@@ -418,7 +529,7 @@ class _TabFadeState extends State<_TabFade>
   }
 }
 
-/// 用户胶囊弹出的底部菜单。
+/// 用户胶囊弹出的底部菜单：浮起玻璃卡 + 菜单项卡片（与下拉面板选项同款视觉）。
 class _UserMenuSheet extends StatelessWidget {
   final VoidCallback onAbout;
   final VoidCallback onLogout;
@@ -427,29 +538,107 @@ class _UserMenuSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SafeArea(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          ListTile(
-            leading: const Icon(Icons.info_outline),
-            title: const Text('关于', style: TextStyle(fontSize: 14)),
-            onTap: () {
-              Navigator.pop(context); // 先关掉底部菜单
-              onAbout();
-            },
+      child: Padding(
+        // 面板四周浮起留白，与屏幕边缘分开，强化"玻璃片悬浮"感
+        padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+        child: GlassCard(
+          radius: 22,
+          padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _MenuTile(
+                icon: Icons.info_outline_rounded,
+                label: '关于',
+                onTap: () {
+                  Navigator.pop(context); // 先关掉底部菜单
+                  onAbout();
+                },
+              ),
+              const SizedBox(height: 8),
+              _MenuTile(
+                icon: Icons.logout_rounded,
+                label: '退出登录',
+                destructive: true,
+                onTap: () {
+                  Navigator.pop(context); // 先关掉底部菜单
+                  onLogout();
+                },
+              ),
+            ],
           ),
-          ListTile(
-            leading: const Icon(Icons.logout, color: Colors.red),
-            title: const Text(
-              '退出登录',
-              style: TextStyle(fontSize: 14, color: Colors.red),
-            ),
-            onTap: () {
-              Navigator.pop(context); // 先关掉底部菜单
-              onLogout();
-            },
+        ),
+      ),
+    );
+  }
+}
+
+/// 底部菜单的单个选项：圆角大、可点区域铺满整行，与 GlassDropdown 选项同款。
+class _MenuTile extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  /// 危险操作（退出登录）：图标与文字用柔和红。
+  final bool destructive;
+  const _MenuTile({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.destructive = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final tone = destructive ? const Color(0xFFB85450) : kPrimary;
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          curve: kSpring,
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.5),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.6)),
           ),
-        ],
+          child: Row(
+            children: [
+              // 图标坐在同色系浅色圆片上，与全局徽章视觉一致
+              Container(
+                width: 26,
+                height: 26,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: tone.withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, size: 15, color: tone),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: destructive ? tone : kTextMain,
+                  ),
+                ),
+              ),
+              const Icon(
+                Icons.chevron_right_rounded,
+                size: 17,
+                color: kTextMuted,
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
