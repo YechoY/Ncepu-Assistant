@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/full_course.dart';
 import '../providers/app_state.dart';
+import '../providers/auth_state.dart';
 import '../providers/data_state.dart' show formatUpdatedAt;
 import '../theme.dart';
 import '../widgets/glass_background.dart';
@@ -103,6 +104,10 @@ class _FullTimetablePageState extends ConsumerState<FullTimetablePage> {
   /// 会话失效时接口会返回登录页并解析为空列表，此时若本地已有数据则不覆盖、不写缓存。
   Future<void> _fetch({bool manual = false}) async {
     try {
+      // 离线启动场景：会话可能还没建立，先确保登录（用记住的账号静默登录）。
+      if (!ref.read(authStateProvider).loggedIn) {
+        await ref.read(authStateProvider.notifier).tryAutoLogin();
+      }
       final api = ref.read(apiClientProvider);
       final list = await api.fetchFullTimetable(); // 仅当前学期
       if (!mounted) return;

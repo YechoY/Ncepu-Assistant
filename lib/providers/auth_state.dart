@@ -74,6 +74,9 @@ class AuthNotifier extends Notifier<AuthState> {
   }
 
   Future<void> logout() async {
+    // 同步清掉 ApiClient 里的会话 Cookie：否则旧 JSESSIONID 还在，
+    // 之后再登录时即使密码错误也会被旧会话「顶替」而误判成功。
+    ref.read(apiClientProvider).clearSession();
     await ref.read(authServiceProvider).logoutAll();
     state = const AuthState();
   }
