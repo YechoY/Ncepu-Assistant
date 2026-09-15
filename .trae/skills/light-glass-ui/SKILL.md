@@ -83,8 +83,9 @@ child: live
 
 ## 4. 各组件模式
 
-- **弹窗（Dialog）**：`Dialog(backgroundColor: Colors.transparent, elevation: 0)` 内包 GlassCard（radius 22）；`showDialog` 的 `barrierColor` 用 `0x402E3350`（墨紫半透）而非默认黑。系统 AlertDialog（确认类）可保留。
-- **下拉浮层**：BottomSheet 内 GlassCard 外包 12px padding 悬浮；选项是独立圆角 14 卡片，**项间留 8px 间隙**；选中 = kPrimaryContainer 底 + kPrimarySoft 描边 + 右侧 check；点按 InkWell + 200ms AnimatedContainer。
+- **弹窗（Dialog）**：一律用统一的 `_GlassDialog`（见 app.dart）替代系统 AlertDialog：`Dialog(backgroundColor: Colors.transparent, elevation: 0)` 内包 GlassCard（radius 22），`barrierColor: 0x402E3350`（墨紫半透）。标题 kInk 16 w700、正文 kTextMuted 12.5；按钮为胶囊（圆角 13、高 40）：单确认铺满整行 kPrimary 实底；「取消+确认」并排时取消用白 0.5 半透。危险操作（退出登录）确认按钮用柔和红 `0xFFB85450`，pop 语义走 `popResult` 由 showDialog 返回值接住，禁止在按钮回调里二次 pop。
+- **下拉浮层**：BottomSheet 内 GlassCard 外包 12px padding 悬浮；选项是独立圆角 14 卡片，**项间留 8px 间隙**；单选选中 = kPrimaryContainer 底 + kPrimarySoft 描边 + 右侧 check；点按 InkWell + 200ms AnimatedContainer。**多选模式**（GlassDropdown `multi:true`）：选项行首 20px 圆角 6 勾选框（选中实底紫+白勾 / 部分选中浅紫底+"−" / 未选半透白），点选**不关面板**、实时回调差量，右上角 kPrimary「完成」胶囊收起；适合"学期快捷勾选课程"这类场景。
+- **底部菜单 sheet**（用户菜单类）：透明底 + 墨紫遮罩 + 浮起 GlassCard(radius 22)；菜单项与下拉选项同款卡片，行首图标坐在同色系 12% 浅色圆片上（危险项柔和红），右侧 chevron_right。
 - **底部导航**：整条一块 GlassCard(radius 24)；选中项 kPrimary 实底胶囊 + 同色 0.38 柔光、白字 w700；未选透明、kTextMuted；指示器动效用 kSpringDur/kSpring。
 - **列表卡（成绩/考试/房间等数据卡）**：GlassCard(radius 18, live:false)，左侧 4px 状态色竖条（圆角 2）+ 主文案 + 右侧小胶囊徽章；状态色用低饱和功能色（绿 0xFF5E9C80 / 蓝 0xFF3B7399 / 橙 0xFFB07432 / 红 0xFFB85450 / 中性灰 0xFFB6BCC9），徽章底色为同色相 8~10% 浅彩。
 - **实色课程卡（MacCard）**：不透的粉彩卡（bg 浅/border 粉彩/name 同相深墨彩）+ 白 0.7 高光边 + 同款双层冷影，与玻璃卡同影系。
@@ -115,7 +116,8 @@ child: live
 
 - [ ] 新灰字/分割线是否用了 token（kTextMain/kTextMuted/kGlassGridLine），没有新硬编码
 - [ ] 一屏 BackdropFilter 数量；列表卡是否 live:false
-- [ ] Dialog 是否透明底 + GlassCard，barrier 是否墨紫
+- [ ] Dialog 是否透明底 + GlassCard（统一 _GlassDialog），barrier 是否墨紫；确认按钮是否单次 pop（popResult 语义）
+- [ ] 底部菜单/多选面板是否与下拉同款浮卡体系（图标浅色圆片、勾选框三态）
 - [ ] 阴影是否冷调双层、画在 Clip 外层
 - [ ] 分类色同屏共存对象是否保证不同（走冲突消解）
 - [ ] `flutter analyze` 0 error；真机（低端安卓优先）验证滚动与切页
