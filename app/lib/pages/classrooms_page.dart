@@ -134,6 +134,10 @@ class _ClassroomsPageState extends ConsumerState<ClassroomsPage> {
   /// [query] 为 true 时（首次进入或切换校区）在加载完成后自动查询一次空闲教室。
   /// 进页面时会话可能尚未就绪导致首拉失败，这里做一次短延迟重试。
   Future<void> _loadBuildings({bool query = true}) async {
+    // 离线启动场景：会话可能还没建立，先确保登录再拉教学楼。
+    if (!ref.read(authStateProvider).loggedIn) {
+      await ref.read(authStateProvider.notifier).tryAutoLogin();
+    }
     for (var attempt = 0; attempt < 2; attempt++) {
       try {
         final b = await ref.read(apiClientProvider).fetchBuildings(campus);
@@ -245,6 +249,13 @@ class _ClassroomsPageState extends ConsumerState<ClassroomsPage> {
       error = null;
     });
     try {
+      // 会话可能还没建立（离线启动场景），先确保登录；仍失败则按离线处理。
+      if (!ref.read(authStateProvider).loggedIn) {
+        await ref.read(authStateProvider.notifier).tryAutoLogin();
+        if (!ref.read(authStateProvider).loggedIn) {
+          throw Exception('未连接校园网');
+        }
+      }
       final api = ref.read(apiClientProvider);
       final term = await api.getCurrentTerm();
       // 当前周基准缺失（缓存还没载入）时联网查一次当前周并校正基准；

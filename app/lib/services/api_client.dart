@@ -497,6 +497,9 @@ class ApiClient {
   }
 
   Future<void> login(String username, String password) async {
+    // 先清空旧会话 Cookie：退出登录/会话过期后旧 JSESSIONID 可能仍被服务端认可，
+    // 若带着旧 Cookie 做 checkLogin，即使密码错误也会被误判为登录成功。
+    _cookies.clear();
     // 第一步：取加密种子
     final seedR = await _client
         .post(
@@ -546,6 +549,11 @@ class ApiClient {
 
     if (!await checkLogin()) throw Exception('账号或密码错误（也可能是加密算法不匹配）');
   }
+
+  /// 清空本地会话 Cookie（退出登录时调用）。
+  /// 注意：App 内的「退出」并未通知教务系统销毁服务端会话，旧 JSESSIONID
+  /// 在服务端超时前仍然有效；必须把它从本地清掉，否则后续请求会顶着旧身份。
+  void clearSession() => _cookies.clear();
 
   Future<bool> checkLogin() async {
     try {

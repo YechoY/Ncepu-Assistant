@@ -6,6 +6,7 @@ import '../models/grade.dart';
 import '../models/timetable_row.dart';
 import '../services/cache_service.dart';
 import 'app_state.dart';
+import 'auth_state.dart';
 
 final dataStateProvider = NotifierProvider<DataNotifier, DataState>(
   DataNotifier.new,
@@ -135,6 +136,17 @@ class DataNotifier extends Notifier<DataState> {
   @override
   DataState build() => const DataState();
 
+  /// 确保存在可用的教务系统登录会话。
+  /// 离线启动直接进主界面的场景下，启动时的后台登录没有执行成功，
+  /// ApiClient 里没有任何会话 Cookie——此时直接联网请求数据，
+  /// 教务系统返回的是登录页 HTML，会被解析成**空列表**（不抛异常！），
+  /// 不仅看不到数据，还会把空数据写进缓存、毁掉离线兜底。
+  /// 因此每次联网取数前先确认会话：未登录则用记住的账号静默登录一次。
+  Future<bool> _ensureLogin() async {
+    if (ref.read(authStateProvider).loggedIn) return true;
+    return ref.read(authStateProvider.notifier).tryAutoLogin();
+  }
+
   /// 启动后的按需刷新（后台静默，失败不打扰）：
   /// - 周课表/学期周次：保持「每天首次启动刷新一次」的粒度（last_daily_update）；
   /// - 成绩/考试：各自缓存超过 7 天（或从无缓存）才联网；
@@ -181,6 +193,17 @@ class DataNotifier extends Notifier<DataState> {
         }
       }
       return;
+    }
+    // 有数据要联网取：先确保会话可用（否则全变成空数据并污染缓存）。
+    if (ttDue || gradesDue || examsDue) {
+      final ok = await _ensureLogin();
+      if (!ok) {
+        // 手动刷新给个提示；后台静默刷新保持安静。
+        if (force) {
+          state = state.copyWith(notice: '暂无法连接校园网，正在使用缓存数据');
+        }
+        return;
+      }
     }
     state = state.copyWith(loading: true);
     if (ttDue) {
@@ -282,6 +305,8 @@ class DataNotifier extends Notifier<DataState> {
       }
     }
     try {
+      // 会话可能还没建立（离线启动场景），先确保登录；失败等同联网失败走缓存兜底。
+      if (!await _ensureLogin()) throw Exception('未连接校园网');
       final tt = await api.fetchTimetable(monday);
       await cache.saveJson(key, ttToJson(tt));
       state = state.copyWith(
@@ -317,6 +342,8 @@ class DataNotifier extends Notifier<DataState> {
     final api = ref.read(apiClientProvider);
     state = state.copyWith(loading: true);
     try {
+      // 会话可能还没建立（离线启动场景），先确保登录；失败按获取失败处理。
+      if (!await _ensureLogin()) throw Exception('未连接校园网');
       final g = await api.fetchGrades();
       await cache.saveJson('grades', g.map((e) => e.toJson()).toList());
       state = state.copyWith(
@@ -351,6 +378,8 @@ class DataNotifier extends Notifier<DataState> {
         examsUpdatedAt: null,
       );
       try {
+        // 会话可能还没建立，先确保登录；失败按获取失败处理。
+        if (!await _ensureLogin()) throw Exception('未连接校园网');
         final e = await api.fetchExams(term: t);
         state = state.copyWith(
           exams: e,
@@ -390,6 +419,8 @@ class DataNotifier extends Notifier<DataState> {
       return;
     }
     try {
+      // 会话可能还没建立，先确保登录；失败按获取失败处理。
+      if (!await _ensureLogin()) throw Exception('未连接校园网');
       final e = await api.fetchExams();
       await cache.saveJson(key, e.map((x) => x.toJson()).toList());
       state = state.copyWith(

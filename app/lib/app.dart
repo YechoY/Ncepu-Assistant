@@ -140,6 +140,19 @@ class _GateState extends ConsumerState<_Gate> {
     // ref.watch：监听 authStateProvider，登录态一变化就自动重建本组件。
     // （read 是“读一次”，watch 是“持续监听并触发重建”，这是两者关键区别。）
     final auth = ref.watch(authStateProvider);
+    // 监听「退出登录」：已登录 → 未登录 的瞬间把启动阶段切回登录页。
+    // 之前是 _MainShell 手动 push 一个新 LoginPage 路由——但 _Gate 一直在
+    // Navigator 底下，重新登录成功后它虽然切回了主界面，盖在上面的那层
+    // 登录路由却不会自己消失，导致「卡在登录页」。现在登录页只由 _Gate
+    // 这一个地方渲染：退出 → phase=login；再登录成功 → loggedIn → main。
+    ref.listen<AuthState>(authStateProvider, (prev, next) {
+      if ((prev?.loggedIn ?? false) && !next.loggedIn && mounted) {
+        setState(() {
+          phase = _Phase.login;
+          offline = false;
+        });
+      }
+    });
     // 界面阶段以 phase 为准（_start 已按“是否记住账号”决定 main/login）；
     // 额外地，只要本会话真正联网登录成功(loggedIn)，无论如何都进主界面。
     // 注意：不能写成“未 loggedIn 就登录页”，否则“记住账号、断网看缓存”这种
@@ -210,16 +223,9 @@ class _MainShellState extends ConsumerState<_MainShell> {
       ),
     );
     if (ok == true) {
-      await ref.read(authStateProvider.notifier).logout(); // 清账号密码 + 缓存
-      // 又是 async 后用 context，先判 mounted 更安全。
-      if (mounted) {
-        // pushAndRemoveUntil：跳到登录页并「清空」整个页面栈（第二个参数恒 false = 全部移除），
-        // 这样用户按返回键也回不到已登出的主界面。
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (_) => const LoginPage()),
-          (_) => false,
-        );
-      }
+      // 清账号密码 + 全部本地缓存；登录态变化由 _Gate 的 ref.listen 感知，
+      // 自动把界面切回登录页（不需要也不能在这里手动 push 登录路由）。
+      await ref.read(authStateProvider.notifier).logout();
     }
   }
 
