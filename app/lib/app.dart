@@ -8,10 +8,14 @@
 // Dart 约定：以下划线 `_` 开头的类/变量是「库私有」的，只能在本文件内使用，
 // 不会暴露给其它文件 import，相当于其它语言的 private。
 
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart'; // 提供中文等系统语言包
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:http/http.dart' as http; // GitHub API 查询最新版本
 import 'package:package_info_plus/package_info_plus.dart'; // 运行时读取版本号
+import 'package:url_launcher/url_launcher.dart'; // 前往浏览器下载新版本
 
 import 'pages/classrooms_page.dart';
 import 'pages/exams_page.dart';
@@ -359,34 +363,177 @@ class _MainShellState extends ConsumerState<_MainShell> {
     );
   }
 
-  // 检查更新：版本号从运行时读取（package_info_plus），不写死。
-  // TODO(更新功能): 接入 GitHub Releases 后，在此先查询最新版本再展示。
+  // 检查更新（方案 A）：查询 GitHub Releases 最新版，有新版则跳浏览器下载页。
+  // 版本号从运行时读取（package_info_plus），tag 约定 v主.次.补+构建号（如 v1.0.0+8）。
+  static const _updateRepo = 'YechoY/Ncepu-Assistant';
+
   Future<void> _checkUpdate() async {
     final info = await PackageInfo.fromPlatform();
     if (!mounted) return;
-    await showDialog(
+
+    // 加载提示框：GitHub API 在国内可能较慢，先给个反馈
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      barrierColor: const Color(0x402E3350),
+      builder: (_) => Dialog(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        child: GlassCard(
+          radius: 22,
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+          child: const Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.4,
+                  color: kPrimary,
+                ),
+              ),
+              SizedBox(width: 12),
+              Text('正在检查更新…', style: TextStyle(fontSize: 13, color: kTextMain)),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    Map<String, dynamic>? release;
+    try {
+      final res = await http
+          .get(
+            Uri.parse(
+              'https://api.github.com/repos/$_updateRepo/releases/latest',
+            ),
+            headers: const {
+              'User-Agent': 'hdjw_assistant', // GitHub API 要求 UA
+              'Accept': 'application/vnd.github+json',
+            },
+          )
+          .timeout(const Duration(seconds: 10));
+      if (res.statusCode == 200) {
+        release =
+            jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+      }
+    } catch (_) {
+      // 网络异常/超时：走下方失败提示
+    }
+    if (!mounted) return;
+    Navigator.of(context, rootNavigator: true).pop(); // 关掉加载框
+
+    if (release == null) {
+      await showDialog(
+        context: context,
+        barrierColor: const Color(0x402E3350),
+        builder: (_) => const _GlassDialog(
+          title: '检查更新',
+          content: Text(
+            '检查失败：无法连接 GitHub（可能被校园网拦截或网络不稳定）。\n请稍后重试。',
+            style: TextStyle(fontSize: 12.5, height: 1.55, color: kTextMuted),
+          ),
+          confirmText: '好的',
+        ),
+      );
+      return;
+    }
+
+    final tag = (release['tag_name'] as String? ?? '').trim();
+    final localBuild = int.tryParse(info.buildNumber) ?? 0;
+    if (!_isRemoteNewer(tag, info.version, localBuild)) {
+      await showDialog(
+        context: context,
+        barrierColor: const Color(0x402E3350),
+        builder: (_) => _GlassDialog(
+          title: '检查更新',
+          content: _AboutLine(
+            text: '当前已是最新版本 ',
+            bold: 'v${info.version}',
+            tail: '（build ${info.buildNumber}）',
+          ),
+          confirmText: '好的',
+        ),
+      );
+      return;
+    }
+
+    // 有新版本：展示版本号与更新说明，确认后跳转浏览器到 Releases 下载页
+    final body = (release['body'] as String? ?? '').trim();
+    final goDownload = await showDialog<bool>(
       context: context,
       barrierColor: const Color(0x402E3350),
       builder: (_) => _GlassDialog(
-        title: '检查更新',
+        title: '发现新版本',
         content: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _AboutLine(
-              text: '当前版本 ',
-              bold: 'v${info.version}',
-              tail: '（build ${info.buildNumber}）',
+              text: '最新版本 ',
+              bold: tag.startsWith('v') ? tag : 'v$tag',
             ),
             const SizedBox(height: 4),
             const Text(
-              '在线更新功能即将上线，届时将自动检测 GitHub Releases 上的新版本',
+              '点击「前往下载」将打开浏览器，下载 APK 后手动安装。',
               style: TextStyle(fontSize: 12.5, height: 1.55, color: kTextMuted),
             ),
+            if (body.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 220),
+                child: SingleChildScrollView(
+                  child: Text(
+                    body,
+                    style: const TextStyle(
+                      fontSize: 12.5,
+                      height: 1.55,
+                      color: kTextMuted,
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
-        confirmText: '好的',
+        cancelText: '取消',
+        confirmText: '前往下载',
+        popResult: true,
       ),
     );
+    if (goDownload == true && mounted) {
+      final url = release['html_url'] as String?;
+      if (url != null && url.isNotEmpty) {
+        await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+      }
+    }
+  }
+
+  /// 判断远端 tag 是否比本地版本新。
+  /// tag 形如 `v1.0.0+8`：有 `+构建号` 时优先比构建号（整数，最可靠）；
+  /// 没有则退化为主.次.补 三段数字逐一比较。
+  bool _isRemoteNewer(String tag, String localVersion, int localBuild) {
+    var t = tag;
+    if (t.startsWith('v') || t.startsWith('V')) t = t.substring(1);
+    if (t.contains('+')) {
+      final code = int.tryParse(t.split('+').last);
+      if (code != null) return code > localBuild;
+      t = t.split('+').first;
+    }
+    final remote = t
+        .split('.')
+        .map((e) => int.tryParse(e.trim()) ?? 0)
+        .toList();
+    final local = localVersion
+        .split('.')
+        .map((e) => int.tryParse(e.trim()) ?? 0)
+        .toList();
+    for (var i = 0; i < 3; i++) {
+      final r = i < remote.length ? remote[i] : 0;
+      final l = i < local.length ? local[i] : 0;
+      if (r != l) return r > l;
+    }
+    return false;
   }
 
   // 关于对话框。

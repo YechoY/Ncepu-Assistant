@@ -1,5 +1,5 @@
 name: hdjw_assistant
-description: "A new Flutter project."
+description: "掌上华电 - 华北电力大学教务系统非官方学生端（仅供学习交流）"
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -46,6 +46,7 @@ dependencies:
   flutter_localizations:
     sdk: flutter
   package_info_plus: ^9.0.1
+  url_launcher: ^6.3.2
 
 dev_dependencies:
   flutter_test:
