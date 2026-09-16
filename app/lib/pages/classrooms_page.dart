@@ -378,34 +378,31 @@ class _ClassroomsPageState extends ConsumerState<ClassroomsPage> {
                     ],
                   ),
                   const SizedBox(height: 4),
-                  // 绿色小查询按钮：放在条件框右下角
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: SizedBox(
-                      width: 96,
-                      child: ElevatedButton.icon(
-                        onPressed: loading ? null : _query,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: kPrimary,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 6),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          elevation: 2,
-                          shadowColor: kPrimary.withValues(alpha: 0.5),
+                  // 查询按钮：铺满整行
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: loading ? null : _query,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: kPrimary,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 9),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
                         ),
-                        icon: const Icon(
-                          Icons.search,
-                          size: 14,
-                          color: Colors.white,
-                        ),
-                        label: const Text(
-                          '查询',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                          ),
+                        elevation: 2,
+                        shadowColor: kPrimary.withValues(alpha: 0.5),
+                      ),
+                      icon: const Icon(
+                        Icons.search,
+                        size: 17,
+                        color: Colors.white,
+                      ),
+                      label: const Text(
+                        '查询',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
                     ),
