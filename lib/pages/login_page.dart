@@ -98,7 +98,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                 ),
                 const SizedBox(height: 12),
                 const Text(
-                  '华电教务助手',
+                  '掌上华电',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 20,
@@ -147,7 +147,59 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                 const Text(
                   '需连接校园网或 VPN',
                   textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 10, color: Color(0xFF9CA3AF)),
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: kTextMuted,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                GlassCard(
+                  radius: 18,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 12,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: const [
+                      Row(
+                        children: [
+                          Icon(Icons.info_outline, size: 15, color: kPrimary),
+                          SizedBox(width: 6),
+                          Text(
+                            '免责声明',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: kInk,
+                            ),
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: 8),
+                      Text(
+                        '① 本应用为非官方应用，由学生个人以 vibecoding 方式'
+                        '独立开发，仅供学习交流使用，与华北电力大学（保定）官方无任何'
+                        '隶属、合作或授权关系，官方不对本应用承担任何责任。\n'
+                        '② 所有教务数据均来源于华电教务系统官网，相关数据的'
+                        '版权归原网站及权利方所有；本应用仅作个人查询展示，'
+                        '不用于任何商业用途。\n'
+                        '③ 账号、密码等数据仅保存在本机本地存储，不上传、不同步'
+                        '至任何第三方服务器，开发者无法获取；请妥善保管自己的'
+                        '学号与密码。\n'
+                        '④ 本应用不使用学校官方标识，若应用名称或内容涉及侵权，'
+                        '请及时联系开发者，将第一时间更正或删除。\n'
+                        '⑤ 本应用按「现状」提供，开发者不作任何担保；使用本应用'
+                        '产生的一切后果由使用者自行承担。',
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          height: 1.55,
+                          color: kTextMain,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),

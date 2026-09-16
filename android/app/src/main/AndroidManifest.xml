@@ -2,7 +2,7 @@
     <!-- 联网权限：主 manifest 必须有，否则 release 无法访问教务系统（debug 靠 debug manifest 额外加，release 不加） -->
     <uses-permission android:name="android.permission.INTERNET"/>
     <application
-        android:label="华电教务助手"
+        android:label="掌上华电"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
