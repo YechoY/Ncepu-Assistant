@@ -3,3 +3,6 @@ dist/
 build/
 __pycache__/
 data/
+
+# 安装包归档不进仓库
+*.zip
