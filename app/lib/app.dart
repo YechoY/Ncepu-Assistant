@@ -545,11 +545,7 @@ class _AboutDialogState extends State<_AboutDialog> {
             const _AboutLine(text: '③ 不用于任何商业用途，使用产生的一切后果', bold: '由使用者自行承担'),
             const SizedBox(height: 12),
             if (info != null)
-              _AboutLine(
-                text: '当前版本 ',
-                bold: 'v${info.version}',
-                tail: '（build ${info.buildNumber}）',
-              ),
+              _AboutLine(text: '当前版本 ', bold: 'v${info.version}'),
             const SizedBox(height: 10),
             _updateArea(),
             const SizedBox(height: 16),
