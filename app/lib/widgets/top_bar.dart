@@ -49,17 +49,14 @@ class TopBar extends StatelessWidget {
                         ).createShader(const Rect.fromLTWH(0, 0, 160, 24)),
                     ),
                   ),
-                  // 副标题（更新时间）。为空时也渲染同高的空行占位，
-                  // 保证四个 Tab 的顶栏高度一致（否则教室页会矮一截）。
-                  Padding(
-                    padding: const EdgeInsets.only(top: 1),
-                    child: Text(
-                      (subtitle != null && subtitle!.isNotEmpty)
-                          ? subtitle!
-                          : '',
-                      style: const TextStyle(fontSize: 10, color: kTextMuted),
+                  if (subtitle != null && subtitle!.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 1),
+                      child: Text(
+                        subtitle!,
+                        style: const TextStyle(fontSize: 10, color: kTextMuted),
+                      ),
                     ),
-                  ),
                 ],
               ),
             ),

@@ -11,6 +11,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart'; // 提供中文等系统语言包
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:package_info_plus/package_info_plus.dart'; // 运行时读取版本号
 
 import 'pages/classrooms_page.dart';
 import 'pages/exams_page.dart';
@@ -40,7 +41,7 @@ class HdjwApp extends StatelessWidget {
   // `=> 表达式` 是 Dart 的箭头语法，等价于 `{ return 表达式; }`。
   @override
   Widget build(BuildContext context) => MaterialApp(
-    title: '华电教务助手',
+    title: '掌上华电',
     debugShowCheckedModeBanner: false, // 关掉右上角那个 debug 红色横幅
     theme: buildTheme(), // 来自 theme.dart 的全局主题
     // 配置中文 locale，让 showDatePicker 等系统控件显示中文
@@ -215,7 +216,10 @@ class _MainShellState extends ConsumerState<_MainShell> {
       barrierColor: const Color(0x402E3350), // 墨紫半透遮罩，比系统黑遮罩柔和
       builder: (_) => const _GlassDialog(
         title: '退出登录',
-        content: '退出将清除本地登录信息，需要重新输入账号密码才能登录，确定吗？',
+        content: Text(
+          '退出将清除本地登录信息，需要重新输入账号密码才能登录，确定吗？',
+          style: TextStyle(fontSize: 12.5, height: 1.55, color: kTextMuted),
+        ),
         cancelText: '取消',
         confirmText: '退出',
         destructive: true,
@@ -319,8 +323,11 @@ class _MainShellState extends ConsumerState<_MainShell> {
                   context: context,
                   backgroundColor: Colors.transparent,
                   barrierColor: const Color(0x4D2E3350),
-                  builder: (_) =>
-                      _UserMenuSheet(onAbout: _about, onLogout: _logout),
+                  builder: (_) => _UserMenuSheet(
+                    onAbout: _about,
+                    onCheckUpdate: _checkUpdate,
+                    onLogout: _logout,
+                  ),
                 ),
               ),
               // 集合内 if：只有条件成立时才把这个 Widget 放进 children 列表。
@@ -352,15 +359,90 @@ class _MainShellState extends ConsumerState<_MainShell> {
     );
   }
 
+  // 检查更新：版本号从运行时读取（package_info_plus），不写死。
+  // TODO(更新功能): 接入 GitHub Releases 后，在此先查询最新版本再展示。
+  Future<void> _checkUpdate() async {
+    final info = await PackageInfo.fromPlatform();
+    if (!mounted) return;
+    await showDialog(
+      context: context,
+      barrierColor: const Color(0x402E3350),
+      builder: (_) => _GlassDialog(
+        title: '检查更新',
+        content: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _AboutLine(
+              text: '当前版本 ',
+              bold: 'v${info.version}',
+              tail: '（build ${info.buildNumber}）',
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              '在线更新功能即将上线，届时将自动检测 GitHub Releases 上的新版本',
+              style: TextStyle(fontSize: 12.5, height: 1.55, color: kTextMuted),
+            ),
+          ],
+        ),
+        confirmText: '好的',
+      ),
+    );
+  }
+
   // 关于对话框。
   void _about() {
     showDialog(
       context: context,
       barrierColor: const Color(0x402E3350),
       builder: (_) => const _GlassDialog(
-        title: '华电教务助手',
-        content: '华北电力大学教务系统助手\n版本 1.0.0\n数据来自 jwxt.ncepu.edu.cn',
+        title: '掌上华电',
+        content: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _AboutLine(
+              text: '① ',
+              bold: '非官方应用',
+              tail: '，由学生个人 vibecoding 独立开发，仅供学习交流',
+            ),
+            SizedBox(height: 4),
+            _AboutLine(
+              text: '② 数据来自华电（保定）教务系统官网，账号密码',
+              bold: '仅保存在本机',
+              tail: '，不上传、不同步至任何第三方服务器',
+            ),
+            SizedBox(height: 4),
+            _AboutLine(text: '③ 不用于任何商业用途，使用产生的一切后果', bold: '由使用者自行承担'),
+          ],
+        ),
         confirmText: '好的',
+      ),
+    );
+  }
+}
+
+/// 关于弹窗里的单行声明：普通文字灰、关键词墨紫加粗，强化「非官方」的醒目度。
+class _AboutLine extends StatelessWidget {
+  final String text;
+  final String bold;
+  final String? tail;
+  const _AboutLine({this.text = '', required this.bold, this.tail});
+  @override
+  Widget build(BuildContext context) {
+    return Text.rich(
+      TextSpan(
+        style: const TextStyle(fontSize: 13.5, height: 1.55, color: kTextMuted),
+        children: [
+          if (text.isNotEmpty) TextSpan(text: text),
+          TextSpan(
+            text: bold,
+            style: const TextStyle(
+              fontSize: 13.5,
+              fontWeight: FontWeight.w700,
+              color: kInk,
+            ),
+          ),
+          if (tail != null) TextSpan(text: tail),
+        ],
       ),
     );
   }
@@ -372,7 +454,7 @@ class _MainShellState extends ConsumerState<_MainShell> {
 /// 点确认 → `Navigator.pop(context, [popResult])`，由 showDialog 的返回值接住。
 class _GlassDialog extends StatelessWidget {
   final String title;
-  final String content;
+  final Widget content;
   final String confirmText;
   final String? cancelText;
   final bool destructive;
@@ -408,14 +490,7 @@ class _GlassDialog extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 8),
-            Text(
-              content,
-              style: const TextStyle(
-                fontSize: 12.5,
-                height: 1.55,
-                color: kTextMuted,
-              ),
-            ),
+            content,
             const SizedBox(height: 16),
             if (cancelText == null)
               _pill(
@@ -538,8 +613,13 @@ class _TabFadeState extends State<_TabFade>
 /// 用户胶囊弹出的底部菜单：浮起玻璃卡 + 菜单项卡片（与下拉面板选项同款视觉）。
 class _UserMenuSheet extends StatelessWidget {
   final VoidCallback onAbout;
+  final VoidCallback onCheckUpdate;
   final VoidCallback onLogout;
-  const _UserMenuSheet({required this.onAbout, required this.onLogout});
+  const _UserMenuSheet({
+    required this.onAbout,
+    required this.onCheckUpdate,
+    required this.onLogout,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -559,6 +639,15 @@ class _UserMenuSheet extends StatelessWidget {
                 onTap: () {
                   Navigator.pop(context); // 先关掉底部菜单
                   onAbout();
+                },
+              ),
+              const SizedBox(height: 8),
+              _MenuTile(
+                icon: Icons.system_update_alt_rounded,
+                label: '检查更新',
+                onTap: () {
+                  Navigator.pop(context);
+                  onCheckUpdate();
                 },
               ),
               const SizedBox(height: 8),
