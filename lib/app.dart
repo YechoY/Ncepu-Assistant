@@ -8,9 +8,11 @@
 // Dart 约定：以下划线 `_` 开头的类/变量是「库私有」的，只能在本文件内使用，
 // 不会暴露给其它文件 import，相当于其它语言的 private。
 
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // Clipboard：复制下载链接
 import 'package:flutter_localizations/flutter_localizations.dart'; // 提供中文等系统语言包
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http; // GitHub API 查询最新版本
@@ -327,11 +329,8 @@ class _MainShellState extends ConsumerState<_MainShell> {
                   context: context,
                   backgroundColor: Colors.transparent,
                   barrierColor: const Color(0x4D2E3350),
-                  builder: (_) => _UserMenuSheet(
-                    onAbout: _about,
-                    onCheckUpdate: _checkUpdate,
-                    onLogout: _logout,
-                  ),
+                  builder: (_) =>
+                      _UserMenuSheet(onAbout: _about, onLogout: _logout),
                 ),
               ),
               // 集合内 if：只有条件成立时才把这个 Widget 放进 children 列表。
@@ -363,206 +362,12 @@ class _MainShellState extends ConsumerState<_MainShell> {
     );
   }
 
-  // 检查更新（方案 A）：查询 GitHub Releases 最新版，有新版则跳浏览器下载页。
-  // 版本号从运行时读取（package_info_plus），tag 约定 v主.次.补+构建号（如 v1.0.0+8）。
-  static const _updateRepo = 'YechoY/Ncepu-Assistant';
-
-  Future<void> _checkUpdate() async {
-    final info = await PackageInfo.fromPlatform();
-    if (!mounted) return;
-
-    // 加载提示框：GitHub API 在国内可能较慢，先给个反馈
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      barrierColor: const Color(0x402E3350),
-      builder: (_) => Dialog(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        child: GlassCard(
-          radius: 22,
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-          child: const Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              SizedBox(
-                width: 18,
-                height: 18,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2.4,
-                  color: kPrimary,
-                ),
-              ),
-              SizedBox(width: 12),
-              Text('正在检查更新…', style: TextStyle(fontSize: 13, color: kTextMain)),
-            ],
-          ),
-        ),
-      ),
-    );
-
-    Map<String, dynamic>? release;
-    try {
-      final res = await http
-          .get(
-            Uri.parse(
-              'https://api.github.com/repos/$_updateRepo/releases/latest',
-            ),
-            headers: const {
-              'User-Agent': 'hdjw_assistant', // GitHub API 要求 UA
-              'Accept': 'application/vnd.github+json',
-            },
-          )
-          .timeout(const Duration(seconds: 10));
-      if (res.statusCode == 200) {
-        release =
-            jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
-      }
-    } catch (_) {
-      // 网络异常/超时：走下方失败提示
-    }
-    if (!mounted) return;
-    Navigator.of(context, rootNavigator: true).pop(); // 关掉加载框
-
-    if (release == null) {
-      await showDialog(
-        context: context,
-        barrierColor: const Color(0x402E3350),
-        builder: (_) => const _GlassDialog(
-          title: '检查更新',
-          content: Text(
-            '检查失败：无法连接 GitHub（可能被校园网拦截或网络不稳定）。\n请稍后重试。',
-            style: TextStyle(fontSize: 12.5, height: 1.55, color: kTextMuted),
-          ),
-          confirmText: '好的',
-        ),
-      );
-      return;
-    }
-
-    final tag = (release['tag_name'] as String? ?? '').trim();
-    final localBuild = int.tryParse(info.buildNumber) ?? 0;
-    if (!_isRemoteNewer(tag, info.version, localBuild)) {
-      await showDialog(
-        context: context,
-        barrierColor: const Color(0x402E3350),
-        builder: (_) => _GlassDialog(
-          title: '检查更新',
-          content: _AboutLine(
-            text: '当前已是最新版本 ',
-            bold: 'v${info.version}',
-            tail: '（build ${info.buildNumber}）',
-          ),
-          confirmText: '好的',
-        ),
-      );
-      return;
-    }
-
-    // 有新版本：展示版本号与更新说明，确认后跳转浏览器到 Releases 下载页
-    final body = (release['body'] as String? ?? '').trim();
-    final goDownload = await showDialog<bool>(
-      context: context,
-      barrierColor: const Color(0x402E3350),
-      builder: (_) => _GlassDialog(
-        title: '发现新版本',
-        content: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _AboutLine(
-              text: '最新版本 ',
-              bold: tag.startsWith('v') ? tag : 'v$tag',
-            ),
-            const SizedBox(height: 4),
-            const Text(
-              '点击「前往下载」将打开浏览器，下载 APK 后手动安装。',
-              style: TextStyle(fontSize: 12.5, height: 1.55, color: kTextMuted),
-            ),
-            if (body.isNotEmpty) ...[
-              const SizedBox(height: 10),
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxHeight: 220),
-                child: SingleChildScrollView(
-                  child: Text(
-                    body,
-                    style: const TextStyle(
-                      fontSize: 12.5,
-                      height: 1.55,
-                      color: kTextMuted,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ],
-        ),
-        cancelText: '取消',
-        confirmText: '前往下载',
-        popResult: true,
-      ),
-    );
-    if (goDownload == true && mounted) {
-      final url = release['html_url'] as String?;
-      if (url != null && url.isNotEmpty) {
-        await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
-      }
-    }
-  }
-
-  /// 判断远端 tag 是否比本地版本新。
-  /// tag 形如 `v1.0.0+8`：有 `+构建号` 时优先比构建号（整数，最可靠）；
-  /// 没有则退化为主.次.补 三段数字逐一比较。
-  bool _isRemoteNewer(String tag, String localVersion, int localBuild) {
-    var t = tag;
-    if (t.startsWith('v') || t.startsWith('V')) t = t.substring(1);
-    if (t.contains('+')) {
-      final code = int.tryParse(t.split('+').last);
-      if (code != null) return code > localBuild;
-      t = t.split('+').first;
-    }
-    final remote = t
-        .split('.')
-        .map((e) => int.tryParse(e.trim()) ?? 0)
-        .toList();
-    final local = localVersion
-        .split('.')
-        .map((e) => int.tryParse(e.trim()) ?? 0)
-        .toList();
-    for (var i = 0; i < 3; i++) {
-      final r = i < remote.length ? remote[i] : 0;
-      final l = i < local.length ? local[i] : 0;
-      if (r != l) return r > l;
-    }
-    return false;
-  }
-
   // 关于对话框。
   void _about() {
     showDialog(
       context: context,
       barrierColor: const Color(0x402E3350),
-      builder: (_) => const _GlassDialog(
-        title: '掌上华电',
-        content: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _AboutLine(
-              text: '① ',
-              bold: '非官方应用',
-              tail: '，由学生个人 vibecoding 独立开发，仅供学习交流',
-            ),
-            SizedBox(height: 4),
-            _AboutLine(
-              text: '② 数据来自华电（保定）教务系统官网，账号密码',
-              bold: '仅保存在本机',
-              tail: '，不上传、不同步至任何第三方服务器',
-            ),
-            SizedBox(height: 4),
-            _AboutLine(text: '③ 不用于任何商业用途，使用产生的一切后果', bold: '由使用者自行承担'),
-          ],
-        ),
-        confirmText: '好的',
-      ),
+      builder: (_) => const _AboutDialog(),
     );
   }
 }
@@ -590,6 +395,324 @@ class _AboutLine extends StatelessWidget {
           ),
           if (tail != null) TextSpan(text: tail),
         ],
+      ),
+    );
+  }
+}
+
+/// 判断远端 tag 是否比本地版本新：tag 形如 `v1.0.0+8`，
+/// 有 `+构建号` 时优先比构建号（整数，最可靠）；否则按 主.次.补 逐段比较。
+bool _isRemoteNewer(String tag, String localVersion, int localBuild) {
+  var t = tag;
+  if (t.startsWith('v') || t.startsWith('V')) t = t.substring(1);
+  if (t.contains('+')) {
+    final code = int.tryParse(t.split('+').last);
+    if (code != null) return code > localBuild;
+    t = t.split('+').first;
+  }
+  final remote = t.split('.').map((e) => int.tryParse(e.trim()) ?? 0).toList();
+  final local = localVersion
+      .split('.')
+      .map((e) => int.tryParse(e.trim()) ?? 0)
+      .toList();
+  for (var i = 0; i < 3; i++) {
+    final r = i < remote.length ? remote[i] : 0;
+    final l = i < local.length ? local[i] : 0;
+    if (r != l) return r > l;
+  }
+  return false;
+}
+
+/// 关于弹窗：免责声明 + 版本号 + 检查更新一体。
+/// 检查失败时提供「复制在线链接」，用户可在浏览器手动打开 Releases 页。
+class _AboutDialog extends StatefulWidget {
+  const _AboutDialog();
+
+  @override
+  State<_AboutDialog> createState() => _AboutDialogState();
+}
+
+class _AboutDialogState extends State<_AboutDialog> {
+  static const _releasesUrl =
+      'https://github.com/YechoY/Ncepu-Assistant/releases/latest';
+
+  /// 检查阶段：idle 未检查 | checking 检查中 | fail 失败 | latest 已最新 | newer 有新版
+  String _phase = 'idle';
+  PackageInfo? _info;
+  String _tag = ''; // 远端最新 tag（含 v 前缀）
+  String _body = ''; // Release 更新说明
+  String _htmlUrl = ''; // Release 页面地址
+  bool _copied = false;
+
+  @override
+  void initState() {
+    super.initState();
+    PackageInfo.fromPlatform().then((v) {
+      if (mounted) setState(() => _info = v);
+    });
+  }
+
+  Future<void> _check() async {
+    setState(() => _phase = 'checking');
+    Map<String, dynamic>? release;
+    try {
+      final res = await http
+          .get(
+            Uri.parse(
+              'https://api.github.com/repos/YechoY/Ncepu-Assistant/releases/latest',
+            ),
+            headers: const {
+              'User-Agent': 'hdjw_assistant', // GitHub API 要求 UA
+              'Accept': 'application/vnd.github+json',
+            },
+          )
+          .timeout(const Duration(seconds: 10));
+      if (res.statusCode == 200) {
+        release =
+            jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+      }
+    } catch (_) {
+      // 网络异常/超时：展示失败态
+    }
+    if (!mounted) return;
+    final info = _info;
+    if (release == null || info == null) {
+      setState(() {
+        _phase = 'fail';
+        _copied = false;
+      });
+      return;
+    }
+    final tag = (release['tag_name'] as String? ?? '').trim();
+    final body = (release['body'] as String? ?? '').trim();
+    final htmlUrl = release['html_url'] as String? ?? '';
+    final newer = _isRemoteNewer(
+      tag,
+      info.version,
+      int.tryParse(info.buildNumber) ?? 0,
+    );
+    setState(() {
+      _tag = tag.startsWith('v') ? tag : 'v$tag';
+      _body = body;
+      _htmlUrl = htmlUrl;
+      _phase = newer ? 'newer' : 'latest';
+    });
+  }
+
+  Future<void> _copyLink() async {
+    await Clipboard.setData(const ClipboardData(text: _releasesUrl));
+    if (!mounted) return;
+    setState(() => _copied = true);
+    Timer(const Duration(seconds: 2), () {
+      if (mounted) setState(() => _copied = false);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final info = _info;
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      child: GlassCard(
+        radius: 22,
+        padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              '掌上华电',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: kInk,
+              ),
+            ),
+            const SizedBox(height: 8),
+            const _AboutLine(
+              text: '① ',
+              bold: '非官方应用',
+              tail: '，由学生个人 vibecoding 独立开发，仅供学习交流',
+            ),
+            const SizedBox(height: 4),
+            const _AboutLine(
+              text: '② 数据来自华电（保定）教务系统官网，账号密码等数据',
+              bold: '仅保存在本机',
+              tail: '，不上传、不同步至任何第三方服务器',
+            ),
+            const SizedBox(height: 4),
+            const _AboutLine(text: '③ 不用于任何商业用途，使用产生的一切后果', bold: '由使用者自行承担'),
+            const SizedBox(height: 12),
+            if (info != null)
+              _AboutLine(
+                text: '当前版本 ',
+                bold: 'v${info.version}',
+                tail: '（build ${info.buildNumber}）',
+              ),
+            const SizedBox(height: 10),
+            _updateArea(),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: _pill(
+                '好的',
+                bg: kPrimary.withValues(alpha: 0.92),
+                textColor: Colors.white,
+                onTap: () => Navigator.pop(context),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 版本号下方的检查更新区域，随检查阶段变化。
+  Widget _updateArea() {
+    switch (_phase) {
+      case 'checking':
+        return const Row(
+          children: [
+            SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(
+                strokeWidth: 2.2,
+                color: kPrimary,
+              ),
+            ),
+            SizedBox(width: 10),
+            Text('正在检查更新…', style: TextStyle(fontSize: 12.5, color: kTextMain)),
+          ],
+        );
+      case 'fail':
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              '检查失败：无法连接 GitHub（可能被网络拦截或不稳定）',
+              style: TextStyle(fontSize: 12.5, height: 1.5, color: kTextMuted),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _pill(
+                  _copied ? '已复制，请到浏览器打开' : '复制在线链接',
+                  bg: Colors.white.withValues(alpha: 0.55),
+                  textColor: kTextMain,
+                  onTap: _copyLink,
+                ),
+                _pill(
+                  '重试',
+                  bg: kPrimary.withValues(alpha: 0.92),
+                  textColor: Colors.white,
+                  onTap: _check,
+                ),
+              ],
+            ),
+          ],
+        );
+      case 'latest':
+        return Row(
+          children: [
+            const Expanded(
+              child: Text(
+                '已是最新版本。',
+                style: TextStyle(fontSize: 12.5, color: kTextMuted),
+              ),
+            ),
+            _pill(
+              '重新检查',
+              bg: Colors.white.withValues(alpha: 0.55),
+              textColor: kTextMain,
+              onTap: _check,
+            ),
+          ],
+        );
+      case 'newer':
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _AboutLine(text: '发现新版本 ', bold: _tag),
+            if (_body.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 180),
+                child: SingleChildScrollView(
+                  child: Text(
+                    _body,
+                    style: const TextStyle(
+                      fontSize: 12.5,
+                      height: 1.55,
+                      color: kTextMuted,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: _pill(
+                '前往下载',
+                bg: kPrimary.withValues(alpha: 0.92),
+                textColor: Colors.white,
+                onTap: () {
+                  if (_htmlUrl.isNotEmpty) {
+                    launchUrl(
+                      Uri.parse(_htmlUrl),
+                      mode: LaunchMode.externalApplication,
+                    );
+                  }
+                },
+              ),
+            ),
+          ],
+        );
+      default: // idle
+        return SizedBox(
+          width: double.infinity,
+          child: _pill(
+            '检查更新',
+            bg: Colors.white.withValues(alpha: 0.55),
+            textColor: kTextMain,
+            onTap: _check,
+          ),
+        );
+    }
+  }
+
+  /// 弹窗内的小型胶囊按钮（与 _GlassDialog 的按钮同款视觉）。
+  Widget _pill(
+    String label, {
+    required Color bg,
+    required Color textColor,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        curve: kSpring,
+        height: 40,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: BorderRadius.circular(13),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.55)),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w700,
+            color: textColor,
+          ),
+        ),
       ),
     );
   }
@@ -760,13 +883,8 @@ class _TabFadeState extends State<_TabFade>
 /// 用户胶囊弹出的底部菜单：浮起玻璃卡 + 菜单项卡片（与下拉面板选项同款视觉）。
 class _UserMenuSheet extends StatelessWidget {
   final VoidCallback onAbout;
-  final VoidCallback onCheckUpdate;
   final VoidCallback onLogout;
-  const _UserMenuSheet({
-    required this.onAbout,
-    required this.onCheckUpdate,
-    required this.onLogout,
-  });
+  const _UserMenuSheet({required this.onAbout, required this.onLogout});
 
   @override
   Widget build(BuildContext context) {
@@ -786,15 +904,6 @@ class _UserMenuSheet extends StatelessWidget {
                 onTap: () {
                   Navigator.pop(context); // 先关掉底部菜单
                   onAbout();
-                },
-              ),
-              const SizedBox(height: 8),
-              _MenuTile(
-                icon: Icons.system_update_alt_rounded,
-                label: '检查更新',
-                onTap: () {
-                  Navigator.pop(context);
-                  onCheckUpdate();
                 },
               ),
               const SizedBox(height: 8),
