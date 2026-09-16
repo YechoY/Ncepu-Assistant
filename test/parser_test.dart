@@ -111,7 +111,8 @@ void main() {
 </body></html>''';
 
   test('解析学期全部课表', () {
-    final list = parseFullTimetable(fullKbHtml);
+    final p = parseFullTimetable(fullKbHtml);
+    final list = p.courses;
     // 周一第一大节：计算机网络；周四第一大节：软件工程B + PYTHON程序设计
     expect(list.length, 3);
     final net = list.firstWhere((c) => c.name == '计算机网络');
@@ -129,9 +130,14 @@ void main() {
     final py = thu.firstWhere((c) => c.name == 'PYTHON程序设计');
     expect(py.location, '教十楼A座603');
     expect(py.weeks, '1-8(周)');
+    // 表尾「备注」行单独返回（不进课程列表）
+    expect(p.remark, '无课表课程:');
   });
 
   test('解析学期全部课表：非 kbtable 页面返回空', () {
-    expect(parseFullTimetable('<html><body>no table</body></html>'), isEmpty);
+    expect(
+      parseFullTimetable('<html><body>no table</body></html>').courses,
+      isEmpty,
+    );
   });
 }

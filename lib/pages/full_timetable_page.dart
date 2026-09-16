@@ -59,6 +59,7 @@ class _FullTimetablePageState extends ConsumerState<FullTimetablePage> {
   bool _refreshing = false; // 已有内容时的联网刷新中（后台静默或手动）
   String? _error;
   List<FullCourse> _courses = [];
+  String _remark = ''; // 表尾「备注」：本学期不占格子的课程（课程设计/分散进行等）
   int? _updatedAt; // 缓存键的最后写入时间（毫秒），用于顶栏显示更新时间
 
   @override
@@ -74,8 +75,13 @@ class _FullTimetablePageState extends ConsumerState<FullTimetablePage> {
     final cache = ref.read(cacheServiceProvider);
     final cached = await cache.loadJson(_cacheKey, ttlDays: 30);
     final cachedAt = await cache.updatedAt(_cacheKey);
-    final cachedList = cached is List
-        ? cached
+    // 新缓存是 {'courses': [...], 'remark': '...'} 包；旧缓存是纯 List（无备注）
+    final dynamic cachedCourses = cached is Map ? cached['courses'] : cached;
+    final cachedRemark = cached is Map
+        ? (cached['remark'] as String? ?? '')
+        : '';
+    final cachedList = cachedCourses is List
+        ? cachedCourses
               .map((e) => FullCourse.fromJson(e as Map<String, dynamic>))
               .toList()
         : <FullCourse>[];
@@ -89,6 +95,7 @@ class _FullTimetablePageState extends ConsumerState<FullTimetablePage> {
               _cacheMaxAge;
       setState(() {
         _courses = cachedList;
+        _remark = cachedRemark;
         _updatedAt = cachedAt;
         _loading = false;
         _refreshing = stale;
@@ -109,18 +116,21 @@ class _FullTimetablePageState extends ConsumerState<FullTimetablePage> {
         await ref.read(authStateProvider.notifier).tryAutoLogin();
       }
       final api = ref.read(apiClientProvider);
-      final list = await api.fetchFullTimetable(); // 仅当前学期
+      final p = await api.fetchFullTimetable(); // 仅当前学期
+      final list = p.courses;
       if (!mounted) return;
       if (list.isEmpty && _courses.isNotEmpty) {
         throw StateError('返回为空，疑似会话失效'); // 走 catch 保留好数据
       }
       if (list.isNotEmpty) {
-        await ref
-            .read(cacheServiceProvider)
-            .saveJson(_cacheKey, list.map((e) => e.toJson()).toList());
+        await ref.read(cacheServiceProvider).saveJson(_cacheKey, {
+          'courses': list.map((e) => e.toJson()).toList(),
+          'remark': p.remark,
+        });
       }
       setState(() {
         _courses = list;
+        _remark = p.remark;
         _error = null;
         _loading = false;
         _refreshing = false;
@@ -251,19 +261,71 @@ class _FullTimetablePageState extends ConsumerState<FullTimetablePage> {
     final colorMap = assignCourseIndices(courseDays);
     // 左侧节次列固定不动；右侧 7 天区域可横向滚动。两者放在同一个纵向滚动里，
     // 因此上下滚动时左右同步、左侧节次列不会随横向滚动移动。
+    // 「备注」条跟随网格一起纵向滚动，放在网格最下方。
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(8, 0, 8, 16),
-      child: Row(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _leftColumn(), // 固定：节次列
-          Expanded(
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [_dayHeaderRow(), _gridBoard(colorMap)],
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _leftColumn(), // 固定：节次列
+              Expanded(
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [_dayHeaderRow(), _gridBoard(colorMap)],
+                  ),
+                ),
               ),
+            ],
+          ),
+          if (_remark.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 10),
+              child: _remarkBar(),
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// 表尾「备注」条：列出本学期不占格子的课程（课程设计/分散进行等）。
+  Widget _remarkBar() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.45),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: kGlassBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.info_outline, size: 15, color: kPrimary),
+              SizedBox(width: 6),
+              Text(
+                '备注',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: kInk,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 5),
+          Text(
+            _remark,
+            style: const TextStyle(
+              fontSize: 12,
+              height: 1.45,
+              color: kTextMain,
             ),
           ),
         ],

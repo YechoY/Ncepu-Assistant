@@ -130,26 +130,44 @@ List<TimetableRow> parseTimetable(String html) {
 
 String _col(List<String> row, int i) => i < row.length ? row[i].trim() : '';
 
+/// 清洗「备注」行文本：压平空白、按分号拆成条目、去空与「无」。
+String _cleanRemark(String raw) {
+  var t = raw.replaceAll('\u00a0', ' ').replaceAll(RegExp(r'\s+'), ' ').trim();
+  if (t.isEmpty || t == '无') return '';
+  return t
+      .split(';')
+      .map((e) => e.trim())
+      .where((e) => e.isNotEmpty)
+      .join('\n');
+}
+
 /// 解析「学期全部课表」页面（xskb_list.do 返回的 HTML）。
 /// 结构与单周课表完全不同：
-/// - 表格 id="kbtable"，7 列=周一..周日，5 行=第一..五大节，最后一行"备注"跳过；
+/// - 表格 id="kbtable"，7 列=周一..周日，5 行=第一..五大节，最后一行"备注"单独取出；
+///   备注行列出本学期不占格子的课程（课程设计/分散进行等）；
 /// - 每格里有两个 div：kbcontent1(简版) 与 kbcontent(详版，display:none)；
 ///   详版含老师、分组名称等更多信息，这里解析详版；
 /// - 一格可能有多门课，用一行"----------"分隔（跨周占同一格不同周次）；
 /// - 每门课字段：第 1 段是课程编号，第 2 段是课程名，其余靠 `<font title='...'>` 标注
 ///   （周次(节次)/教室/老师/分组名称）。空格子内容为 `&nbsp;`。
-List<FullCourse> parseFullTimetable(String html) {
+({List<FullCourse> courses, String remark}) parseFullTimetable(String html) {
   final doc = html_parser.parse(html);
   final table = doc.querySelector('#kbtable');
-  if (table == null) return [];
+  if (table == null) return (courses: const [], remark: '');
   final result = <FullCourse>[];
+  var remark = '';
   final trs = table.querySelectorAll('tr');
   var section = 0; // 第几大节，随含有效节次表头的行递增
   for (final tr in trs) {
-    // 行首的 <th> 文本决定这是哪一大节；"备注"行直接跳过
+    // 行首的 <th> 文本决定这是哪一大节；"备注"行单独提取展示
     final th = tr.querySelector('th');
     final thText = th?.text.trim() ?? '';
-    if (thText.contains('备注')) continue;
+    if (thText.contains('备注')) {
+      remark = _cleanRemark(
+        tr.querySelectorAll('td').map((e) => e.text).join(' '),
+      );
+      continue;
+    }
     if (!thText.contains('大节')) continue; // 跳过表头行（星期一.. 那行没有"大节"）
     section++;
     final tds = tr.querySelectorAll('td');
@@ -166,7 +184,7 @@ List<FullCourse> parseFullTimetable(String html) {
       }
     }
   }
-  return result;
+  return (courses: result, remark: remark);
 }
 
 /// 解析一个格子的 innerHtml，可能含多门课（用一行 "----" 分隔）。
@@ -737,8 +755,10 @@ class ApiClient {
   }
 
   /// 拉取「学期全部课表」。GET xskb_list.do；[term] 为学年学期(xnxq01id)，
-  /// 传空则由服务器返回当前学期。返回解析后的整学期课程列表。
-  Future<List<FullCourse>> fetchFullTimetable({String term = ''}) async {
+  /// 传空则由服务器返回当前学期。返回解析后的整学期课程列表与表尾「备注」。
+  Future<({List<FullCourse> courses, String remark})> fetchFullTimetable({
+    String term = '',
+  }) async {
     final uri = term.isEmpty
         ? Uri.parse('$baseUrl/jsxsd/xskb/xskb_list.do')
         : Uri.parse('$baseUrl/jsxsd/xskb/xskb_list.do?xnxq01id=$term');

@@ -24,8 +24,14 @@ class CapsuleNav extends StatelessWidget {
                   onTap: () => onTap(i),
                   behavior: HitTestBehavior.opaque,
                   child: AnimatedContainer(
-                    duration: kSpringDur,
-                    curve: kSpring,
+                    // 出场（成为选中项）用 spring 的弹性入场；
+                    // 退场（旧选中项）用短时长 easeOut 快速消失——
+                    // 420ms spring 的减速长尾会让旧按钮上的紫底/柔光残留很久，
+                    // 肉眼看就是「残影赖在原按钮上」。
+                    duration: i == index
+                        ? const Duration(milliseconds: 300)
+                        : const Duration(milliseconds: 150),
+                    curve: i == index ? kSpring : Curves.easeOut,
                     padding: const EdgeInsets.symmetric(vertical: 9),
                     decoration: BoxDecoration(
                       // 选中：雾蓝紫实底 + 同色柔光；未选：透明（露出玻璃条本身）
