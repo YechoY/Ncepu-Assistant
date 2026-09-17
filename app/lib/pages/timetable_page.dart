@@ -178,9 +178,10 @@ class _TimetableGridState extends State<_TimetableGrid> {
   void _autoscrollIfNeeded() {
     if (_didAutoScroll || !_hScroll.hasClients) return;
     final todayCol = DateTime.now().weekday - 1;
-    // 每列实际间距 = 列宽 + 左右各 3 的 margin。让今天列大致居中。
+    // 每列实际间距 = 列宽 + 左右各 3 的 margin。让今天列精确居中。
     const pitch = _colW + 6;
-    final viewport = MediaQuery.of(context).size.width;
+    // 用滚动视图的真实可视宽度（已扣除页面左右 padding），而非整屏宽度
+    final viewport = _hScroll.position.viewportDimension;
     final target = todayCol * pitch + pitch / 2 - viewport / 2;
     _hScroll.jumpTo(target.clamp(0.0, _hScroll.position.maxScrollExtent));
     _didAutoScroll = true;
