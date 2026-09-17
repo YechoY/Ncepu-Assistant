@@ -7,6 +7,7 @@ import '../providers/auth_state.dart';
 import '../providers/data_state.dart' show formatUpdatedAt;
 import '../theme.dart';
 import '../widgets/glass_background.dart';
+import '../widgets/glass_snackbar.dart';
 import '../widgets/glass_card.dart';
 import '../widgets/mac_card.dart';
 
@@ -149,8 +150,7 @@ class _FullTimetablePageState extends ConsumerState<FullTimetablePage> {
       if (_courses.isEmpty) {
         setState(() => _error = '获取失败，请确认已连接校园网后重试');
       } else if (manual) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text('刷新失败，已显示缓存数据')));
+        showGlassSnackBar(context, '刷新失败，已显示缓存数据');
       }
     }
   }

@@ -641,15 +641,27 @@ class _AboutDialogState extends State<_AboutDialog> {
             _AboutLine(text: '发现新版本 ', bold: _tag),
             if (_body.isNotEmpty) ...[
               const SizedBox(height: 8),
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxHeight: 180),
-                child: SingleChildScrollView(
-                  child: Text(
-                    _body,
-                    style: const TextStyle(
-                      fontSize: 12.5,
-                      height: 1.55,
-                      color: kTextMuted,
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.6),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: kPrimary.withValues(alpha: 0.2)),
+                ),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 180),
+                  child: SingleChildScrollView(
+                    child: Text(
+                      _body,
+                      style: const TextStyle(
+                        fontSize: 12.5,
+                        height: 1.55,
+                        color: kTextMain,
+                      ),
                     ),
                   ),
                 ),
