@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../providers/auth_state.dart';
 import '../widgets/glass_background.dart';
 import '../widgets/glass_card.dart';
+import '../widgets/glass_snackbar.dart';
 import '../theme.dart';
 
 class LoginPage extends ConsumerStatefulWidget {
@@ -18,11 +20,38 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   bool remember = false;
   bool submitting = false;
   bool _showPass = false;
+  bool _agreed = false;
+  final ScrollController _scroll = ScrollController();
 
   @override
   void initState() {
     super.initState();
     _prefillIfRemembered();
+    _loadAgreement();
+  }
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  /// 读取本地「已同意免责声明」记录：同意过则默认勾上，之后不再打扰。
+  Future<void> _loadAgreement() async {
+    try {
+      final sp = await SharedPreferences.getInstance();
+      if (!mounted) return;
+      setState(() => _agreed = sp.getBool('disclaimer_agreed') ?? false);
+    } catch (_) {}
+  }
+
+  /// 勾选/取消均立即持久化：取消后下次启动需重新勾选才能登录。
+  Future<void> _toggleAgreed(bool v) async {
+    setState(() => _agreed = v);
+    try {
+      final sp = await SharedPreferences.getInstance();
+      await sp.setBool('disclaimer_agreed', v);
+    } catch (_) {}
   }
 
   Future<void> _prefillIfRemembered() async {
@@ -43,9 +72,20 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   }
 
   Future<void> _submit() async {
+    if (!_agreed) {
+      showGlassSnackBar(context, '请先阅读并同意免责声明');
+      // 免责声明勾选框在页面最底部，未勾选时滚过去引导用户查看
+      if (_scroll.hasClients) {
+        _scroll.animateTo(
+          _scroll.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 420),
+          curve: kSpring,
+        );
+      }
+      return;
+    }
     if (_user.text.trim().isEmpty || _pass.text.isEmpty) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('请输入学号和密码')));
+      showGlassSnackBar(context, '请输入学号和密码');
       return;
     }
     setState(() => submitting = true);
@@ -56,7 +96,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     setState(() => submitting = false);
     final err = ref.read(authStateProvider).error;
     if (!ok && err != null) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err)));
+      showGlassSnackBar(context, err);
     }
   }
 
@@ -66,7 +106,9 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       body: GlassBackground(
         child: SafeArea(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 48),
+            controller: _scroll,
+            // 底部留白 96：滚到底后勾选行高于浮动 SnackBar（约 72px），不被遮住
+            padding: const EdgeInsets.fromLTRB(20, 48, 20, 96),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -132,7 +174,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                       Row(
                         children: [
                           _check(
-                            '记住账号密码',
+                            '记住账号密码（可选）',
                             remember,
                             (v) => setState(() => remember = v),
                           ),
@@ -203,9 +245,66 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                     ],
                   ),
                 ),
+                const SizedBox(height: 12),
+                _agreeRow(),
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  /// 免责声明勾选行：置于声明卡下方，紫底描边胶囊样式，醒目且整行可点。
+  Widget _agreeRow() {
+    return GestureDetector(
+      onTap: () => _toggleAgreed(!_agreed),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 280),
+        curve: kSpring,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+        decoration: BoxDecoration(
+          color: kPrimary.withValues(alpha: _agreed ? 0.14 : 0.07),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: kPrimary.withValues(alpha: _agreed ? 0.55 : 0.28),
+            width: 1.2,
+          ),
+        ),
+        child: Row(
+          children: [
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              curve: kSpring,
+              width: 22,
+              height: 22,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: _agreed
+                    ? kPrimary
+                    : Colors.white.withValues(alpha: 0.72),
+                borderRadius: BorderRadius.circular(7),
+                border: Border.all(
+                  color: _agreed ? kPrimary : kPrimary.withValues(alpha: 0.45),
+                  width: 1.4,
+                ),
+              ),
+              child: _agreed
+                  ? const Icon(Icons.check, size: 16, color: Colors.white)
+                  : null,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                '我已阅读并同意上述免责声明',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: _agreed ? kPrimary : kInk,
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
