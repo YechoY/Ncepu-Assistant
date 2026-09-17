@@ -10,13 +10,16 @@
 
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; // Clipboard：复制下载链接
 import 'package:flutter_localizations/flutter_localizations.dart'; // 提供中文等系统语言包
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http; // GitHub API 查询最新版本
+import 'package:open_filex/open_filex.dart'; // 打开下载完成的 APK 触发安装
 import 'package:package_info_plus/package_info_plus.dart'; // 运行时读取版本号
+import 'package:path_provider/path_provider.dart'; // APK 下载临时目录
 import 'package:url_launcher/url_launcher.dart'; // 前往浏览器下载新版本
 
 import 'pages/classrooms_page.dart';
@@ -32,6 +35,7 @@ import 'theme.dart';
 import 'widgets/capsule_nav.dart';
 import 'widgets/glass_background.dart';
 import 'widgets/glass_card.dart';
+import 'widgets/glass_snackbar.dart';
 import 'widgets/offline_banner.dart';
 import 'widgets/top_bar.dart';
 
@@ -437,12 +441,18 @@ class _AboutDialogState extends State<_AboutDialog> {
       'https://github.com/YechoY/Ncepu-Assistant/releases/latest';
 
   /// 检查阶段：idle 未检查 | checking 检查中 | fail 失败 | latest 已最新 | newer 有新版
+  /// downloading 下载中 | ready 下载完成待安装 | dlfail 下载失败
   String _phase = 'idle';
   PackageInfo? _info;
   String _tag = ''; // 远端最新 tag（含 v 前缀）
   String _body = ''; // Release 更新说明
   String _htmlUrl = ''; // Release 页面地址
+  String _apkUrl = ''; // APK 附件直链（Release 资产）
+  double _progress = 0; // 下载进度 0.0-1.0
   bool _copied = false;
+  HttpClientRequest? _dlReq; // 进行中的下载请求，用于取消
+  HttpClient? _dlClient; // 进行中的下载客户端，取消时强制断开连接
+  bool _cancelled = false; // 区分「用户主动取消」与「下载真失败」
 
   @override
   void initState() {
@@ -486,6 +496,16 @@ class _AboutDialogState extends State<_AboutDialog> {
     final tag = (release['tag_name'] as String? ?? '').trim();
     final body = (release['body'] as String? ?? '').trim();
     final htmlUrl = release['html_url'] as String? ?? '';
+    // 解析 Release 附件里的 APK 直链（应用内下载用；没有则退回浏览器方案）
+    var apkUrl = '';
+    final assets = release['assets'] as List? ?? const [];
+    for (final a in assets) {
+      final name = (a['name'] as String? ?? '').toLowerCase();
+      if (name.endsWith('.apk')) {
+        apkUrl = a['browser_download_url'] as String? ?? '';
+        break;
+      }
+    }
     final newer = _isRemoteNewer(
       tag,
       info.version,
@@ -495,8 +515,126 @@ class _AboutDialogState extends State<_AboutDialog> {
       _tag = tag.startsWith('v') ? tag : 'v$tag';
       _body = body;
       _htmlUrl = htmlUrl;
+      _apkUrl = apkUrl;
       _phase = newer ? 'newer' : 'latest';
     });
+  }
+
+  /// APK 本地保存路径（临时目录，文件名带 tag 防止新旧版本混淆）。
+  Future<String> _apkPath() async {
+    final dir = await getTemporaryDirectory();
+    final safeTag = _tag.replaceAll(RegExp(r'[^0-9A-Za-z.]'), '_');
+    return '${dir.path}/update_$safeTag.apk';
+  }
+
+  /// 应用内下载 APK（带进度），完成后进入 ready 待安装。
+  Future<void> _startDownload() async {
+    if (_apkUrl.isEmpty) return;
+    // Android 8+ 需先授予「安装未知应用」权限，否则下载完也无法安装。
+    try {
+      const ch = MethodChannel('app_installer');
+      final can = await ch.invokeMethod<bool>('canRequestInstall');
+      if (can != true) {
+        await ch.invokeMethod('openInstallSetting');
+        if (!mounted) return;
+        showGlassSnackBar(context, '请允许「安装未知应用」后重新点击下载');
+        return;
+      }
+    } catch (_) {
+      // MethodChannel 不可用（低版本系统等）时直接尝试下载与安装。
+    }
+    setState(() {
+      _phase = 'downloading';
+      _progress = 0;
+      _cancelled = false;
+    });
+    HttpClient? client;
+    Timer? watch;
+    try {
+      final path = await _apkPath();
+      final file = File(path);
+      if (await file.exists()) await file.delete();
+      client = HttpClient();
+      _dlClient = client;
+      final req = await client.getUrl(Uri.parse(_apkUrl));
+      req.headers.set('User-Agent', 'hdjw_assistant');
+      _dlReq = req;
+      // 连接超时：国内直连 GitHub 的 TLS 握手经常挂起，15s 连不上判失败
+      final res = await req.close().timeout(const Duration(seconds: 15));
+      if (res.statusCode != 200) throw Exception('HTTP ${res.statusCode}');
+      final total = res.contentLength;
+      var received = 0;
+      final sink = file.openWrite();
+      // 停滞/总时长检测：每 5s 巡检——
+      //   20s 内收到的字节无增长（连接挂起/断流）→ 判失败；
+      //   整体超过 180s 未完成（网络极慢滴流，空闲超时抓不住）→ 判失败。
+      // abort 抛异常后统一走 catch 进入「下载失败」。
+      {
+        final startedAt = DateTime.now();
+        var lastBytes = 0;
+        var lastProgressAt = startedAt;
+        watch = Timer.periodic(const Duration(seconds: 5), (t) {
+          final now = DateTime.now();
+          if (received != lastBytes) {
+            lastBytes = received;
+            lastProgressAt = now;
+          }
+          final stalled = now.difference(lastProgressAt).inSeconds >= 20;
+          final tooLong = now.difference(startedAt).inSeconds >= 180;
+          if (stalled || tooLong) {
+            t.cancel();
+            _dlReq?.abort(const HttpException('下载超时'));
+            _dlClient?.close(force: true);
+          }
+        });
+      }
+      await for (final chunk in res.timeout(const Duration(seconds: 30))) {
+        received += chunk.length;
+        sink.add(chunk);
+        // 进度变化超过 1% 才刷新，避免 setState 过频
+        if (total > 0 && mounted) {
+          final p = received / total;
+          if (p - _progress >= 0.01) setState(() => _progress = p);
+        }
+      }
+      await sink.close();
+      if (total > 0 && received < total) throw Exception('下载不完整');
+      if (!mounted) return;
+      setState(() => _phase = 'ready');
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _phase = _cancelled ? 'newer' : 'dlfail';
+        _progress = 0;
+      });
+    } finally {
+      watch?.cancel();
+      _dlReq = null;
+      _dlClient = null;
+      client?.close(force: true);
+    }
+  }
+
+  /// 取消下载：abort 请求并强制断开底层连接。
+  /// 仅 abort 不带 error 时，已建立的响应流可能静默继续（取消看似无效果），
+  /// 所以带 error 让 await for 立即抛出，再 forceClose 兜底断开 socket。
+  void _cancelDownload() {
+    _cancelled = true;
+    _dlReq?.abort(const HttpException('下载已取消'));
+    _dlClient?.close(force: true);
+  }
+
+  /// 打开下载完成的 APK，交给系统安装器。
+  Future<void> _install() async {
+    try {
+      final path = await _apkPath();
+      await OpenFilex.open(
+        path,
+        type: 'application/vnd.android.package-archive',
+      );
+    } catch (_) {
+      if (mounted) showGlassSnackBar(context, '安装失败，请用「复制在线链接」到浏览器下载');
+    }
   }
 
   Future<void> _copyLink() async {
@@ -514,57 +652,77 @@ class _AboutDialogState extends State<_AboutDialog> {
     return Dialog(
       backgroundColor: Colors.transparent,
       elevation: 0,
-      child: GlassCard(
-        radius: 22,
-        padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              '掌上华电',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-                color: kInk,
+      child: ConstrainedBox(
+        // 限高 75% 屏高：内容（尤其检查更新状态区变长后）超出时可滚动，
+        // 弹窗不会被屏幕下缘遮住。
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.75,
+        ),
+        child: GlassCard(
+          radius: 22,
+          padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Flexible(
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        '掌上华电',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: kInk,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      const _AboutLine(
+                        text: '① ',
+                        bold: '非官方应用',
+                        tail: '，由学生个人 vibecoding 独立开发，仅供学习交流',
+                      ),
+                      const SizedBox(height: 4),
+                      const _AboutLine(
+                        text: '② 数据来自华电（保定）教务系统官网，账号密码等数据',
+                        bold: '仅保存在本机',
+                        tail: '，不上传、不同步至任何第三方服务器',
+                      ),
+                      const SizedBox(height: 4),
+                      const _AboutLine(
+                        text: '③ 不用于任何商业用途，使用产生的一切后果',
+                        bold: '由使用者自行承担',
+                      ),
+                      const SizedBox(height: 4),
+                      const _AboutLine(
+                        text: '④ 在法律允许的范围内，开发者保留对本声明的',
+                        bold: '最终解释权',
+                        tail: '；如与法律法规相冲突，以法律法规为准',
+                      ),
+                      const SizedBox(height: 12),
+                      if (info != null)
+                        _AboutLine(text: '当前版本 ', bold: 'v${info.version}'),
+                      const SizedBox(height: 10),
+                      _updateArea(),
+                    ],
+                  ),
+                ),
               ),
-            ),
-            const SizedBox(height: 8),
-            const _AboutLine(
-              text: '① ',
-              bold: '非官方应用',
-              tail: '，由学生个人 vibecoding 独立开发，仅供学习交流',
-            ),
-            const SizedBox(height: 4),
-            const _AboutLine(
-              text: '② 数据来自华电（保定）教务系统官网，账号密码等数据',
-              bold: '仅保存在本机',
-              tail: '，不上传、不同步至任何第三方服务器',
-            ),
-            const SizedBox(height: 4),
-            const _AboutLine(text: '③ 不用于任何商业用途，使用产生的一切后果', bold: '由使用者自行承担'),
-            const SizedBox(height: 4),
-            const _AboutLine(
-              text: '④ 在法律允许的范围内，开发者保留对本声明的',
-              bold: '最终解释权',
-              tail: '；如与法律法规相冲突，以法律法规为准',
-            ),
-            const SizedBox(height: 12),
-            if (info != null)
-              _AboutLine(text: '当前版本 ', bold: 'v${info.version}'),
-            const SizedBox(height: 10),
-            _updateArea(),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: _pill(
-                '好的',
-                bg: kPrimary.withValues(alpha: 0.92),
-                textColor: Colors.white,
-                onTap: () => Navigator.pop(context),
+              // 「好的」固定在弹窗底部，不随内容滚动
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: _pill(
+                  '好的',
+                  bg: kPrimary.withValues(alpha: 0.92),
+                  textColor: Colors.white,
+                  onTap: () => Navigator.pop(context),
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -668,21 +826,137 @@ class _AboutDialogState extends State<_AboutDialog> {
               ),
             ],
             const SizedBox(height: 10),
-            SizedBox(
-              width: double.infinity,
-              child: _pill(
-                '前往下载',
-                bg: kPrimary.withValues(alpha: 0.92),
-                textColor: Colors.white,
-                onTap: () {
-                  if (_htmlUrl.isNotEmpty) {
-                    launchUrl(
-                      Uri.parse(_htmlUrl),
-                      mode: LaunchMode.externalApplication,
-                    );
-                  }
-                },
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                if (_apkUrl.isNotEmpty)
+                  _pill(
+                    '应用内下载',
+                    bg: kPrimary.withValues(alpha: 0.92),
+                    textColor: Colors.white,
+                    onTap: _startDownload,
+                  )
+                else
+                  _pill(
+                    '前往下载',
+                    bg: kPrimary.withValues(alpha: 0.92),
+                    textColor: Colors.white,
+                    onTap: () {
+                      if (_htmlUrl.isNotEmpty) {
+                        launchUrl(
+                          Uri.parse(_htmlUrl),
+                          mode: LaunchMode.externalApplication,
+                        );
+                      }
+                    },
+                  ),
+                _pill(
+                  _copied ? '已复制，请到浏览器打开' : '复制在线链接',
+                  bg: Colors.white.withValues(alpha: 0.55),
+                  textColor: kTextMain,
+                  onTap: _copyLink,
+                ),
+              ],
+            ),
+          ],
+        );
+      case 'downloading':
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Expanded(
+                  child: Text(
+                    '正在下载更新包…',
+                    style: TextStyle(fontSize: 12.5, color: kTextMain),
+                  ),
+                ),
+                Text(
+                  '${(_progress * 100).toStringAsFixed(0)}%',
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                    color: kPrimary,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                value: _progress > 0 ? _progress : null,
+                minHeight: 6,
+                backgroundColor: Colors.white.withValues(alpha: 0.55),
+                valueColor: const AlwaysStoppedAnimation(kPrimary),
               ),
+            ),
+            const SizedBox(height: 10),
+            _pill(
+              '取消下载',
+              bg: Colors.white.withValues(alpha: 0.55),
+              textColor: kTextMain,
+              onTap: _cancelDownload,
+            ),
+          ],
+        );
+      case 'ready':
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              '下载完成，可开始安装。',
+              style: TextStyle(fontSize: 12.5, color: kTextMain),
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _pill(
+                  '安装',
+                  bg: kPrimary.withValues(alpha: 0.92),
+                  textColor: Colors.white,
+                  onTap: _install,
+                ),
+                _pill(
+                  _copied ? '已复制，请到浏览器打开' : '复制在线链接',
+                  bg: Colors.white.withValues(alpha: 0.55),
+                  textColor: kTextMain,
+                  onTap: _copyLink,
+                ),
+              ],
+            ),
+          ],
+        );
+      case 'dlfail':
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              '下载失败，网络可能不稳定，请稍后重试。',
+              style: TextStyle(fontSize: 12.5, color: kTextMain),
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _pill(
+                  '重试',
+                  bg: kPrimary.withValues(alpha: 0.92),
+                  textColor: Colors.white,
+                  onTap: _startDownload,
+                ),
+                _pill(
+                  _copied ? '已复制，请到浏览器打开' : '复制在线链接',
+                  bg: Colors.white.withValues(alpha: 0.55),
+                  textColor: kTextMain,
+                  onTap: _copyLink,
+                ),
+              ],
             ),
           ],
         );
