@@ -8,12 +8,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../theme.dart';
 import '../../widgets/glass_background.dart';
 import '../../widgets/glass_card.dart';
-import '../../widgets/glass_snackbar.dart';
-import '../huish_api_client.dart';
-import '../huish_auth_state.dart';
+import 'huish_auth_state.dart';
 import 'device_prefs.dart';
 import 'huish_bill_page.dart';
 import 'huish_device_page.dart';
+import 'huish_scan_page.dart';
 
 class HuishHomePage extends ConsumerStatefulWidget {
   const HuishHomePage({super.key});
@@ -27,7 +26,7 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
   List<dynamic> _devices = [];
   Map<String, DeviceCustomInfo> _customs = {};
   List<String> _groups = ['default'];
-  Set<String> _collapsed = {};
+  final Set<String> _collapsed = {};
   Timer? _refreshTimer;
 
   @override
@@ -87,7 +86,9 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
     for (final d in _devices) {
       final id = _deviceId(d);
       final custom = _customs[id] ?? DeviceCustomInfo.empty();
-      final group = _groups.contains(custom.groupId) ? custom.groupId : 'default';
+      final group = _groups.contains(custom.groupId)
+          ? custom.groupId
+          : 'default';
       result[group]!.add(d);
     }
     // 空分组只留 default（其他空的不显示）
@@ -105,7 +106,9 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
   String _deviceName(dynamic d) {
     final id = _deviceId(d);
     final custom = _customs[id];
-    if (custom != null && custom.customName.isNotEmpty) return custom.customName;
+    if (custom != null && custom.customName.isNotEmpty) {
+      return custom.customName;
+    }
     if (d is Map<String, dynamic>) {
       final name = d['name'] ?? d['title'] ?? d['addr_name'] ?? '';
       return name.toString();
@@ -129,17 +132,35 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
     final id = _deviceId(d);
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => HuishDevicePage(
-          deviceId: id,
-          deviceName: _deviceName(d),
-        ),
+        builder: (_) =>
+            HuishDevicePage(deviceId: id, deviceName: _deviceName(d)),
       ),
     );
   }
 
-  void _scan() {
-    // 扫码依赖 mobile_scanner，先加依赖
-    showGlassSnackBar(context, '扫码功能即将上线');
+  Future<void> _scan() async {
+    final did = await Navigator.of(context)
+        .push<String>(MaterialPageRoute(builder: (_) => const HuishScanPage()));
+    if (did == null || did.isEmpty || !mounted) return;
+    await _load(); // 绑定成功 → 刷新设备列表
+    if (!mounted) return;
+    // 找到新设备显示名（云端 name 或本地自定义名），直接进入取水页
+    dynamic match;
+    for (final d in _devices) {
+      if (_deviceId(d) == did) {
+        match = d;
+        break;
+      }
+    }
+    final name = match != null
+        ? _deviceName(match)
+        : (_customs[did]?.customName ?? '饮水机');
+    if (!mounted) return;
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => HuishDevicePage(deviceId: did, deviceName: name),
+      ),
+    );
   }
 
   Future<void> _renameDevice(dynamic d) async {
@@ -152,7 +173,10 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
           title: const Text('重命名设备'),
           content: TextField(controller: c, autofocus: true),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text('取消')),
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('取消'),
+            ),
             TextButton(
               onPressed: () => Navigator.pop(context, c.text.trim()),
               child: const Text('确定'),
@@ -170,7 +194,6 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
 
   @override
   Widget build(BuildContext context) {
-    final huish = ref.watch(huishAuthStateProvider);
     return Scaffold(
       body: GlassBackground(
         child: SafeArea(
@@ -184,14 +207,21 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
                     GestureDetector(
                       onTap: () => Navigator.of(context).pop(),
                       child: Container(
-                        width: 38, height: 38,
+                        width: 38,
+                        height: 38,
                         alignment: Alignment.center,
                         decoration: BoxDecoration(
                           color: Colors.white.withValues(alpha: 0.5),
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.white.withValues(alpha: 0.65)),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.65),
+                          ),
                         ),
-                        child: const Icon(Icons.arrow_back_ios_new_rounded, size: 18, color: kPrimary),
+                        child: const Icon(
+                          Icons.arrow_back_ios_new_rounded,
+                          size: 18,
+                          color: kPrimary,
+                        ),
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -199,36 +229,60 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('饮水服务', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: kInk)),
-                          Text('惠生活 798', style: TextStyle(fontSize: 11.5, color: kTextMuted)),
+                          Text(
+                            '饮水服务',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w800,
+                              color: kInk,
+                            ),
+                          ),
+                          Text(
+                            '惠生活 798',
+                            style: TextStyle(fontSize: 11.5, color: kTextMuted),
+                          ),
                         ],
                       ),
                     ),
                     GestureDetector(
                       onTap: _tapBill,
                       child: Container(
-                        width: 38, height: 38,
+                        width: 38,
+                        height: 38,
                         alignment: Alignment.center,
                         decoration: BoxDecoration(
                           color: Colors.white.withValues(alpha: 0.5),
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.white.withValues(alpha: 0.65)),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.65),
+                          ),
                         ),
-                        child: const Icon(Icons.receipt_long_rounded, size: 19, color: kPrimary),
+                        child: const Icon(
+                          Icons.receipt_long_rounded,
+                          size: 19,
+                          color: kPrimary,
+                        ),
                       ),
                     ),
                     const SizedBox(width: 8),
                     GestureDetector(
                       onTap: _logout,
                       child: Container(
-                        width: 38, height: 38,
+                        width: 38,
+                        height: 38,
                         alignment: Alignment.center,
                         decoration: BoxDecoration(
                           color: Colors.white.withValues(alpha: 0.5),
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.white.withValues(alpha: 0.65)),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.65),
+                          ),
                         ),
-                        child: const Icon(Icons.logout_rounded, size: 18, color: Color(0xFFB85450)),
+                        child: const Icon(
+                          Icons.logout_rounded,
+                          size: 18,
+                          color: Color(0xFFB85450),
+                        ),
                       ),
                     ),
                   ],
@@ -238,8 +292,10 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
                 child: _loading
                     ? const Center(child: CircularProgressIndicator())
                     : _error != null
-                        ? Center(child: _ErrorView(error: _error!, onRetry: _load))
-                        : _buildContent(),
+                    ? Center(
+                        child: _ErrorView(error: _error!, onRetry: _load),
+                      )
+                    : _buildContent(),
               ),
             ],
           ),
@@ -281,17 +337,25 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
                 ),
               ),
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 16),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 22,
+                  vertical: 16,
+                ),
                 child: Row(
                   children: [
                     Container(
-                      width: 56, height: 56,
+                      width: 56,
+                      height: 56,
                       alignment: Alignment.center,
                       decoration: BoxDecoration(
                         color: Colors.white.withValues(alpha: 0.28),
                         borderRadius: BorderRadius.circular(16),
                       ),
-                      child: const Icon(Icons.qr_code_scanner_rounded, color: Colors.white, size: 30),
+                      child: const Icon(
+                        Icons.qr_code_scanner_rounded,
+                        color: Colors.white,
+                        size: 30,
+                      ),
                     ),
                     const SizedBox(width: 16),
                     const Expanded(
@@ -299,20 +363,45 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Text('扫码取水', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: Colors.white)),
+                          Text(
+                            '扫码取水',
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.white,
+                            ),
+                          ),
                           SizedBox(height: 4),
-                          Text('扫描设备二维码直接进入取水', style: TextStyle(fontSize: 12.5, color: Colors.white70, fontWeight: FontWeight.w500)),
+                          Text(
+                            '扫描设备二维码直接进入取水',
+                            style: TextStyle(
+                              fontSize: 12.5,
+                              color: Colors.white70,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
                         ],
                       ),
                     ),
-                    const Icon(Icons.chevron_right_rounded, size: 28, color: Colors.white70),
+                    const Icon(
+                      Icons.chevron_right_rounded,
+                      size: 28,
+                      color: Colors.white70,
+                    ),
                   ],
                 ),
               ),
             ),
           ),
           const SizedBox(height: 20),
-          const Text('我的设备', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: kInk)),
+          const Text(
+            '我的设备',
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              color: kInk,
+            ),
+          ),
           const SizedBox(height: 10),
           ...groupNames.map((gid) {
             final list = grouped[gid]!;
@@ -323,40 +412,66 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
               children: [
                 GestureDetector(
                   onTap: () => setState(() {
-                    if (collapsed) _collapsed.remove(gid);
-                    else _collapsed.add(gid);
+                    if (collapsed) {
+                      _collapsed.remove(gid);
+                    } else {
+                      _collapsed.add(gid);
+                    }
                   }),
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 2,
+                      vertical: 4,
+                    ),
                     child: Row(
                       children: [
-                        Icon(collapsed ? Icons.expand_more : Icons.expand_less, size: 18, color: kTextMuted),
+                        Icon(
+                          collapsed ? Icons.expand_more : Icons.expand_less,
+                          size: 18,
+                          color: kTextMuted,
+                        ),
                         const SizedBox(width: 4),
                         Text(
                           gid == 'default' ? '默认' : gid,
-                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: kTextMuted),
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: kTextMuted,
+                          ),
                         ),
                         const SizedBox(width: 6),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 1,
+                          ),
                           decoration: BoxDecoration(
                             color: kPrimary.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(6),
                           ),
-                          child: Text('${list.length}', style: const TextStyle(fontSize: 11, color: kPrimary, fontWeight: FontWeight.w600)),
+                          child: Text(
+                            '${list.length}',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: kPrimary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                         ),
                       ],
                     ),
                   ),
                 ),
                 if (!collapsed) ...[
-                  ...list.map((d) => _DeviceCard(
-                        device: d,
-                        customName: _deviceName(d),
-                        addr: _deviceAddr(d),
-                        onTap: () => _tapDevice(d),
-                        onRename: () => _renameDevice(d),
-                      )),
+                  ...list.map(
+                    (d) => _DeviceCard(
+                      device: d,
+                      customName: _deviceName(d),
+                      addr: _deviceAddr(d),
+                      onTap: () => _tapDevice(d),
+                      onRename: () => _renameDevice(d),
+                    ),
+                  ),
                   const SizedBox(height: 6),
                 ],
               ],
@@ -368,9 +483,8 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
   }
 
   Future<void> _tapBill() async {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const HuishBillPage()),
-    );
+    Navigator.of(context)
+        .push(MaterialPageRoute(builder: (_) => const HuishBillPage()));
   }
 
   Future<void> _logout() async {
@@ -382,7 +496,10 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
         title: const Text('退出生活服务'),
         content: const Text('确定要退出饮水服务登录吗？'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('取消')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('取消'),
+          ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
             child: const Text('退出', style: TextStyle(color: Color(0xFFB85450))),
@@ -424,34 +541,56 @@ class _DeviceCard extends StatelessWidget {
           child: Row(
             children: [
               Container(
-                width: 44, height: 44,
+                width: 44,
+                height: 44,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
                   color: const Color(0xFF4BA3C7).withValues(alpha: 0.14),
                   borderRadius: BorderRadius.circular(13),
                 ),
-                child: const Icon(Icons.water_drop_rounded, size: 22, color: Color(0xFF4BA3C7)),
+                child: const Icon(
+                  Icons.water_drop_rounded,
+                  size: 22,
+                  color: Color(0xFF4BA3C7),
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(customName, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: kInk)),
+                    Text(
+                      customName,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: kInk,
+                      ),
+                    ),
                     if (addr.isNotEmpty) ...[
                       const SizedBox(height: 2),
-                      Text(addr, style: const TextStyle(fontSize: 12, color: kTextMuted)),
+                      Text(
+                        addr,
+                        style: const TextStyle(fontSize: 12, color: kTextMuted),
+                      ),
                     ],
                   ],
                 ),
               ),
               IconButton(
-                icon: const Icon(Icons.edit_note_rounded, size: 18, color: kTextMuted),
+                icon: const Icon(
+                  Icons.edit_note_rounded,
+                  size: 18,
+                  color: kTextMuted,
+                ),
                 onPressed: onRename,
                 tooltip: '重命名',
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 7,
+                ),
                 decoration: BoxDecoration(
                   color: const Color(0xFF4BA3C7),
                   borderRadius: BorderRadius.circular(12),
@@ -463,7 +602,14 @@ class _DeviceCard extends StatelessWidget {
                     ),
                   ],
                 ),
-                child: const Text('取水', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Colors.white)),
+                child: const Text(
+                  '取水',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
+                ),
               ),
             ],
           ),
@@ -482,13 +628,30 @@ class _ErrorView extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(Icons.wifi_off_rounded, size: 48, color: kTextMuted.withValues(alpha: 0.6)),
+        Icon(
+          Icons.wifi_off_rounded,
+          size: 48,
+          color: kTextMuted.withValues(alpha: 0.6),
+        ),
         const SizedBox(height: 12),
-        Text('加载失败', style: TextStyle(color: kTextMuted.withValues(alpha: 0.7))),
+        Text(
+          '加载失败',
+          style: TextStyle(color: kTextMuted.withValues(alpha: 0.7)),
+        ),
         const SizedBox(height: 4),
-        Text(error, style: TextStyle(fontSize: 12, color: kTextMuted.withValues(alpha: 0.6))),
+        Text(
+          error,
+          style: TextStyle(
+            fontSize: 12,
+            color: kTextMuted.withValues(alpha: 0.6),
+          ),
+        ),
         const SizedBox(height: 16),
-        FilledButton(onPressed: onRetry, style: FilledButton.styleFrom(backgroundColor: kPrimary), child: const Text('重试')),
+        FilledButton(
+          onPressed: onRetry,
+          style: FilledButton.styleFrom(backgroundColor: kPrimary),
+          child: const Text('重试'),
+        ),
       ],
     );
   }

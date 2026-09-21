@@ -7,6 +7,7 @@
 //   custom_names: { "<deviceId>": "..." }  // 设备自定义名快捷查找
 
 import 'dart:convert';
+
 import 'package:shared_preferences/shared_preferences.dart';
 
 class DeviceCustomInfo {
@@ -19,7 +20,6 @@ class DeviceCustomInfo {
 class DevicePrefs {
   static const _kDeviceCustom = 'huish_device_custom';
   static const _kGroups = 'huish_groups';
-  static const _kGroupOrder = 'huish_group_order';
 
   static Future<Map<String, DeviceCustomInfo>> loadDeviceCustoms() async {
     final sp = await SharedPreferences.getInstance();
@@ -29,22 +29,26 @@ class DevicePrefs {
       final json = jsonDecode(raw) as Map<String, dynamic>;
       return json.map((k, v) {
         final m = v as Map<String, dynamic>;
-        return MapEntry(k, DeviceCustomInfo(
-          customName: m['customName'] as String? ?? '',
-          groupId: m['groupId'] as String? ?? 'default',
-        ));
+        return MapEntry(
+          k,
+          DeviceCustomInfo(
+            customName: m['customName'] as String? ?? '',
+            groupId: m['groupId'] as String? ?? 'default',
+          ),
+        );
       });
     } catch (_) {
       return {};
     }
   }
 
-  static Future<void> saveDeviceCustoms(Map<String, DeviceCustomInfo> map) async {
+  static Future<void> saveDeviceCustoms(
+    Map<String, DeviceCustomInfo> map,
+  ) async {
     final sp = await SharedPreferences.getInstance();
-    final json = map.map((k, v) => MapEntry(k, {
-      'customName': v.customName,
-      'groupId': v.groupId,
-    }));
+    final json = map.map(
+      (k, v) => MapEntry(k, {'customName': v.customName, 'groupId': v.groupId}),
+    );
     await sp.setString(_kDeviceCustom, jsonEncode(json));
   }
 
@@ -62,7 +66,11 @@ class DevicePrefs {
     });
   }
 
-  static Future<void> updateDeviceCustom(String deviceId, {String? customName, String? groupId}) async {
+  static Future<void> updateDeviceCustom(
+    String deviceId, {
+    String? customName,
+    String? groupId,
+  }) async {
     final map = await loadDeviceCustoms();
     final existing = map[deviceId] ?? DeviceCustomInfo.empty();
     map[deviceId] = DeviceCustomInfo(

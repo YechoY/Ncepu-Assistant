@@ -268,15 +268,6 @@ class _MainShellState extends ConsumerState<MainShell> {
       ),
     );
   }
-
-  // 关于对话框。
-  void _about() {
-    showDialog(
-      context: context,
-      barrierColor: const Color(0x402E3350),
-      builder: (_) => const AppAboutDialog(),
-    );
-  }
 }
 
 /// 关于弹窗里的单行声明：普通文字灰、关键词墨紫加粗，强化「非官方」的醒目度。
@@ -333,7 +324,7 @@ bool _isRemoteNewer(String tag, String localVersion, int localBuild) {
 /// 关于弹窗：免责声明 + 版本号 + 检查更新一体。
 /// 检查失败时提供「复制在线链接」，用户可在浏览器手动打开 Releases 页。
 class AppAboutDialog extends StatefulWidget {
-  const AppAboutDialog();
+  const AppAboutDialog({super.key});
 
   @override
   State<AppAboutDialog> createState() => AppAboutDialogState();

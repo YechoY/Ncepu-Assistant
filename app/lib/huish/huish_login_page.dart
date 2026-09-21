@@ -13,8 +13,7 @@ import '../../theme.dart';
 import '../../widgets/glass_background.dart';
 import '../../widgets/glass_card.dart';
 import '../../widgets/glass_snackbar.dart';
-import '../huish_api_client.dart';
-import '../huish_auth_state.dart';
+import 'huish_auth_state.dart';
 import 'huish_home_page.dart';
 
 class HuishLoginPage extends ConsumerStatefulWidget {
@@ -29,9 +28,7 @@ class _HuishLoginPageState extends ConsumerState<HuishLoginPage> {
   final _sms = TextEditingController();
 
   double _captchaS = 0;
-  int _captchaR = 0;
   Uint8List? _captchaBytes;
-  String _captchaMime = 'image/png';
 
   bool _sending = false;
   bool _submitting = false;
@@ -60,9 +57,7 @@ class _HuishLoginPageState extends ConsumerState<HuishLoginPage> {
       if (!mounted) return;
       setState(() {
         _captchaS = r.s;
-        _captchaR = r.r;
-        _captchaBytes = r.imageBytes;
-        _captchaMime = r.contentType;
+        _captchaBytes = Uint8List.fromList(r.imageBytes);
       });
     } catch (e) {
       if (mounted) showGlassSnackBar(context, '加载验证码失败: $e');
@@ -131,7 +126,9 @@ class _HuishLoginPageState extends ConsumerState<HuishLoginPage> {
       return;
     }
     setState(() => _submitting = true);
-    final ok = await ref.read(huishAuthStateProvider.notifier).login(phone, sms);
+    final ok = await ref
+        .read(huishAuthStateProvider.notifier)
+        .login(phone, sms);
     if (!mounted) return;
     setState(() => _submitting = false);
     if (ok) {
@@ -166,9 +163,15 @@ class _HuishLoginPageState extends ConsumerState<HuishLoginPage> {
                       decoration: BoxDecoration(
                         color: Colors.white.withValues(alpha: 0.5),
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.white.withValues(alpha: 0.65)),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.65),
+                        ),
                       ),
-                      child: const Icon(Icons.arrow_back_ios_new_rounded, size: 18, color: kPrimary),
+                      child: const Icon(
+                        Icons.arrow_back_ios_new_rounded,
+                        size: 18,
+                        color: kPrimary,
+                      ),
                     ),
                   ),
                 ),
@@ -192,13 +195,21 @@ class _HuishLoginPageState extends ConsumerState<HuishLoginPage> {
                       ),
                     ],
                   ),
-                  child: const Icon(Icons.water_drop_rounded, color: Colors.white, size: 34),
+                  child: const Icon(
+                    Icons.water_drop_rounded,
+                    color: Colors.white,
+                    size: 34,
+                  ),
                 ),
                 const SizedBox(height: 12),
                 const Text(
                   '惠生活 798',
                   textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: kInk),
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                    color: kInk,
+                  ),
                 ),
                 const SizedBox(height: 4),
                 const Text(
@@ -226,7 +237,9 @@ class _HuishLoginPageState extends ConsumerState<HuishLoginPage> {
                               decoration: BoxDecoration(
                                 color: Colors.white.withValues(alpha: 0.5),
                                 borderRadius: BorderRadius.circular(14),
-                                border: Border.all(color: Colors.white.withValues(alpha: 0.65)),
+                                border: Border.all(
+                                  color: Colors.white.withValues(alpha: 0.65),
+                                ),
                               ),
                               child: _captchaBytes != null
                                   ? ClipRRect(
@@ -234,15 +247,24 @@ class _HuishLoginPageState extends ConsumerState<HuishLoginPage> {
                                       child: Image.memory(
                                         _captchaBytes!,
                                         fit: BoxFit.cover,
-                                        errorBuilder: (_, __, ___) => const Center(
-                                          child: Icon(Icons.refresh, color: kPrimary),
+                                        errorBuilder: (_, _, _) => const Center(
+                                          child: Icon(
+                                            Icons.refresh,
+                                            color: kPrimary,
+                                          ),
                                         ),
                                       ),
                                     )
-                                  : const Center(child: SizedBox(
-                                      width: 18, height: 18,
-                                      child: CircularProgressIndicator(strokeWidth: 2, color: kPrimary),
-                                    )),
+                                  : const Center(
+                                      child: SizedBox(
+                                        width: 18,
+                                        height: 18,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          color: kPrimary,
+                                        ),
+                                      ),
+                                    ),
                             ),
                           ),
                         ],
@@ -256,25 +278,50 @@ class _HuishLoginPageState extends ConsumerState<HuishLoginPage> {
                             height: 46,
                             child: _countdown > 0
                                 ? Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 14),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 14,
+                                    ),
                                     alignment: Alignment.center,
                                     decoration: BoxDecoration(
-                                      color: Colors.white.withValues(alpha: 0.4),
+                                      color: Colors.white.withValues(
+                                        alpha: 0.4,
+                                      ),
                                       borderRadius: BorderRadius.circular(14),
-                                      border: Border.all(color: Colors.white.withValues(alpha: 0.5)),
+                                      border: Border.all(
+                                        color: Colors.white.withValues(
+                                          alpha: 0.5,
+                                        ),
+                                      ),
                                     ),
-                                    child: Text('${_countdown}s', style: const TextStyle(fontSize: 13, color: kTextMuted, fontWeight: FontWeight.w600)),
+                                    child: Text(
+                                      '${_countdown}s',
+                                      style: const TextStyle(
+                                        fontSize: 13,
+                                        color: kTextMuted,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
                                   )
                                 : ElevatedButton(
                                     onPressed: _sending ? null : _sendSms,
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: kPrimary,
                                       foregroundColor: Colors.white,
-                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(14),
+                                      ),
                                       elevation: 0,
-                                      padding: const EdgeInsets.symmetric(horizontal: 14),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 14,
+                                      ),
                                     ),
-                                    child: Text(_sending ? '发送中…' : '获取验证码', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                                    child: Text(
+                                      _sending ? '发送中…' : '获取验证码',
+                                      style: const TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
                                   ),
                           ),
                         ],
@@ -287,11 +334,20 @@ class _HuishLoginPageState extends ConsumerState<HuishLoginPage> {
                           onPressed: _submitting ? null : _login,
                           style: FilledButton.styleFrom(
                             backgroundColor: const Color(0xFF4BA3C7),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(15),
+                            ),
                             elevation: 6,
-                            shadowColor: const Color(0xFF4BA3C7).withValues(alpha: 0.4),
+                            shadowColor: const Color(0xFF4BA3C7)
+                                .withValues(alpha: 0.4),
                           ),
-                          child: Text(_submitting ? '登录中…' : '登 录', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                          child: Text(
+                            _submitting ? '登录中…' : '登 录',
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
                         ),
                       ),
                     ],
@@ -311,7 +367,11 @@ class _HuishLoginPageState extends ConsumerState<HuishLoginPage> {
     );
   }
 
-  Widget _field(TextEditingController c, String hint, {TextInputType? keyboard}) => Container(
+  Widget _field(
+    TextEditingController c,
+    String hint, {
+    TextInputType? keyboard,
+  }) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 13),
     decoration: BoxDecoration(
       color: Colors.white.withValues(alpha: 0.55),
