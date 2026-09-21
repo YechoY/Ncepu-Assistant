@@ -34,6 +34,7 @@ import 'theme.dart';
 import 'widgets/capsule_nav.dart';
 import 'widgets/glass_background.dart';
 import 'widgets/glass_card.dart';
+import 'widgets/glass_dialog.dart';
 import 'widgets/glass_snackbar.dart';
 import 'widgets/offline_banner.dart';
 import 'widgets/top_bar.dart';
@@ -136,7 +137,7 @@ class _MainShellState extends ConsumerState<MainShell> {
     final ok = await showDialog<bool>(
       context: context,
       barrierColor: const Color(0x402E3350),
-      builder: (_) => const _GlassDialog(
+      builder: (_) => const GlassDialog(
         title: '退出学习服务',
         content: Text(
           '退出将清除本地教务登录信息，需要重新输入账号密码才能登录，确定吗？',
@@ -165,13 +166,13 @@ class _MainShellState extends ConsumerState<MainShell> {
     ];
     final user = ref.watch(authStateProvider); // 监听登录信息（姓名/班级）
     final state = ref.watch(dataStateProvider); // 监听数据状态（是否有提示 notice）
-    // 顶部用户胶囊要显示的文字：优先「姓名 · 班级」，否则学号，否则“未登录”。
-    // 这是 Dart 的三元表达式嵌套写法。
-    final userLabel = user.name.isNotEmpty
-        ? '${user.name} · ${user.className}'
+    // 头像胶囊：第一行姓名，第二行班级
+    final userName = user.name.isNotEmpty
+        ? user.name
         : user.username.isNotEmpty
         ? user.username
         : '未登录';
+    final userClass = user.name.isNotEmpty ? user.className : '';
     // Scaffold：Material 页面骨架，提供 body、appBar、底部栏等标准结构。
     return Scaffold(
       body: GlassBackground(
@@ -237,7 +238,8 @@ class _MainShellState extends ConsumerState<MainShell> {
                         .read(dataStateProvider.notifier)
                         .refreshExams(force: true), // _ 是默认分支：手动刷新强制联网
                 },
-                userName: userLabel,
+                userName: userName,
+                userClass: userClass,
                 onUserTap: () => showModalBottomSheet(
                   context: context,
                   backgroundColor: Colors.transparent,
@@ -881,121 +883,6 @@ class AppAboutDialogState extends State<AppAboutDialog> {
         curve: kSpring,
         height: 40,
         padding: const EdgeInsets.symmetric(horizontal: 16),
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: bg,
-          borderRadius: BorderRadius.circular(13),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.55)),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w700,
-            color: textColor,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// 统一的玻璃拟态弹窗：透明 Dialog + GlassCard 面板，替代系统 AlertDialog。
-/// [cancelText] 为空时只显示一个确认按钮（铺满整行）；否则「取消 + 确认」并排。
-/// [destructive] = 确认按钮用柔和红（退出登录等危险操作）。
-/// 点确认 → `Navigator.pop(context, [popResult])`，由 showDialog 的返回值接住。
-class _GlassDialog extends StatelessWidget {
-  final String title;
-  final Widget content;
-  final String confirmText;
-  final String? cancelText;
-  final bool destructive;
-  final Object? popResult;
-  const _GlassDialog({
-    required this.title,
-    required this.content,
-    required this.confirmText,
-    this.cancelText,
-    this.destructive = false,
-    this.popResult,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final tone = destructive ? const Color(0xFFB85450) : kPrimary;
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      elevation: 0,
-      child: GlassCard(
-        radius: 22,
-        padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              title,
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-                color: kInk,
-              ),
-            ),
-            const SizedBox(height: 8),
-            content,
-            const SizedBox(height: 16),
-            if (cancelText == null)
-              _pill(
-                context,
-                confirmText,
-                Colors.white,
-                bg: tone.withValues(alpha: 0.92),
-                onTap: () => Navigator.pop(context, popResult),
-              )
-            else
-              Row(
-                children: [
-                  Expanded(
-                    child: _pill(
-                      context,
-                      cancelText!,
-                      kTextMain,
-                      bg: Colors.white.withValues(alpha: 0.5),
-                      // 取消：只关弹窗，返回 null
-                      onTap: () => Navigator.pop(context),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: _pill(
-                      context,
-                      confirmText,
-                      Colors.white,
-                      bg: tone.withValues(alpha: 0.92),
-                      onTap: () => Navigator.pop(context, popResult),
-                    ),
-                  ),
-                ],
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _pill(
-    BuildContext context,
-    String label,
-    Color textColor, {
-    required Color bg,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        curve: kSpring,
-        height: 40,
         alignment: Alignment.center,
         decoration: BoxDecoration(
           color: bg,

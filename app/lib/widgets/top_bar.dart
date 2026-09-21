@@ -10,6 +10,7 @@ class TopBar extends StatelessWidget {
   final VoidCallback? onRefresh;
   final Widget? trailing;
   final String userName;
+  final String? userClass; // 班级（头像胶囊第二行，可空）
   final VoidCallback onUserTap;
   final VoidCallback? onBack; // 内嵌返回按钮（学习服务用）
   const TopBar({
@@ -20,6 +21,7 @@ class TopBar extends StatelessWidget {
     this.onRefresh,
     this.trailing,
     required this.userName,
+    this.userClass,
     required this.onUserTap,
     this.onBack,
   });
@@ -100,7 +102,7 @@ class TopBar extends StatelessWidget {
               child: Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 10,
-                  vertical: 5,
+                  vertical: 4,
                 ),
                 decoration: BoxDecoration(
                   color: Colors.white.withValues(alpha: 0.45),
@@ -109,13 +111,31 @@ class TopBar extends StatelessWidget {
                     color: Colors.white.withValues(alpha: 0.5),
                   ),
                 ),
-                child: Text(
-                  userName,
-                  style: const TextStyle(
-                    fontSize: 11,
-                    color: kInk,
-                    fontWeight: FontWeight.w600,
-                  ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Text(
+                      userName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: kInk,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    if (userClass != null && userClass!.isNotEmpty)
+                      Text(
+                        userClass!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 9,
+                          color: kTextMuted.withValues(alpha: 0.8),
+                        ),
+                      ),
+                  ],
                 ),
               ),
             ),

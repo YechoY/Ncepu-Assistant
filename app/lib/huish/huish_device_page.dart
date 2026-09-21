@@ -336,7 +336,7 @@ class _HuishDevicePageState extends ConsumerState<HuishDevicePage> {
           Row(
             children: [
               GestureDetector(
-                onTap: () => Navigator.of(context).pop(),
+                onTap: _exit,
                 child: Container(
                   width: 38,
                   height: 38,
@@ -472,11 +472,11 @@ class _HuishDevicePageState extends ConsumerState<HuishDevicePage> {
                 shadowColor: kHuishDeep.withValues(alpha: 0.4),
               ),
               icon: Icon(
-                _running ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                _running ? Icons.stop_rounded : Icons.play_arrow_rounded,
                 size: 26,
               ),
               label: Text(
-                _running ? '暂停取水' : '开始取水',
+                _running ? '结束取水' : '开始取水',
                 style: const TextStyle(
                   fontSize: 17,
                   fontWeight: FontWeight.w700,
@@ -484,30 +484,8 @@ class _HuishDevicePageState extends ConsumerState<HuishDevicePage> {
               ),
             ),
           ),
-          const SizedBox(height: 24),
-          // 退出取水（中性灰，区别于收藏操作）
-          SizedBox(
-            width: double.infinity,
-            height: 44,
-            child: OutlinedButton.icon(
-              onPressed: _exit,
-              style: OutlinedButton.styleFrom(
-                foregroundColor: kTextMuted,
-                side: BorderSide(color: kTextMuted.withValues(alpha: 0.35)),
-                backgroundColor: Colors.white.withValues(alpha: 0.35),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
-              ),
-              icon: const Icon(Icons.logout_rounded, size: 18),
-              label: const Text(
-                '退出取水',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-              ),
-            ),
-          ),
           const SizedBox(height: 20),
-          // 添加/移出"我的设备"列表（深水蓝，与退出取水颜色区分）
+          // 添加/移出"我的设备"列表（深水蓝）
           SizedBox(
             width: double.infinity,
             height: 44,
@@ -542,31 +520,6 @@ class _HuishDevicePageState extends ConsumerState<HuishDevicePage> {
               ),
             ),
           ),
-          // 设备信息
-          if (_addr.isNotEmpty) ...[
-            const SizedBox(height: 20),
-            GlassCard(
-              radius: 18,
-              padding: const EdgeInsets.all(14),
-              live: false,
-              child: Row(
-                children: [
-                  const Icon(
-                    Icons.location_on_outlined,
-                    size: 16,
-                    color: kPrimary,
-                  ),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      _addr,
-                      style: const TextStyle(fontSize: 12.5, color: kTextMain),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
         ],
       ),
     );

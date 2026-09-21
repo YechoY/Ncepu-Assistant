@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../theme.dart';
 import '../../widgets/glass_background.dart';
 import '../../widgets/glass_card.dart';
+import '../../widgets/glass_dialog.dart';
 import '../../widgets/glass_snackbar.dart';
 import 'huish_auth_state.dart';
 import 'device_prefs.dart';
@@ -998,20 +999,16 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
     final ok = await showDialog<bool>(
       context: context,
       barrierColor: const Color(0x402E3350),
-      builder: (_) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        title: const Text('退出生活服务'),
-        content: const Text('确定要退出饮水服务登录吗？'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('取消'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('退出', style: TextStyle(color: Color(0xFFB85450))),
-          ),
-        ],
+      builder: (_) => const GlassDialog(
+        title: '退出生活服务',
+        content: Text(
+          '退出将清除本地饮水登录信息，需要重新输入手机号验证码才能登录，确定吗？',
+          style: TextStyle(fontSize: 12.5, height: 1.55, color: kTextMuted),
+        ),
+        cancelText: '取消',
+        confirmText: '退出',
+        destructive: true,
+        popResult: true,
       ),
     );
     if (ok == true) {

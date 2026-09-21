@@ -7,6 +7,7 @@ import '../theme.dart';
 import '../widgets/course_card.dart';
 import '../widgets/empty_view.dart';
 import '../widgets/glass_card.dart';
+import '../widgets/glass_snackbar.dart';
 
 class TimetablePage extends ConsumerWidget {
   const TimetablePage({super.key});
@@ -29,7 +30,32 @@ class TimetablePage extends ConsumerWidget {
               children: [
                 IconButton(
                   icon: const Icon(Icons.chevron_left, color: kPrimary),
-                  onPressed: week.isEmpty ? null : () => _shift(ref, -1),
+                  onPressed: week.isEmpty
+                      ? null
+                      : () async {
+                          ref
+                              .read(dataStateProvider.notifier)
+                              .loadTimetable(
+                                mondayOf(
+                                  DateTime.parse(week)
+                                      .add(const Duration(days: -7)),
+                                ),
+                              );
+                          await Future.delayed(
+                            const Duration(milliseconds: 800),
+                          );
+                          final st = ref.read(dataStateProvider);
+                          if (st.notice != null) {
+                            if (context.mounted) {
+                              showGlassSnackBar(context, '切换失败，请联网后重试');
+                            }
+                          } else if (context.mounted) {
+                            showGlassSnackBar(
+                              context,
+                              '已切换到${_weekLabel(st)}（${_dateRange(st.timetableWeek)}）',
+                            );
+                          }
+                        },
                 ),
                 Expanded(
                   child: Column(
@@ -55,11 +81,63 @@ class TimetablePage extends ConsumerWidget {
                 ),
                 IconButton(
                   icon: const Icon(Icons.calendar_month, color: kPrimary),
-                  onPressed: () => _pickDate(ref),
+                  onPressed: () async {
+                    final cur = ref.read(dataStateProvider).timetableWeek;
+                    final initial = cur.isNotEmpty
+                        ? DateTime.parse(cur)
+                        : DateTime.now();
+                    final picked = await showDatePicker(
+                      context: context,
+                      initialDate: initial,
+                      firstDate: DateTime(2020),
+                      lastDate: DateTime(2100),
+                      helpText: '选择日期查看当周课表',
+                    );
+                    if (picked == null || !context.mounted) return;
+                    final monday = mondayOf(picked);
+                    ref.read(dataStateProvider.notifier).loadTimetable(monday);
+                    await Future.delayed(const Duration(milliseconds: 800));
+                    final st = ref.read(dataStateProvider);
+                    if (st.notice != null) {
+                      if (context.mounted) {
+                        showGlassSnackBar(context, '切换失败，请联网后重试');
+                      }
+                    } else if (context.mounted) {
+                      showGlassSnackBar(
+                        context,
+                        '已切换到${_weekLabel(st)}（${_dateRange(st.timetableWeek)}）',
+                      );
+                    }
+                  },
                 ),
                 IconButton(
                   icon: const Icon(Icons.chevron_right, color: kPrimary),
-                  onPressed: week.isEmpty ? null : () => _shift(ref, 1),
+                  onPressed: week.isEmpty
+                      ? null
+                      : () async {
+                          ref
+                              .read(dataStateProvider.notifier)
+                              .loadTimetable(
+                                mondayOf(
+                                  DateTime.parse(week)
+                                      .add(const Duration(days: 7)),
+                                ),
+                              );
+                          await Future.delayed(
+                            const Duration(milliseconds: 800),
+                          );
+                          final st = ref.read(dataStateProvider);
+                          if (st.notice != null) {
+                            if (context.mounted) {
+                              showGlassSnackBar(context, '切换失败，请联网后重试');
+                            }
+                          } else if (context.mounted) {
+                            showGlassSnackBar(
+                              context,
+                              '已切换到${_weekLabel(st)}（${_dateRange(st.timetableWeek)}）',
+                            );
+                          }
+                        },
                 ),
               ],
             ),
