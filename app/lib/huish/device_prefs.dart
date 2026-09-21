@@ -20,6 +20,7 @@ class DeviceCustomInfo {
 class DevicePrefs {
   static const _kDeviceCustom = 'huish_device_custom';
   static const _kGroups = 'huish_groups';
+  static const _kDeviceOrder = 'huish_device_order';
 
   static Future<Map<String, DeviceCustomInfo>> loadDeviceCustoms() async {
     final sp = await SharedPreferences.getInstance();
@@ -66,6 +67,26 @@ class DevicePrefs {
     });
   }
 
+  /// 分组内设备拖拽顺序：`{ "<groupId>": ["deviceId", ...] }`
+  static Future<Map<String, List<String>>> loadDeviceOrder() async {
+    final sp = await SharedPreferences.getInstance();
+    final raw = sp.getString(_kDeviceOrder);
+    if (raw == null) return {};
+    try {
+      final json = jsonDecode(raw) as Map<String, dynamic>;
+      return json.map(
+        (k, v) => MapEntry(k, (v as List).map((e) => e.toString()).toList()),
+      );
+    } catch (_) {
+      return {};
+    }
+  }
+
+  static Future<void> saveDeviceOrder(Map<String, List<String>> order) async {
+    final sp = await SharedPreferences.getInstance();
+    await sp.setString(_kDeviceOrder, jsonEncode(order));
+  }
+
   static Future<void> updateDeviceCustom(
     String deviceId, {
     String? customName,
@@ -78,6 +99,18 @@ class DevicePrefs {
       groupId: groupId ?? existing.groupId,
     );
     await saveDeviceCustoms(map);
+  }
+
+  /// 删除设备：清掉自定义信息和排序记录。
+  static Future<void> removeDevice(String deviceId) async {
+    final map = await loadDeviceCustoms();
+    map.remove(deviceId);
+    await saveDeviceCustoms(map);
+    final order = await loadDeviceOrder();
+    final cleaned = order.map(
+      (k, v) => MapEntry(k, v.where((id) => id != deviceId).toList()),
+    );
+    await saveDeviceOrder(cleaned);
   }
 
   /// 新建分组（default 保留字、重名/空名拒绝）。
