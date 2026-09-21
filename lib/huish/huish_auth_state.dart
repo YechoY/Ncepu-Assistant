@@ -48,13 +48,18 @@ class HuishAuthState {
 
 class HuishAuthNotifier extends Notifier<HuishAuthState> {
   late final HuishApiClient _api;
+  Future<void>? _restoreFuture;
 
   @override
   HuishAuthState build() {
     _api = ref.watch(huishApiClientProvider);
-    _tryRestore();
+    _restoreFuture = _tryRestore();
     return HuishAuthState();
   }
+
+  /// 等待启动时的 token 恢复完成（入口页须先 await 再判断 loggedIn，
+  /// 否则恢复未完成时 loggedIn 恒为 false，会被误判为未登录）。
+  Future<void> ensureRestored() => _restoreFuture ?? Future.value();
 
   Future<void> _tryRestore() async {
     final ok = await _api.restoreToken();

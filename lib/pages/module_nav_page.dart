@@ -100,11 +100,15 @@ class _ModuleNavPageState extends ConsumerState<ModuleNavPage> {
     }
   }
 
-  void _tapLife() {
+  Future<void> _tapLife() async {
     if (!_agreed) {
       showGlassSnackBar(context, '请先阅读并同意免责声明');
       return;
     }
+    // token 恢复是异步的，必须等它完成后再判断登录态
+    final notifier = ref.read(huishAuthStateProvider.notifier);
+    await notifier.ensureRestored();
+    if (!mounted) return;
     final huish = ref.read(huishAuthStateProvider);
     if (huish.loggedIn) {
       Navigator.of(context)

@@ -12,7 +12,7 @@ import 'huish_auth_state.dart';
 import 'device_prefs.dart';
 import 'huish_bill_page.dart';
 import 'huish_device_page.dart';
-import 'huish_scan_page.dart';
+import 'huish_add_device_page.dart';
 
 class HuishHomePage extends ConsumerStatefulWidget {
   const HuishHomePage({super.key});
@@ -58,7 +58,7 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
         return;
       }
       final data = master.dataMap ?? {};
-      final devs = data['devices'] ?? data['device'] ?? [];
+      final devs = data['favos'] ?? data['devices'] ?? data['device'] ?? [];
       setState(() {
         _devices = devs is List ? devs : [devs];
         _loading = false;
@@ -138,29 +138,12 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
     );
   }
 
-  Future<void> _scan() async {
-    final did = await Navigator.of(context)
-        .push<String>(MaterialPageRoute(builder: (_) => const HuishScanPage()));
-    if (did == null || did.isEmpty || !mounted) return;
-    await _load(); // 绑定成功 → 刷新设备列表
-    if (!mounted) return;
-    // 找到新设备显示名（云端 name 或本地自定义名），直接进入取水页
-    dynamic match;
-    for (final d in _devices) {
-      if (_deviceId(d) == did) {
-        match = d;
-        break;
-      }
-    }
-    final name = match != null
-        ? _deviceName(match)
-        : (_customs[did]?.customName ?? '饮水机');
-    if (!mounted) return;
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => HuishDevicePage(deviceId: did, deviceName: name),
-      ),
+  Future<void> _addDevice() async {
+    final did = await Navigator.of(context).push<String>(
+      MaterialPageRoute(builder: (_) => const HuishAddDevicePage()),
     );
+    if (did == null || did.isEmpty || !mounted) return;
+    await _load(); // 添加/收藏成功 → 刷新设备列表
   }
 
   Future<void> _renameDevice(dynamic d) async {
@@ -313,9 +296,9 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
       child: ListView(
         padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
         children: [
-          // 扫码大按钮
+          // 添加设备大按钮
           GestureDetector(
-            onTap: _scan,
+            onTap: _addDevice,
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 280),
               curve: kSpring,
@@ -364,7 +347,7 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Text(
-                            '扫码取水',
+                            '添加设备',
                             style: TextStyle(
                               fontSize: 20,
                               fontWeight: FontWeight.w800,
@@ -373,7 +356,7 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
                           ),
                           SizedBox(height: 4),
                           Text(
-                            '扫描设备二维码直接进入取水',
+                            '扫描机身二维码或手动输入设备码',
                             style: TextStyle(
                               fontSize: 12.5,
                               color: Colors.white70,
