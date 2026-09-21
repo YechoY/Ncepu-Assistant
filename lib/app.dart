@@ -26,9 +26,8 @@ import 'pages/classrooms_page.dart';
 import 'pages/exams_page.dart';
 import 'pages/full_timetable_page.dart';
 import 'pages/grades_page.dart';
-import 'pages/login_page.dart';
+import 'pages/module_nav_page.dart';
 import 'pages/timetable_page.dart';
-import 'providers/app_state.dart';
 import 'providers/auth_state.dart';
 import 'providers/data_state.dart';
 import 'theme.dart';
@@ -72,129 +71,43 @@ class HdjwApp extends StatelessWidget {
 // - Consumer 版本额外给了 ref，用来读取/监听 Provider。
 class _Gate extends ConsumerStatefulWidget {
   const _Gate();
-  // 有状态 Widget 分成两部分：Widget 本体（不可变配置）+ State（可变状态）。
-  // createState 负责创建对应的 State 对象。
   @override
   ConsumerState<_Gate> createState() => _GateState();
 }
 
-// enum：枚举，表示启动的三种阶段。用枚举比用字符串/数字更安全、可读。
-enum _Phase { boot, login, main }
-
-// State 类才是真正存放可变状态和逻辑的地方。
 class _GateState extends ConsumerState<_Gate> {
-  _Phase phase = _Phase.boot; // 当前阶段，初始是「启动中」
-  bool offline = false; // 是否处于离线模式
+  bool _booting = true;
 
-  // initState：State 创建后只调用一次，适合做初始化（发起启动流程）。
   @override
   void initState() {
-    super.initState(); // 记得先调用父类实现
-    _start(); // 触发异步启动流程（注意没 await，让它在后台跑）
-  }
-
-  // 启动流程（记住密码优先）：
-  //   - 勾了「记住账号密码」→ 直接进主界面并展示缓存，随后后台联网登录并刷新；
-  //     无网/缓存空也保持在主界面（首次联网后即可离线使用）。
-  //   - 没勾「记住」→ 不保留任何数据（清空本地缓存），直接进登录页。
-  Future<void> _start() async {
-    final data = ref.read(dataStateProvider.notifier);
-    final authSvc = ref.read(authServiceProvider);
-
-    // 读取「是否记住账号密码」。没记住就不保留任何数据。
-    final remembered = await authSvc.getRemember().catchError((_) => false);
-    if (!remembered) {
-      // 未勾记住：清掉可能残留的本地缓存与账号，回登录页。
-      await data.clearAll().catchError((_) {});
-      if (mounted) setState(() => phase = _Phase.login);
-      return;
-    }
-
-    // 记住了：先把本地缓存读出来（离线也能立即展示），并直接进主界面。
-    await data.loadFromCache();
-    if (mounted) {
-      setState(() {
-        phase = _Phase.main;
-        offline = true; // 先按“展示缓存”处理；后台联网成功会摘掉横幅
-      });
-    }
-
-    // 后台联网登录 + 刷新（有校园网时才会成功；无网则继续用缓存留在主界面）。
-    _backgroundRefresh();
-  }
-
-  // 后台刷新：探测网络，能上网就用记住的账号静默登录并按需刷新数据。
-  // 全程 try/catch 吞掉异常——它只是“锦上添花”，任何失败都不应影响已经进入的主界面。
-  Future<void> _backgroundRefresh() async {
-    try {
-      final online = await ref
-          .read(onlineProvider.future)
-          .catchError((_) => false);
-      if (online) {
-        final ok = await ref.read(authStateProvider.notifier).tryAutoLogin();
-        if (ok) {
-          await ref.read(dataStateProvider.notifier).dailyRefreshIfNeeded();
-          // 登录成功后摘掉“离线/缓存”横幅（loggedIn 也会让 build 判定进入正常态）。
-          if (mounted) setState(() => offline = false);
-        }
-      }
-    } catch (_) {
-      // 静默忽略：继续用缓存数据。
-    }
-    // 收尾：能进到这里说明用户已「记住账号」（_start 已校验），属于“首次联网后可离线”场景。
-    // 因此即使当前无网/缓存为空（课表只缓存当周，跨周本就为空）也保持在主界面，不强制回登录页；
-    // 待有校园网时后台会自动登录并刷新。只在“确实没记住账号”时才应处于登录页，那种情况根本走不到这里。
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) setState(() => _booting = false);
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    // ref.watch：监听 authStateProvider，登录态一变化就自动重建本组件。
-    // （read 是“读一次”，watch 是“持续监听并触发重建”，这是两者关键区别。）
-    final auth = ref.watch(authStateProvider);
-    // 监听「退出登录」：已登录 → 未登录 的瞬间把启动阶段切回登录页。
-    // 之前是 _MainShell 手动 push 一个新 LoginPage 路由——但 _Gate 一直在
-    // Navigator 底下，重新登录成功后它虽然切回了主界面，盖在上面的那层
-    // 登录路由却不会自己消失，导致「卡在登录页」。现在登录页只由 _Gate
-    // 这一个地方渲染：退出 → phase=login；再登录成功 → loggedIn → main。
-    ref.listen<AuthState>(authStateProvider, (prev, next) {
-      if ((prev?.loggedIn ?? false) && !next.loggedIn && mounted) {
-        setState(() {
-          phase = _Phase.login;
-          offline = false;
-        });
-      }
-    });
-    // 界面阶段以 phase 为准（_start 已按“是否记住账号”决定 main/login）；
-    // 额外地，只要本会话真正联网登录成功(loggedIn)，无论如何都进主界面。
-    // 注意：不能写成“未 loggedIn 就登录页”，否则“记住账号、断网看缓存”这种
-    // 已经把 phase 设为 main 的场景会被误判回登录页（正是断网被踢的根因）。
-    final _Phase p;
-    if (auth.loggedIn) {
-      p = _Phase.main;
-    } else {
-      p = phase; // boot / main / login 均由启动流程决定
+    if (_booting) {
+      return const Scaffold(
+        body: GlassBackground(
+          child: Center(child: CircularProgressIndicator()),
+        ),
+      );
     }
-    // switch 表达式（Dart 3 新语法）：根据 p 的枚举值直接返回对应的 Widget。
-    // `=>` 后是每个分支的返回值，比传统 switch-case 更简洁。
-    return switch (p) {
-      _Phase.boot => const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      ), // 转圈加载
-      _Phase.login => const LoginPage(),
-      _Phase.main => _MainShell(offline: offline),
-    };
+    return const ModuleNavPage();
   }
 }
 
 // 登录后的主界面外壳。也是有状态的（要记住当前选中的是哪个 Tab）。
-class _MainShell extends ConsumerStatefulWidget {
-  final bool offline; // 是否离线（由 _Gate 传进来）
-  const _MainShell({required this.offline}); // required 表示这个命名参数必传
+// 注意：从 _Gate 改名为公开的 MainShell，因为学习服务登录页需要 push 它。
+class MainShell extends ConsumerStatefulWidget {
+  const MainShell({super.key}); // 不再需要 offline 参数（入口已统一到模块导航页）
   @override
-  ConsumerState<_MainShell> createState() => _MainShellState();
+  ConsumerState<MainShell> createState() => _MainShellState();
 }
 
-class _MainShellState extends ConsumerState<_MainShell> {
+class _MainShellState extends ConsumerState<MainShell> {
   int tab = 0; // 当前 Tab 下标：0课表 1成绩 2考试 3教室
 
   // static const：类级别的编译期常量（所有实例共享，不随对象创建）。四个页面的标题。
@@ -218,28 +131,26 @@ class _MainShellState extends ConsumerState<_MainShell> {
     });
   }
 
-  // 退出登录：先弹确认框，确认后清数据并跳回登录页。
+  // 退出登录：清数据 + pop 回模块导航页（不再让 _Gate 切回 LoginPage）。
   Future<void> _logout() async {
-    // showDialog 返回一个 Future<bool?>：用户点了哪个按钮通过 Navigator.pop 带回来。
     final ok = await showDialog<bool>(
       context: context,
-      barrierColor: const Color(0x402E3350), // 墨紫半透遮罩，比系统黑遮罩柔和
+      barrierColor: const Color(0x402E3350),
       builder: (_) => const _GlassDialog(
-        title: '退出登录',
+        title: '退出学习服务',
         content: Text(
-          '退出将清除本地登录信息，需要重新输入账号密码才能登录，确定吗？',
+          '退出将清除本地教务登录信息，需要重新输入账号密码才能登录，确定吗？',
           style: TextStyle(fontSize: 12.5, height: 1.55, color: kTextMuted),
         ),
         cancelText: '取消',
         confirmText: '退出',
         destructive: true,
-        popResult: true, // 点「退出」→ pop(true)
+        popResult: true,
       ),
     );
     if (ok == true) {
-      // 清账号密码 + 全部本地缓存；登录态变化由 _Gate 的 ref.listen 感知，
-      // 自动把界面切回登录页（不需要也不能在这里手动 push 登录路由）。
       await ref.read(authStateProvider.notifier).logout();
+      if (mounted) Navigator.of(context).pop(); // 回模块导航页
     }
   }
 
@@ -327,22 +238,14 @@ class _MainShellState extends ConsumerState<_MainShell> {
                         .refreshExams(force: true), // _ 是默认分支：手动刷新强制联网
                 },
                 userName: userLabel,
-                // 点用户胶囊 → 从底部弹出「关于 / 退出登录」菜单。
-                // 透明底 + 墨紫遮罩，菜单本体是浮起的 GlassCard（与下拉面板同款）。
                 onUserTap: () => showModalBottomSheet(
                   context: context,
                   backgroundColor: Colors.transparent,
                   barrierColor: const Color(0x4D2E3350),
-                  builder: (_) =>
-                      _UserMenuSheet(onAbout: _about, onLogout: _logout),
+                  builder: (_) => _UserMenuSheet(onLogout: _logout),
                 ),
               ),
-              // 集合内 if：只有条件成立时才把这个 Widget 放进 children 列表。
-              // 离线横幅：进入时按缓存展示(widget.offline=true)，一旦本会话成功联网
-              // (state.online=true，登录/手动刷新任一成功都会置位)就自动摘掉。
-              if (widget.offline && !state.online) const OfflineBanner(),
-              if (state.notice != null)
-                OfflineBanner(text: state.notice!), // 临时提示（如“获取失败”）
+              if (state.notice != null) OfflineBanner(text: state.notice!),
               // Expanded：在 Column/Row 里「占满剩余空间」。
               // IndexedStack：把所有子页面都建出来叠在一起，只显示 index 指定的那个。
               // 好处是切 Tab 时其它页面不会被销毁，滚动位置/输入内容都能保留。
@@ -371,7 +274,7 @@ class _MainShellState extends ConsumerState<_MainShell> {
     showDialog(
       context: context,
       barrierColor: const Color(0x402E3350),
-      builder: (_) => const _AboutDialog(),
+      builder: (_) => const AppAboutDialog(),
     );
   }
 }
@@ -429,14 +332,14 @@ bool _isRemoteNewer(String tag, String localVersion, int localBuild) {
 
 /// 关于弹窗：免责声明 + 版本号 + 检查更新一体。
 /// 检查失败时提供「复制在线链接」，用户可在浏览器手动打开 Releases 页。
-class _AboutDialog extends StatefulWidget {
-  const _AboutDialog();
+class AppAboutDialog extends StatefulWidget {
+  const AppAboutDialog();
 
   @override
-  State<_AboutDialog> createState() => _AboutDialogState();
+  State<AppAboutDialog> createState() => AppAboutDialogState();
 }
 
-class _AboutDialogState extends State<_AboutDialog> {
+class AppAboutDialogState extends State<AppAboutDialog> {
   static const _releasesUrl =
       'https://github.com/YechoY/Ncepu-Assistant/releases/latest';
 
@@ -1170,15 +1073,13 @@ class _TabFadeState extends State<_TabFade>
 
 /// 用户胶囊弹出的底部菜单：浮起玻璃卡 + 菜单项卡片（与下拉面板选项同款视觉）。
 class _UserMenuSheet extends StatelessWidget {
-  final VoidCallback onAbout;
   final VoidCallback onLogout;
-  const _UserMenuSheet({required this.onAbout, required this.onLogout});
+  const _UserMenuSheet({required this.onLogout});
 
   @override
   Widget build(BuildContext context) {
     return SafeArea(
       child: Padding(
-        // 面板四周浮起留白，与屏幕边缘分开，强化"玻璃片悬浮"感
         padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
         child: GlassCard(
           radius: 22,
@@ -1187,20 +1088,11 @@ class _UserMenuSheet extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               _MenuTile(
-                icon: Icons.info_outline_rounded,
-                label: '关于',
-                onTap: () {
-                  Navigator.pop(context); // 先关掉底部菜单
-                  onAbout();
-                },
-              ),
-              const SizedBox(height: 8),
-              _MenuTile(
                 icon: Icons.logout_rounded,
-                label: '退出登录',
+                label: '退出学习服务',
                 destructive: true,
                 onTap: () {
-                  Navigator.pop(context); // 先关掉底部菜单
+                  Navigator.pop(context);
                   onLogout();
                 },
               ),
