@@ -271,7 +271,7 @@ class _MainShellState extends ConsumerState<MainShell> {
                   builder: (_) => _UserMenuSheet(onLogout: _logout),
                 ),
               ),
-              if (state.notice != null) OfflineBanner(text: state.notice!),
+              if (!state.online) const OfflineBanner(),
               // Expanded：在 Column/Row 里「占满剩余空间」。
               // IndexedStack：把所有子页面都建出来叠在一起，只显示 index 指定的那个。
               // 好处是切 Tab 时其它页面不会被销毁，滚动位置/输入内容都能保留。
