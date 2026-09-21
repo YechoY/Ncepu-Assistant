@@ -79,4 +79,51 @@ class DevicePrefs {
     );
     await saveDeviceCustoms(map);
   }
+
+  /// 新建分组（default 保留字、重名/空名拒绝）。
+  static Future<bool> addGroup(String name) async {
+    final n = name.trim();
+    if (n.isEmpty || n == 'default') return false;
+    final groups = await loadGroups();
+    if (groups.contains(n)) return false;
+    await saveGroups([...groups, n]);
+    return true;
+  }
+
+  /// 重命名分组：groups 更新 + 其下设备的 groupId 同步迁移。
+  static Future<void> renameGroup(String oldName, String newName) async {
+    final n = newName.trim();
+    if (oldName == 'default' || n.isEmpty || n == 'default') return;
+    final groups = await loadGroups();
+    if (!groups.contains(oldName) || groups.contains(n)) return;
+    await saveGroups(groups.map((g) => g == oldName ? n : g).toList());
+    final map = await loadDeviceCustoms();
+    final changed = map.map(
+      (k, v) => MapEntry(
+        k,
+        v.groupId == oldName
+            ? DeviceCustomInfo(customName: v.customName, groupId: n)
+            : v,
+      ),
+    );
+    await saveDeviceCustoms(changed);
+  }
+
+  /// 删除分组：其下设备移回 default。
+  static Future<void> deleteGroup(String name) async {
+    if (name == 'default') return;
+    final groups = await loadGroups();
+    if (!groups.contains(name)) return;
+    await saveGroups(groups.where((g) => g != name).toList());
+    final map = await loadDeviceCustoms();
+    final changed = map.map(
+      (k, v) => MapEntry(
+        k,
+        v.groupId == name
+            ? DeviceCustomInfo(customName: v.customName, groupId: 'default')
+            : v,
+      ),
+    );
+    await saveDeviceCustoms(changed);
+  }
 }

@@ -116,18 +116,6 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
     return '饮水机';
   }
 
-  String _deviceAddr(dynamic d) {
-    if (d is Map<String, dynamic>) {
-      final addr = d['addr'];
-      if (addr is Map) {
-        final detail = addr['detail'] ?? addr['name'] ?? '';
-        return detail.toString();
-      }
-      return d['addr_name']?.toString() ?? '';
-    }
-    return '';
-  }
-
   void _tapDevice(dynamic d) {
     final id = _deviceId(d);
     Navigator.of(context).push(
@@ -173,6 +161,346 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
       _customs = await DevicePrefs.loadDeviceCustoms();
       setState(() {});
     }
+  }
+
+  // ── 分组管理 ─────────────────────────────────────────────
+
+  Future<String?> _textInputDialog(String title, String initial) {
+    return showDialog<String>(
+      context: context,
+      barrierColor: const Color(0x402E3350),
+      builder: (_) {
+        final c = TextEditingController(text: initial);
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+          ),
+          title: Text(title, style: const TextStyle(fontSize: 16)),
+          content: TextField(controller: c, autofocus: true),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('取消'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, c.text.trim()),
+              child: const Text('确定', style: TextStyle(color: kPrimary)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _sheetContainer({required Widget child}) {
+    return Container(
+      margin: const EdgeInsets.all(12),
+      padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.95),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.9)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x1A2E3350),
+            blurRadius: 30,
+            offset: Offset(0, 12),
+          ),
+        ],
+      ),
+      child: child,
+    );
+  }
+
+  Widget _sheetAction(
+    IconData icon,
+    String label,
+    VoidCallback onTap, {
+    Color color = kInk,
+    Widget? trailing,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Material(
+        color: kPrimary.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(14),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(14),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            child: Row(
+              children: [
+                Icon(icon, size: 19, color: color),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w600,
+                      color: color,
+                    ),
+                  ),
+                ),
+                ?trailing,
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // 设备操作：重命名 / 移动到分组
+  Future<void> _showDeviceActions(dynamic d) async {
+    final id = _deviceId(d);
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _sheetContainer(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              '「${_deviceName(d)}」',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: kInk,
+              ),
+            ),
+            const SizedBox(height: 12),
+            _sheetAction(Icons.edit_note_rounded, '重命名', () {
+              Navigator.of(context).pop();
+              _renameDevice(d);
+            }),
+            const Padding(
+              padding: EdgeInsets.fromLTRB(4, 8, 4, 6),
+              child: Text(
+                '移动到分组',
+                style: TextStyle(fontSize: 11.5, color: kTextMuted),
+              ),
+            ),
+            ..._groups.map((g) {
+              final current = _customs[id]?.groupId ?? 'default';
+              return _sheetAction(
+                g == 'default' ? Icons.home_rounded : Icons.folder_rounded,
+                g == 'default' ? '默认' : g,
+                () async {
+                  Navigator.of(context).pop();
+                  await DevicePrefs.updateDeviceCustom(id, groupId: g);
+                  _customs = await DevicePrefs.loadDeviceCustoms();
+                  if (mounted) setState(() {});
+                },
+                color: current == g ? kPrimary : kInk,
+                trailing: current == g
+                    ? const Icon(Icons.check_rounded, size: 18, color: kPrimary)
+                    : null,
+              );
+            }),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // 分组管理：新建 / 重命名 / 删除
+  Future<void> _manageGroups() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (sheetCtx) {
+        List<String> sheetGroups = List.from(_groups);
+        final grouped = _groupDevices();
+        return StatefulBuilder(
+          builder: (sheetCtx, setSheetState) {
+            Future<void> refresh() async {
+              sheetGroups = await DevicePrefs.loadGroups();
+              setSheetState(() {});
+              setState(() {});
+            }
+
+            return _sheetContainer(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          '分组管理',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            color: kInk,
+                          ),
+                        ),
+                      ),
+                      GestureDetector(
+                        onTap: () async {
+                          final name = await _textInputDialog('新建分组', '');
+                          if (name == null || name.isEmpty) return;
+                          final ok = await DevicePrefs.addGroup(name);
+                          if (!ok) return;
+                          await refresh();
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: kPrimary.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.add_rounded,
+                                size: 15,
+                                color: kPrimary,
+                              ),
+                              SizedBox(width: 3),
+                              Text(
+                                '新建',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: kPrimary,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  ...sheetGroups.map((g) {
+                    final isDefault = g == 'default';
+                    final count = grouped[g]?.length ?? 0;
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 6),
+                      child: Material(
+                        color: kPrimary.withValues(alpha: 0.05),
+                        borderRadius: BorderRadius.circular(14),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 10,
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                isDefault
+                                    ? Icons.home_rounded
+                                    : Icons.folder_rounded,
+                                size: 19,
+                                color: kPrimary,
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  isDefault ? '默认 ($count)' : '$g ($count)',
+                                  style: const TextStyle(
+                                    fontSize: 13.5,
+                                    fontWeight: FontWeight.w600,
+                                    color: kInk,
+                                  ),
+                                ),
+                              ),
+                              if (!isDefault) ...[
+                                GestureDetector(
+                                  onTap: () async {
+                                    final nn = await _textInputDialog(
+                                      '重命名分组',
+                                      g,
+                                    );
+                                    if (nn == null || nn.isEmpty) return;
+                                    await DevicePrefs.renameGroup(g, nn);
+                                    await refresh();
+                                  },
+                                  child: const Padding(
+                                    padding: EdgeInsets.all(6),
+                                    child: Icon(
+                                      Icons.edit_rounded,
+                                      size: 18,
+                                      color: kTextMuted,
+                                    ),
+                                  ),
+                                ),
+                                GestureDetector(
+                                  onTap: () async {
+                                    final ok = await showDialog<bool>(
+                                      context: context,
+                                      barrierColor: const Color(0x402E3350),
+                                      builder: (_) => AlertDialog(
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            18,
+                                          ),
+                                        ),
+                                        title: const Text(
+                                          '删除分组',
+                                          style: TextStyle(fontSize: 16),
+                                        ),
+                                        content: Text(
+                                          '「$g」内的 $count 台设备将移回默认分组，确定删除？',
+                                        ),
+                                        actions: [
+                                          TextButton(
+                                            onPressed: () =>
+                                                Navigator.pop(context, false),
+                                            child: const Text('取消'),
+                                          ),
+                                          TextButton(
+                                            onPressed: () =>
+                                                Navigator.pop(context, true),
+                                            child: const Text(
+                                              '删除',
+                                              style: TextStyle(
+                                                color: Color(0xFFB85450),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                    if (ok != true) return;
+                                    await DevicePrefs.deleteGroup(g);
+                                    await refresh();
+                                  },
+                                  child: const Padding(
+                                    padding: EdgeInsets.all(6),
+                                    child: Icon(
+                                      Icons.delete_outline_rounded,
+                                      size: 18,
+                                      color: Color(0xFFB85450),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  }),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+    _groups = await DevicePrefs.loadGroups();
+    if (mounted) setState(() {});
   }
 
   @override
@@ -377,13 +705,49 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
             ),
           ),
           const SizedBox(height: 20),
-          const Text(
-            '我的设备',
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w700,
-              color: kInk,
-            ),
+          Row(
+            children: [
+              const Text(
+                '我的设备',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: kInk,
+                ),
+              ),
+              const Spacer(),
+              GestureDetector(
+                onTap: _manageGroups,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.55),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.7),
+                    ),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.tune_rounded, size: 13, color: kTextMuted),
+                      SizedBox(width: 4),
+                      Text(
+                        '分组',
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          color: kTextMuted,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 10),
           ...groupNames.map((gid) {
@@ -448,11 +812,9 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
                 if (!collapsed) ...[
                   ...list.map(
                     (d) => _DeviceCard(
-                      device: d,
                       customName: _deviceName(d),
-                      addr: _deviceAddr(d),
                       onTap: () => _tapDevice(d),
-                      onRename: () => _renameDevice(d),
+                      onEdit: () => _showDeviceActions(d),
                     ),
                   ),
                   const SizedBox(height: 6),
@@ -498,17 +860,13 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
 }
 
 class _DeviceCard extends StatelessWidget {
-  final dynamic device;
   final String customName;
-  final String addr;
   final VoidCallback onTap;
-  final VoidCallback onRename;
+  final VoidCallback onEdit;
   const _DeviceCard({
-    required this.device,
     required this.customName,
-    required this.addr,
     required this.onTap,
-    required this.onRename,
+    required this.onEdit,
   });
 
   @override
@@ -539,25 +897,13 @@ class _DeviceCard extends StatelessWidget {
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      customName,
-                      style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
-                        color: kInk,
-                      ),
-                    ),
-                    if (addr.isNotEmpty) ...[
-                      const SizedBox(height: 2),
-                      Text(
-                        addr,
-                        style: const TextStyle(fontSize: 12, color: kTextMuted),
-                      ),
-                    ],
-                  ],
+                child: Text(
+                  customName,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: kInk,
+                  ),
                 ),
               ),
               IconButton(
@@ -566,12 +912,12 @@ class _DeviceCard extends StatelessWidget {
                   size: 18,
                   color: kTextMuted,
                 ),
-                onPressed: onRename,
-                tooltip: '重命名',
+                onPressed: onEdit,
+                tooltip: '重命名 / 分组',
               ),
               Container(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
+                  horizontal: 20,
                   vertical: 7,
                 ),
                 decoration: BoxDecoration(
@@ -588,7 +934,7 @@ class _DeviceCard extends StatelessWidget {
                 child: const Text(
                   '取水',
                   style: TextStyle(
-                    fontSize: 13,
+                    fontSize: 14,
                     fontWeight: FontWeight.w700,
                     color: Colors.white,
                   ),
