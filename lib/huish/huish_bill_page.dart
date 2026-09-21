@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../theme.dart';
 import '../../widgets/glass_background.dart';
+import '../../widgets/glass_dialog.dart';
 import '../../widgets/glass_card.dart';
 import 'huish_auth_state.dart';
 
@@ -138,13 +139,8 @@ class _HuishBillPageState extends ConsumerState<HuishBillPage> {
     showDialog(
       context: context,
       barrierColor: const Color(0x402E3350),
-      builder: (_) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        backgroundColor: Colors.white.withValues(alpha: 0.92),
-        title: const Text(
-          '账单详情',
-          style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
-        ),
+      builder: (_) => GlassDialog(
+        title: '账单详情',
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -161,12 +157,9 @@ class _HuishBillPageState extends ConsumerState<HuishBillPage> {
             _detailRow('状态', _statusStyles[status]?.label ?? '未知'),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('关闭', style: TextStyle(color: kPrimary)),
-          ),
-        ],
+        confirmText: '关闭',
+        cancelText: null,
+        destructive: false,
       ),
     );
   }
