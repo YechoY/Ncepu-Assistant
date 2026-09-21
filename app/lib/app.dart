@@ -179,33 +179,10 @@ class _MainShellState extends ConsumerState<MainShell> {
         child: SafeArea(
           // 避开刘海、状态栏、底部手势条等系统区域
           child: Column(
-            // 纵向排列：顶栏 → (离线条) → 页面内容 → 底部导航
             children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                child: GestureDetector(
-                  onTap: () => Navigator.of(context).pop(),
-                  child: Container(
-                    width: 38,
-                    height: 38,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.5),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.65),
-                      ),
-                    ),
-                    child: const Icon(
-                      Icons.arrow_back_ios_new_rounded,
-                      size: 18,
-                      color: kPrimary,
-                    ),
-                  ),
-                ),
-              ),
               TopBar(
                 title: titles[tab],
+                onBack: () => Navigator.of(context).pop(),
                 // 标题下方显示该页数据的最后更新时间（教室页数据不缓存，其时间在页内显示）。
                 subtitle: switch (tab) {
                   0 => '更新：${formatUpdatedAt(state.timetableUpdatedAt)}',

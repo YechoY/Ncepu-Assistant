@@ -136,7 +136,7 @@ class _HuishDevicePageState extends ConsumerState<HuishDevicePage> {
         if (!_running) {
           // 服务端已停止（水接完/设备自停）
           _pollTimer?.cancel();
-          _load(silent: true);
+          _refreshBalance();
           _fetchLatestBill();
         }
       }
@@ -189,7 +189,8 @@ class _HuishDevicePageState extends ConsumerState<HuishDevicePage> {
       if (resp.isSuccess) {
         showGlassSnackBar(context, '已暂停出水');
       }
-      await _load(silent: true); // 静默刷新状态/余额
+      // 只刷余额，不调 _load（避免覆盖本次会话数据）
+      await _refreshBalance();
       await _fetchLatestBill(); // 取本次真实消费
     } catch (e) {
       if (mounted) {
@@ -199,24 +200,64 @@ class _HuishDevicePageState extends ConsumerState<HuishDevicePage> {
     }
   }
 
-  // 停止后从最新按量账单取本次真实消费（type=21 且结算时间晚于本次开始）
-  Future<void> _fetchLatestBill() async {
-    if (_startTs == 0) return; // 接手远端会话时无从匹配，仅显示估算
+  // 只刷新余额，不影响本次接水量
+  Future<void> _refreshBalance() async {
     try {
       final api = ref.read(huishApiClientProvider);
+      final home = await api.getDeviceHome(widget.deviceId);
+      if (!mounted || !home.isSuccess) return;
+      final wallet = home.dataMap?['wallet'] as Map<String, dynamic>?;
+      final bal = (wallet?['olCash'] as num?)?.toDouble() ?? _balance;
+      final gene =
+          (home.dataMap?['device'] as Map<String, dynamic>?)?['gene']
+              as Map<String, dynamic>?;
+      if (gene != null) {
+        // 更新累计出水和单价，但不动 _startOut 和 _hasSession
+        final out = (gene['out'] as num?)?.toDouble() ?? _currentOut;
+        final price = (gene['price'] as num?)?.toInt() ?? _priceFen;
+        setState(() {
+          _currentOut = out;
+          _priceFen = price;
+          _balance = bal;
+        });
+      } else {
+        setState(() => _balance = bal);
+      }
+    } catch (_) {}
+  }
+
+  // 停止后从最新按量账单取本次真实消费（type=21 且结算时间晚于本次开始）
+  // 账单生成有延迟，重试 2s × 5 次
+  Future<void> _fetchLatestBill({int attempt = 0}) async {
+    if (_startTs == 0) return;
+    if (attempt >= 5) return; // 最多 5 次
+    try {
+      await Future.delayed(const Duration(seconds: 2));
+      if (!mounted) return;
+      final api = ref.read(huishApiClientProvider);
       final resp = await api.getBillList(page: 0, size: 5);
-      if (!mounted || !resp.isSuccess) return;
+      if (!mounted || !resp.isSuccess) {
+        _fetchLatestBill(attempt: attempt + 1);
+        return;
+      }
       for (final b in resp.dataList ?? const []) {
         if (b is! Map<String, dynamic>) continue;
         final type = b['type'] as int? ?? 0;
         final ctime = b['ctime'] as int? ?? 0;
+        // 账单生成后 ctime 可能比 _startTs 略晚（秒级匹配）
         if (type == 21 && ctime >= _startTs - 5) {
           final pay = (b['payment'] as num?)?.toDouble();
-          if (pay != null && mounted) setState(() => _lastBillPayment = pay);
-          return;
+          if (pay != null && mounted) {
+            setState(() => _lastBillPayment = pay);
+          }
+          return; // 命中，停止重试
         }
       }
-    } catch (_) {}
+      // 未命中 → 继续重试
+      _fetchLatestBill(attempt: attempt + 1);
+    } catch (_) {
+      if (attempt < 4) _fetchLatestBill(attempt: attempt + 1);
+    }
   }
 
   // 退出取水：取水中先暂停出水再离开
@@ -435,56 +476,59 @@ class _HuishDevicePageState extends ConsumerState<HuishDevicePage> {
               ),
             ),
           ),
-          const SizedBox(height: 12),
-          // 退出取水
+          const SizedBox(height: 24),
+          // 退出取水（中性灰，区别于收藏操作）
           SizedBox(
             width: double.infinity,
-            height: 48,
+            height: 44,
             child: OutlinedButton.icon(
               onPressed: _exit,
               style: OutlinedButton.styleFrom(
                 foregroundColor: kTextMuted,
-                side: BorderSide(color: Colors.white.withValues(alpha: 0.65)),
-                backgroundColor: Colors.white.withValues(alpha: 0.4),
+                side: BorderSide(color: kTextMuted.withValues(alpha: 0.35)),
+                backgroundColor: Colors.white.withValues(alpha: 0.35),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(15),
+                  borderRadius: BorderRadius.circular(14),
                 ),
               ),
-              icon: const Icon(Icons.logout_rounded, size: 19),
+              icon: const Icon(Icons.logout_rounded, size: 18),
               label: const Text(
                 '退出取水',
-                style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w600),
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
               ),
             ),
           ),
-          // 添加/移出"我的设备"列表
+          const SizedBox(height: 20),
+          // 添加/移出"我的设备"列表（深水蓝，与退出取水颜色区分）
           SizedBox(
             width: double.infinity,
-            height: 48,
+            height: 44,
             child: OutlinedButton.icon(
               onPressed: _alreadyFav ? _unfavoriteDevice : _favoriteDevice,
               style: OutlinedButton.styleFrom(
-                foregroundColor: _alreadyFav ? kTextMuted : kHuishDeep,
+                foregroundColor: _alreadyFav
+                    ? const Color(0xFFB85450)
+                    : kHuishDeep,
                 side: BorderSide(
                   color: _alreadyFav
-                      ? Colors.white.withValues(alpha: 0.65)
-                      : kHuish.withValues(alpha: 0.45),
+                      ? const Color(0xFFB85450).withValues(alpha: 0.4)
+                      : kHuish.withValues(alpha: 0.5),
                 ),
-                backgroundColor: Colors.white.withValues(alpha: 0.55),
+                backgroundColor: Colors.white.withValues(alpha: 0.5),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(15),
+                  borderRadius: BorderRadius.circular(14),
                 ),
               ),
               icon: Icon(
                 _alreadyFav
                     ? Icons.bookmark_remove_rounded
                     : Icons.bookmark_add_rounded,
-                size: 19,
+                size: 18,
               ),
               label: Text(
                 _alreadyFav ? '从我的列表移除' : '添加到我的列表',
                 style: const TextStyle(
-                  fontSize: 14.5,
+                  fontSize: 14,
                   fontWeight: FontWeight.w600,
                 ),
               ),

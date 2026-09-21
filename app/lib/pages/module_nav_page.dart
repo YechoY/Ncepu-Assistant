@@ -172,14 +172,15 @@ class _ModuleNavPageState extends ConsumerState<ModuleNavPage> {
         child: SafeArea(
           child: Column(
             children: [
-              // 顶栏：标题 + 关于入口
+              // 顶栏：Logo + 标题 + 关于入口
               Padding(
                 padding: const EdgeInsets.fromLTRB(24, 16, 20, 8),
                 child: Row(
                   children: [
+                    // 左上角 Logo（美化：双层柔光 + 渐变圆角胶囊）
                     Container(
-                      width: 44,
-                      height: 44,
+                      width: 46,
+                      height: 46,
                       alignment: Alignment.center,
                       decoration: BoxDecoration(
                         gradient: const LinearGradient(
@@ -187,19 +188,24 @@ class _ModuleNavPageState extends ConsumerState<ModuleNavPage> {
                           end: Alignment.bottomRight,
                           colors: [kPrimarySoft, kPrimary],
                         ),
-                        borderRadius: BorderRadius.circular(14),
+                        borderRadius: BorderRadius.circular(15),
                         boxShadow: [
                           BoxShadow(
-                            color: kPrimary.withValues(alpha: 0.3),
-                            blurRadius: 14,
+                            color: kPrimary.withValues(alpha: 0.28),
+                            blurRadius: 16,
                             offset: const Offset(0, 6),
+                          ),
+                          BoxShadow(
+                            color: Colors.white.withValues(alpha: 0.6),
+                            blurRadius: 6,
+                            offset: const Offset(0, -2),
                           ),
                         ],
                       ),
                       child: const Icon(
-                        Icons.local_florist,
+                        Icons.bolt_rounded,
                         color: Colors.white,
-                        size: 24,
+                        size: 26,
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -284,8 +290,9 @@ class _ModuleNavPageState extends ConsumerState<ModuleNavPage> {
                   ],
                 ),
               ),
-              const SizedBox(height: 28),
-              // 免责声明 + 勾选框
+              // 中间空白区：装饰动效
+              Expanded(child: Center(child: _DecorDots())),
+              // 免责声明 + 勾选框（贴近底部）
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
                 child: GlassCard(
@@ -456,6 +463,70 @@ class _ServiceCard extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// 中间空白区装饰：三个柔光圆点呼吸动效
+class _DecorDots extends StatefulWidget {
+  @override
+  State<_DecorDots> createState() => _DecorDotsState();
+}
+
+class _DecorDotsState extends State<_DecorDots> with TickerProviderStateMixin {
+  late final AnimationController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2400),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _ctrl,
+      builder: (_, child) {
+        final t = _ctrl.value;
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: List.generate(3, (i) {
+            final delay = i * 0.2;
+            final phase = ((t - delay).clamp(0, 1) * 2);
+            final scale = 0.6 + 0.4 * (phase < 1 ? phase : 2 - phase);
+            final alpha = 0.15 + 0.25 * (phase < 1 ? phase : 2 - phase);
+            return Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 5),
+              child: Transform.scale(
+                scale: scale,
+                child: Container(
+                  width: 10,
+                  height: 10,
+                  decoration: BoxDecoration(
+                    color: kPrimary.withValues(alpha: alpha),
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: kPrimarySoft.withValues(alpha: alpha * 0.8),
+                        blurRadius: 8,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          }),
+        );
+      },
     );
   }
 }
