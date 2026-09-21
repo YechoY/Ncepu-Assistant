@@ -291,10 +291,11 @@ class _HuishAddDevicePageState extends ConsumerState<HuishAddDevicePage> {
                   _ScanErrorView(message: error.toString()),
             ),
           ),
-          Center(
+          Align(
+            alignment: const Alignment(0, -0.35),
             child: Container(
-              width: 250,
-              height: 250,
+              width: 240,
+              height: 240,
               decoration: BoxDecoration(
                 border: Border.all(
                   color: Colors.white.withValues(alpha: 0.85),
