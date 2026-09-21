@@ -880,6 +880,21 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
               ),
             ],
           ),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              Icon(
+                Icons.drag_indicator_rounded,
+                size: 13,
+                color: kTextMuted.withValues(alpha: 0.75),
+              ),
+              const SizedBox(width: 4),
+              const Text(
+                '长按设备卡片可拖动排序',
+                style: TextStyle(fontSize: 11, color: kTextMuted),
+              ),
+            ],
+          ),
           const SizedBox(height: 10),
           ...groupNames.map((gid) {
             final list = grouped[gid]!;
