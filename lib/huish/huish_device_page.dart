@@ -30,9 +30,11 @@ class _HuishDevicePageState extends ConsumerState<HuishDevicePage> {
   bool _loading = true;
   bool _error = false;
   bool _running = false;
+  bool _hasSession = false; // 本次页面内是否已有取水会话（防止把累计值当"本次"）
   double _currentOut = 0;
   double _startOut = 0;
   double _balance = 0;
+  int _priceFen = 0; // 单价（分/升），gene.price
   String _unit = '升';
   String _addr = '';
   Timer? _pollTimer;
@@ -78,9 +80,14 @@ class _HuishDevicePageState extends ConsumerState<HuishDevicePage> {
       final gene = device?['gene'] as Map<String, dynamic>?;
       if (gene != null) {
         _currentOut = (gene['out'] as num?)?.toDouble() ?? 0;
+        _priceFen = (gene['price'] as num?)?.toInt() ?? 0;
         final status = gene['status'] as int? ?? 99;
         _running = status == 1;
-        if (_running) _startOut = _currentOut;
+        // 设备远端已在取水（如从别处启动）：以当前累计为本次起点，从 0 开始计
+        if (_running && !_hasSession) {
+          _startOut = _currentOut;
+          _hasSession = true;
+        }
       }
       setState(() {
         _loading = false;
@@ -125,11 +132,15 @@ class _HuishDevicePageState extends ConsumerState<HuishDevicePage> {
     } catch (_) {}
   }
 
-  double get _thisUse => _currentOut - _startOut;
+  double get _thisUse =>
+      _hasSession ? (_currentOut - _startOut).clamp(0, double.infinity) : 0;
+
+  double get _thisCost => _thisUse * _priceFen / 100;
 
   Future<void> _start() async {
-    setState(() => _running = true);
     _startOut = _currentOut;
+    _hasSession = true;
+    setState(() => _running = true);
     try {
       final api = ref.read(huishApiClientProvider);
       final resp = await api.startDevice(widget.deviceId);
@@ -240,7 +251,11 @@ class _HuishDevicePageState extends ConsumerState<HuishDevicePage> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  _running ? '正在接水…' : (_thisUse > 0 ? '本次已接' : '已停止'),
+                  _running
+                      ? '正在接水…'
+                      : _hasSession
+                      ? '本次接水完成'
+                      : '待取水',
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
@@ -252,9 +267,7 @@ class _HuishDevicePageState extends ConsumerState<HuishDevicePage> {
                 AnimatedSwitcher(
                   duration: const Duration(milliseconds: 200),
                   child: Text(
-                    _running || _thisUse > 0
-                        ? '${_thisUse.toStringAsFixed(1)} $_unit'
-                        : '0.0 $_unit',
+                    '${_thisUse.toStringAsFixed(1)} $_unit',
                     key: ValueKey(_thisUse.toStringAsFixed(1)),
                     style: TextStyle(
                       fontSize: 48,
@@ -279,10 +292,14 @@ class _HuishDevicePageState extends ConsumerState<HuishDevicePage> {
                   ),
                 ],
                 const SizedBox(height: 18),
-                // 统计信息行
+                // 统计信息行：有单价时显示本次消费（估算）
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
+                    if (_priceFen > 0) ...[
+                      _buildStat('本次消费(估)', '¥${_thisCost.toStringAsFixed(2)}'),
+                      Container(width: 1, height: 36, color: kGlassGridLine),
+                    ],
                     _buildStat(
                       '累计出水',
                       '${_currentOut.toStringAsFixed(1)} $_unit',
