@@ -19,6 +19,10 @@ const kPrimaryContainer = Color(0xFFE7E9F7); // 极浅紫：选中底/浅色承�
 const kInk = Color(0xFF454C84); // 墨紫：标题/链接/强调文字（替代旧深蓝 1E3A8A）
 const kAccentPink = Color(0xFFF6BEC8); // 粉彩强调（周末等小面积点缀）
 
+// ── 生活服务（惠生活 798）模块色：冷调水蓝 ──
+const kHuish = Color(0xFF4BA3C7); // 模块强调：水滴图标/渐变亮端/进度（装饰用）
+const kHuishDeep = Color(0xFF2E6B8C); // 深水蓝：实底按钮（白字对比约 5.8:1）/渐变深端
+
 // ── 中性色 ────────────────────────────────────────────────────
 const kBgTop = Color(0xFFE8F1FF); // 背景渐变上端（勿动：背景保持原样）
 const kBgBottom = Color(0xFFF7F9FD); // 背景渐变下端

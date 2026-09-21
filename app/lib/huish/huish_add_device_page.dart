@@ -307,7 +307,7 @@ class _HuishAddDevicePageState extends ConsumerState<HuishAddDevicePage> {
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
                   color: _torch
-                      ? const Color(0xFF4BA3C7).withValues(alpha: 0.85)
+                      ? kHuish.withValues(alpha: 0.85)
                       : Colors.black.withValues(alpha: 0.35),
                   borderRadius: BorderRadius.circular(13),
                 ),

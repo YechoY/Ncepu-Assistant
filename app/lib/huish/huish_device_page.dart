@@ -251,6 +251,23 @@ class _HuishDevicePageState extends ConsumerState<HuishDevicePage> {
     }
   }
 
+  // 移出"我的设备"列表
+  Future<void> _unfavoriteDevice() async {
+    try {
+      final api = ref.read(huishApiClientProvider);
+      final resp = await api.favoriteDevice(widget.deviceId, remove: true);
+      if (!mounted) return;
+      if (resp.isSuccess) {
+        setState(() => _alreadyFav = false);
+        showGlassSnackBar(context, '已从我的设备列表移除');
+      } else {
+        showGlassSnackBar(context, '移除失败 (code: ${resp.code})');
+      }
+    } catch (_) {
+      if (mounted) showGlassSnackBar(context, '网络异常，请重试');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -319,7 +336,7 @@ class _HuishDevicePageState extends ConsumerState<HuishDevicePage> {
                     _running ? Icons.water_drop : Icons.water_drop_outlined,
                     key: ValueKey(_running),
                     size: 56,
-                    color: _running ? const Color(0xFF4BA3C7) : kTextMuted,
+                    color: _running ? kHuish : kTextMuted,
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -332,7 +349,7 @@ class _HuishDevicePageState extends ConsumerState<HuishDevicePage> {
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
-                    color: _running ? const Color(0xFF4BA3C7) : kTextMuted,
+                    color: _running ? kHuish : kTextMuted,
                   ),
                 ),
                 const SizedBox(height: 10),
@@ -397,13 +414,13 @@ class _HuishDevicePageState extends ConsumerState<HuishDevicePage> {
               style: FilledButton.styleFrom(
                 backgroundColor: _running
                     ? const Color(0xFFB85450)
-                    : const Color(0xFF4BA3C7),
+                    : kHuishDeep,
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(15),
                 ),
                 elevation: _running ? 0 : 6,
-                shadowColor: const Color(0xFF4BA3C7).withValues(alpha: 0.4),
+                shadowColor: kHuishDeep.withValues(alpha: 0.4),
               ),
               icon: Icon(
                 _running ? Icons.pause_rounded : Icons.play_arrow_rounded,
@@ -440,30 +457,39 @@ class _HuishDevicePageState extends ConsumerState<HuishDevicePage> {
               ),
             ),
           ),
-          // 添加到"我的设备"列表（已在列表时隐藏）
-          if (!_alreadyFav) ...[
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              height: 48,
-              child: OutlinedButton.icon(
-                onPressed: _favoriteDevice,
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: kPrimary,
-                  side: BorderSide(color: kPrimary.withValues(alpha: 0.45)),
-                  backgroundColor: Colors.white.withValues(alpha: 0.4),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(15),
-                  ),
+          // 添加/移出"我的设备"列表
+          SizedBox(
+            width: double.infinity,
+            height: 48,
+            child: OutlinedButton.icon(
+              onPressed: _alreadyFav ? _unfavoriteDevice : _favoriteDevice,
+              style: OutlinedButton.styleFrom(
+                foregroundColor: _alreadyFav ? kTextMuted : kHuishDeep,
+                side: BorderSide(
+                  color: _alreadyFav
+                      ? Colors.white.withValues(alpha: 0.65)
+                      : kHuish.withValues(alpha: 0.45),
                 ),
-                icon: const Icon(Icons.bookmark_add_rounded, size: 19),
-                label: const Text(
-                  '添加到我的列表',
-                  style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w600),
+                backgroundColor: Colors.white.withValues(alpha: 0.55),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(15),
+                ),
+              ),
+              icon: Icon(
+                _alreadyFav
+                    ? Icons.bookmark_remove_rounded
+                    : Icons.bookmark_add_rounded,
+                size: 19,
+              ),
+              label: Text(
+                _alreadyFav ? '从我的列表移除' : '添加到我的列表',
+                style: const TextStyle(
+                  fontSize: 14.5,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
             ),
-          ],
+          ),
           // 设备信息
           if (_addr.isNotEmpty) ...[
             const SizedBox(height: 20),
