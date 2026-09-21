@@ -72,9 +72,11 @@ class _ModuleNavPageState extends ConsumerState<ModuleNavPage> {
       showGlassSnackBar(context, '请先阅读并同意免责声明');
       return;
     }
-    // 已登录 → 直接进 MainShell；未登录 → 先登录
+    // 已登录 → 先加载缓存数据再进 MainShell；未登录 → 先登录
     final authState = ref.read(authStateProvider);
     if (authState.loggedIn) {
+      await ref.read(dataStateProvider.notifier).loadFromCache();
+      if (!mounted) return;
       Navigator.of(context)
           .push(MaterialPageRoute(builder: (_) => const MainShell()));
     } else {

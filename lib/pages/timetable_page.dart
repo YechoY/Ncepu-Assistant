@@ -33,7 +33,7 @@ class TimetablePage extends ConsumerWidget {
                   onPressed: week.isEmpty
                       ? null
                       : () async {
-                          ref
+                          await ref
                               .read(dataStateProvider.notifier)
                               .loadTimetable(
                                 mondayOf(
@@ -41,18 +41,14 @@ class TimetablePage extends ConsumerWidget {
                                       .add(const Duration(days: -7)),
                                 ),
                               );
-                          await Future.delayed(
-                            const Duration(milliseconds: 800),
-                          );
+                          if (!context.mounted) return;
                           final st = ref.read(dataStateProvider);
                           if (st.notice != null) {
-                            if (context.mounted) {
-                              showGlassSnackBar(context, '切换失败，请联网后重试');
-                            }
-                          } else if (context.mounted) {
+                            showGlassSnackBar(context, st.notice!);
+                          } else {
                             showGlassSnackBar(
                               context,
-                              '已切换到${_weekLabel(st)}（${_dateRange(st.timetableWeek)}）',
+                              '已切换到${_weekLabel(st)}\n${_dateRange(st.timetableWeek)}',
                             );
                           }
                         },
@@ -95,17 +91,17 @@ class TimetablePage extends ConsumerWidget {
                     );
                     if (picked == null || !context.mounted) return;
                     final monday = mondayOf(picked);
-                    ref.read(dataStateProvider.notifier).loadTimetable(monday);
-                    await Future.delayed(const Duration(milliseconds: 800));
+                    await ref
+                        .read(dataStateProvider.notifier)
+                        .loadTimetable(monday);
+                    if (!context.mounted) return;
                     final st = ref.read(dataStateProvider);
                     if (st.notice != null) {
-                      if (context.mounted) {
-                        showGlassSnackBar(context, '切换失败，请联网后重试');
-                      }
-                    } else if (context.mounted) {
+                      showGlassSnackBar(context, st.notice!);
+                    } else {
                       showGlassSnackBar(
                         context,
-                        '已切换到${_weekLabel(st)}（${_dateRange(st.timetableWeek)}）',
+                        '已切换到${_weekLabel(st)}\n${_dateRange(st.timetableWeek)}',
                       );
                     }
                   },
@@ -115,7 +111,7 @@ class TimetablePage extends ConsumerWidget {
                   onPressed: week.isEmpty
                       ? null
                       : () async {
-                          ref
+                          await ref
                               .read(dataStateProvider.notifier)
                               .loadTimetable(
                                 mondayOf(
@@ -123,18 +119,14 @@ class TimetablePage extends ConsumerWidget {
                                       .add(const Duration(days: 7)),
                                 ),
                               );
-                          await Future.delayed(
-                            const Duration(milliseconds: 800),
-                          );
+                          if (!context.mounted) return;
                           final st = ref.read(dataStateProvider);
                           if (st.notice != null) {
-                            if (context.mounted) {
-                              showGlassSnackBar(context, '切换失败，请联网后重试');
-                            }
-                          } else if (context.mounted) {
+                            showGlassSnackBar(context, st.notice!);
+                          } else {
                             showGlassSnackBar(
                               context,
-                              '已切换到${_weekLabel(st)}（${_dateRange(st.timetableWeek)}）',
+                              '已切换到${_weekLabel(st)}\n${_dateRange(st.timetableWeek)}',
                             );
                           }
                         },

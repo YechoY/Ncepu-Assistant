@@ -9,6 +9,7 @@ import '../theme.dart';
 import '../widgets/border_beam.dart';
 import '../widgets/empty_view.dart';
 import '../widgets/glass_dropdown.dart';
+import '../widgets/glass_snackbar.dart';
 import '../widgets/reveal.dart';
 import '../widgets/room_card.dart';
 
@@ -236,8 +237,9 @@ class _ClassroomsPageState extends ConsumerState<ClassroomsPage> {
     if (v.compareTo(jcFrom) < 0) jcFrom = v;
   });
 
-  /// 手动查询（点查询按钮触发）
-  Future<void> _query() async {
+  /// 查询空闲教室。[manual] 为 true（点查询按钮）时才弹通知；
+  /// IndexedStack 预构建触发的自动查询不弹，避免在课表页就跳出"查询成功"。
+  Future<void> _query({bool manual = false}) async {
     // 教学楼可能因进页面时会话未就绪而没拉到（buildings 为空）。
     // 查询前先补拉一次，避免“教学楼没了、必须手动刷新”的情况。
     if (buildings.isEmpty) {
@@ -287,6 +289,12 @@ class _ClassroomsPageState extends ConsumerState<ClassroomsPage> {
         loading = false;
         lastQueryAt = DateTime.now();
       });
+      if (manual && mounted) {
+        showGlassSnackBar(
+          context,
+          r.isEmpty ? '该条件下暂无空闲教室' : '查询成功，共 ${r.length} 间空闲教室',
+        );
+      }
     } catch (_) {
       if (!mounted) return;
       setState(() {
@@ -294,6 +302,7 @@ class _ClassroomsPageState extends ConsumerState<ClassroomsPage> {
         loading = false;
         error = '离线或网络异常，空闲教室不可用';
       });
+      if (manual && mounted) showGlassSnackBar(context, '查询失败，请联网后重试');
     }
   }
 
@@ -382,7 +391,7 @@ class _ClassroomsPageState extends ConsumerState<ClassroomsPage> {
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
-                      onPressed: loading ? null : _query,
+                      onPressed: loading ? null : () => _query(manual: true),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: kPrimary,
                         foregroundColor: Colors.white,
