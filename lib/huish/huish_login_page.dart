@@ -246,7 +246,7 @@ class _HuishLoginPageState extends ConsumerState<HuishLoginPage> {
                                       borderRadius: BorderRadius.circular(14),
                                       child: Image.memory(
                                         _captchaBytes!,
-                                        fit: BoxFit.cover,
+                                        fit: BoxFit.contain,
                                         errorBuilder: (_, _, _) => const Center(
                                           child: Icon(
                                             Icons.refresh,
