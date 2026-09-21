@@ -5,12 +5,13 @@ import 'glass_card.dart';
 
 class TopBar extends StatelessWidget {
   final String title;
-  final String? subtitle; // 标题下方的小字（如“更新：今天 08:30”），可空
+  final String? subtitle;
   final bool showRefresh;
   final VoidCallback? onRefresh;
-  final Widget? trailing; // 刷新按钮左侧的自定义动作（如“全部课表”入口），可空
+  final Widget? trailing;
   final String userName;
   final VoidCallback onUserTap;
+  final VoidCallback? onBack; // 内嵌返回按钮（学习服务用）
   const TopBar({
     super.key,
     required this.title,
@@ -20,6 +21,7 @@ class TopBar extends StatelessWidget {
     this.trailing,
     required this.userName,
     required this.onUserTap,
+    this.onBack,
   });
 
   @override
@@ -29,9 +31,32 @@ class TopBar extends StatelessWidget {
       child: GlassCard(
         radius: 14,
         opacity: 0.14,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
         child: Row(
           children: [
+            if (onBack != null) ...[
+              GestureDetector(
+                onTap: onBack,
+                child: Container(
+                  width: 34,
+                  height: 34,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.5),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.65),
+                    ),
+                  ),
+                  child: const Icon(
+                    Icons.arrow_back_ios_new_rounded,
+                    size: 16,
+                    color: kPrimary,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+            ],
             Expanded(
               // 标题 + 更新时间小字纵向排列，仍在同一个顶栏框内。
               child: Column(
