@@ -94,8 +94,8 @@ class _HuishAddDevicePageState extends ConsumerState<HuishAddDevicePage> {
           _looking = false;
         });
       } else if (resp.code == 400 || resp.code == 409) {
-        showGlassSnackBar(context, '设备已在列表中');
-        _finish(did);
+        // 已在列表/已绑定 → 回首页刷新并直接进入取水
+        _finish(did, fav: true, name: null);
       } else {
         setState(() {
           _error =
@@ -112,9 +112,26 @@ class _HuishAddDevicePageState extends ConsumerState<HuishAddDevicePage> {
     }
   }
 
-  Future<void> _favorite() async {
+  String _devId() {
     final dev = _result?['dev'] as Map<String, dynamic>?;
-    final did = dev?['id']?.toString() ?? '';
+    return dev?['id']?.toString() ?? '';
+  }
+
+  String _devName() {
+    final dev = _result?['dev'] as Map<String, dynamic>?;
+    return (dev?['name'] ?? dev?['nickname'])?.toString() ?? '饮水机';
+  }
+
+  // 直接取水（不收藏）
+  void _drinkNow() {
+    final did = _devId();
+    if (did.isEmpty) return;
+    _finish(did, fav: false, name: _devName());
+  }
+
+  // 收藏设备（加进设备列表）后回首页
+  Future<void> _favorite() async {
+    final did = _devId();
     if (did.isEmpty) return;
     try {
       final api = ref.read(huishApiClientProvider);
@@ -122,7 +139,7 @@ class _HuishAddDevicePageState extends ConsumerState<HuishAddDevicePage> {
       if (!mounted) return;
       if (resp.isSuccess) {
         showGlassSnackBar(context, '已收藏设备');
-        _finish(did);
+        _finish(did, fav: true, name: _devName());
       } else {
         showGlassSnackBar(context, '收藏失败 (code: ${resp.code})');
       }
@@ -131,9 +148,9 @@ class _HuishAddDevicePageState extends ConsumerState<HuishAddDevicePage> {
     }
   }
 
-  void _finish(String did) {
+  void _finish(String did, {required bool fav, required String? name}) {
     setState(() => _done = true);
-    Navigator.of(context).pop(did);
+    Navigator.of(context).pop({'did': did, 'fav': fav, 'name': name});
   }
 
   void _reset() {
@@ -540,15 +557,28 @@ class _HuishAddDevicePageState extends ConsumerState<HuishAddDevicePage> {
             SizedBox(
               height: 46,
               child: FilledButton.icon(
-                onPressed: _favorite,
+                onPressed: _drinkNow,
                 style: FilledButton.styleFrom(backgroundColor: kPrimary),
-                icon: const Icon(Icons.bookmark_add_rounded, size: 19),
-                label: const Text('收藏设备'),
+                icon: const Icon(Icons.water_drop_rounded, size: 19),
+                label: const Text('直接取水'),
               ),
             ),
             const SizedBox(height: 8),
             SizedBox(
-              height: 40,
+              height: 44,
+              child: OutlinedButton.icon(
+                onPressed: _favorite,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: kPrimary,
+                  side: BorderSide(color: kPrimary.withValues(alpha: 0.45)),
+                ),
+                icon: const Icon(Icons.bookmark_add_rounded, size: 18),
+                label: const Text('收藏到设备列表'),
+              ),
+            ),
+            const SizedBox(height: 4),
+            SizedBox(
+              height: 36,
               child: TextButton(
                 onPressed: _reset,
                 child: const Text(
