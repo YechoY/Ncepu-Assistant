@@ -7,6 +7,7 @@
 
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 
 import 'package:crypto/crypto.dart' as crypto;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -105,8 +106,13 @@ class HuishApiClient {
 
   // ── 登录 ────────────────────────────────────────────────
 
+  double _randS() {
+    final rng = Random();
+    return rng.nextDouble();
+  }
+
   Future<HuishCaptchaResult> getCaptcha() async {
-    final s = DateTime.now().millisecondsSinceEpoch / 1000;
+    final s = _randS();
     final r = DateTime.now().millisecondsSinceEpoch;
     final url = Uri.parse('$_baseUrl/api/v1/captcha/?s=$s&r=$r');
     final resp = await _client.get(
