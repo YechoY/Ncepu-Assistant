@@ -26,13 +26,25 @@ class _HuishAddDevicePageState extends ConsumerState<HuishAddDevicePage> {
   final TextEditingController _codeCtrl = TextEditingController();
 
   bool _manualMode = false;
-  bool _torch = false;
+  bool _torch = false; // 由 _ctrl.value.torchState 驱动
   bool _looking = false; // 查询中
   bool _done = false; // 已完成，停止重复识别
   String? _error;
+  late final VoidCallback _ctrlListener;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrlListener = () {
+      final on = _ctrl.value.torchState == TorchState.on;
+      if (mounted && on != _torch) setState(() => _torch = on);
+    };
+    _ctrl.addListener(_ctrlListener);
+  }
 
   @override
   void dispose() {
+    _ctrl.removeListener(_ctrlListener);
     _ctrl.dispose();
     _codeCtrl.dispose();
     super.dispose();
@@ -292,33 +304,6 @@ class _HuishAddDevicePageState extends ConsumerState<HuishAddDevicePage> {
               ),
             ),
           ),
-          // 手电筒
-          Positioned(
-            right: 16,
-            bottom: 16,
-            child: GestureDetector(
-              onTap: () async {
-                await _ctrl.toggleTorch();
-                if (mounted) setState(() => _torch = !_torch);
-              },
-              child: Container(
-                width: 40,
-                height: 40,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: _torch
-                      ? kHuish.withValues(alpha: 0.85)
-                      : Colors.black.withValues(alpha: 0.35),
-                  borderRadius: BorderRadius.circular(13),
-                ),
-                child: Icon(
-                  _torch ? Icons.flash_on_rounded : Icons.flash_off_rounded,
-                  size: 20,
-                  color: Colors.white,
-                ),
-              ),
-            ),
-          ),
           // 查询中遮罩
           if (_looking)
             Container(
@@ -337,19 +322,79 @@ class _HuishAddDevicePageState extends ConsumerState<HuishAddDevicePage> {
                 ),
               ),
             ),
-          // 底部提示
+          // 底部：手电筒按钮 + 提示
           Positioned(
             bottom: 24,
             left: 0,
             right: 0,
-            child: Text(
-              '将设备机身二维码对准框内',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.85),
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-              ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // 手电筒 pill 按钮
+                GestureDetector(
+                  onTap: () async {
+                    try {
+                      await _ctrl.toggleTorch();
+                    } catch (_) {
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('手电筒不可用'),
+                            duration: Duration(seconds: 1),
+                          ),
+                        );
+                      }
+                    }
+                  },
+                  child: Container(
+                    height: 56,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 22,
+                      vertical: 12,
+                    ),
+                    decoration: BoxDecoration(
+                      color: _torch
+                          ? kHuishDeep.withValues(alpha: 0.9)
+                          : Colors.black.withValues(alpha: 0.45),
+                      borderRadius: BorderRadius.circular(28),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.6),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          _torch
+                              ? Icons.flash_on_rounded
+                              : Icons.flash_off_rounded,
+                          size: 22,
+                          color: Colors.white,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          _torch ? '手电筒已开' : '打开手电筒',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  '将设备机身二维码对准框内',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.85),
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
             ),
           ),
         ],

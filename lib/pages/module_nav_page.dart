@@ -127,6 +127,37 @@ class _ModuleNavPageState extends ConsumerState<ModuleNavPage> {
     );
   }
 
+  Widget _disclaimerItem(String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            margin: const EdgeInsets.only(top: 6),
+            width: 4,
+            height: 4,
+            decoration: BoxDecoration(
+              color: kPrimary,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(
+                fontSize: 11.5,
+                height: 1.5,
+                color: kTextMain.withValues(alpha: 0.82),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading) {
@@ -245,7 +276,7 @@ class _ModuleNavPageState extends ConsumerState<ModuleNavPage> {
                       gradient: const LinearGradient(
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
-                        colors: [Color(0xFF4BA3C7), Color(0xFF2E6B8C)],
+                        colors: [kHuish, kHuishDeep],
                       ),
                       enabled: _agreed,
                       onTap: _tapLife,
@@ -253,7 +284,7 @@ class _ModuleNavPageState extends ConsumerState<ModuleNavPage> {
                   ],
                 ),
               ),
-              const Spacer(),
+              const SizedBox(height: 28),
               // 免责声明 + 勾选框
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
@@ -291,19 +322,31 @@ class _ModuleNavPageState extends ConsumerState<ModuleNavPage> {
                         ],
                       ),
                       const SizedBox(height: 8),
-                      Text(
-                        '① 本应用为非官方应用，由学生个人以 vibecoding 方式独立开发，'
-                        '仅供学习交流使用，与华北电力大学（保定）官方无任何隶属、合作或授权关系。\n'
-                        '② 所有教务数据均来源于华电教务系统官网，相关数据的版权归原网站及权利方所有。\n'
-                        '③ 账号、密码等数据仅保存在本机，不上传至任何第三方服务器。\n'
-                        '④ 本应用不使用学校官方标识，若涉及侵权请及时联系更正或删除。\n'
-                        '⑤ 本应用按「现状」提供，开发者不作任何担保；使用产生的一切后果由使用者自行承担。\n'
-                        '⑥ 在法律允许的范围内，开发者保留对本协议的最终解释权。\n'
-                        '⑦ 饮水服务数据来自 i.ilife798.com 第三方接口，与惠生活798无隶属或授权关系，接口可用性不做担保。',
-                        style: TextStyle(
-                          fontSize: 12,
-                          height: 1.5,
-                          color: kTextMain.withValues(alpha: 0.88),
+                      // 声明正文：可滚动列表（7 条）
+                      SizedBox(
+                        height: 150,
+                        child: SingleChildScrollView(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _disclaimerItem(
+                                '本应用为非官方应用，由学生个人开发，仅供学习交流使用，'
+                                '与华北电力大学（保定）官方无任何隶属、合作或授权关系。',
+                              ),
+                              _disclaimerItem(
+                                '所有教务数据均来源于华电教务系统官网，相关数据的版权归原网站及权利方所有。',
+                              ),
+                              _disclaimerItem('账号、密码等数据仅保存在本机，不上传至任何第三方服务器。'),
+                              _disclaimerItem('本应用不使用学校官方标识，若涉及侵权请及时联系更正或删除。'),
+                              _disclaimerItem(
+                                '本应用按「现状」提供，开发者不作任何担保；使用产生的一切后果由使用者自行承担。',
+                              ),
+                              _disclaimerItem('在法律允许的范围内，开发者保留对本协议的最终解释权。'),
+                              _disclaimerItem(
+                                '饮水服务数据来自 i.ilife798.com 第三方接口，与惠生活798无隶属或授权关系，接口可用性不做担保。',
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                       const SizedBox(height: 12),
