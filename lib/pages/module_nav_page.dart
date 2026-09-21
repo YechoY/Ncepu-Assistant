@@ -13,13 +13,12 @@ import '../app.dart';
 import '../huish/huish_auth_state.dart';
 import '../providers/auth_state.dart';
 import '../providers/data_state.dart';
-import '../services/auth_service.dart';
 import '../theme.dart';
 import '../widgets/glass_background.dart';
 import '../widgets/glass_card.dart';
 import '../widgets/glass_snackbar.dart';
-import 'huish/huish_home_page.dart';
-import 'huish/huish_login_page.dart';
+import '../huish/huish_home_page.dart';
+import '../huish/huish_login_page.dart';
 import 'login_page.dart';
 
 class ModuleNavPage extends ConsumerStatefulWidget {
@@ -94,6 +93,7 @@ class _ModuleNavPageState extends ConsumerState<ModuleNavPage> {
         Navigator.of(context)
             .push(MaterialPageRoute(builder: (_) => const MainShell()));
       } else {
+        if (!mounted) return;
         Navigator.of(context)
             .push(MaterialPageRoute(builder: (_) => const LoginPage()));
       }
@@ -115,9 +115,7 @@ class _ModuleNavPageState extends ConsumerState<ModuleNavPage> {
     }
   }
 
-  void _showAbout() async {
-    final info = await PackageInfo.fromPlatform();
-    if (!mounted) return;
+  void _showAbout() {
     showDialog(
       context: context,
       barrierColor: const Color(0x402E3350),

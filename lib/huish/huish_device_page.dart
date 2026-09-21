@@ -12,13 +12,16 @@ import '../../theme.dart';
 import '../../widgets/glass_background.dart';
 import '../../widgets/glass_card.dart';
 import '../../widgets/glass_snackbar.dart';
-import '../huish_api_client.dart';
-import '../huish_auth_state.dart';
+import 'huish_auth_state.dart';
 
 class HuishDevicePage extends ConsumerStatefulWidget {
   final String deviceId;
   final String deviceName;
-  const HuishDevicePage({super.key, required this.deviceId, required this.deviceName});
+  const HuishDevicePage({
+    super.key,
+    required this.deviceId,
+    required this.deviceName,
+  });
   @override
   ConsumerState<HuishDevicePage> createState() => _HuishDevicePageState();
 }
@@ -57,7 +60,10 @@ class _HuishDevicePageState extends ConsumerState<HuishDevicePage> {
       final status = await api.getDeviceStatus(widget.deviceId);
       if (!mounted) return;
       if (!home.isSuccess || !status.isSuccess) {
-        setState(() { _error = true; _loading = false; });
+        setState(() {
+          _error = true;
+          _loading = false;
+        });
         return;
       }
       final homeData = home.dataMap ?? {};
@@ -76,10 +82,19 @@ class _HuishDevicePageState extends ConsumerState<HuishDevicePage> {
         _running = status == 1;
         if (_running) _startOut = _currentOut;
       }
-      setState(() { _loading = false; });
-      if (_running) _startPolling();
+      setState(() {
+        _loading = false;
+      });
+      if (_running) {
+        _startPolling();
+      }
     } catch (_) {
-      if (mounted) setState(() { _error = true; _loading = false; });
+      if (mounted) {
+        setState(() {
+          _error = true;
+          _loading = false;
+        });
+      }
     }
   }
 
@@ -160,8 +175,8 @@ class _HuishDevicePageState extends ConsumerState<HuishDevicePage> {
           child: _loading
               ? const Center(child: CircularProgressIndicator())
               : _error
-                  ? Center(child: _ErrorView(onRetry: _load))
-                  : _buildContent(),
+              ? Center(child: _ErrorView(onRetry: _load))
+              : _buildContent(),
         ),
       ),
     );
@@ -177,19 +192,33 @@ class _HuishDevicePageState extends ConsumerState<HuishDevicePage> {
               GestureDetector(
                 onTap: () => Navigator.of(context).pop(),
                 child: Container(
-                  width: 38, height: 38,
+                  width: 38,
+                  height: 38,
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
                     color: Colors.white.withValues(alpha: 0.5),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.white.withValues(alpha: 0.65)),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.65),
+                    ),
                   ),
-                  child: const Icon(Icons.arrow_back_ios_new_rounded, size: 18, color: kPrimary),
+                  child: const Icon(
+                    Icons.arrow_back_ios_new_rounded,
+                    size: 18,
+                    color: kPrimary,
+                  ),
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: Text(widget.deviceName, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: kInk)),
+                child: Text(
+                  widget.deviceName,
+                  style: const TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w700,
+                    color: kInk,
+                  ),
+                ),
               ),
             ],
           ),
@@ -244,14 +273,20 @@ class _HuishDevicePageState extends ConsumerState<HuishDevicePage> {
                 ),
                 if (_running) ...[
                   const SizedBox(height: 4),
-                  const Text('3 秒刷新', style: TextStyle(fontSize: 11, color: kTextMuted)),
+                  const Text(
+                    '3 秒刷新',
+                    style: TextStyle(fontSize: 11, color: kTextMuted),
+                  ),
                 ],
                 const SizedBox(height: 18),
                 // 统计信息行
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
-                    _buildStat('累计出水', '${_currentOut.toStringAsFixed(1)} $_unit'),
+                    _buildStat(
+                      '累计出水',
+                      '${_currentOut.toStringAsFixed(1)} $_unit',
+                    ),
                     Container(width: 1, height: 36, color: kGlassGridLine),
                     _buildStat('账户余额', '¥${_balance.toStringAsFixed(2)}'),
                   ],
@@ -268,12 +303,20 @@ class _HuishDevicePageState extends ConsumerState<HuishDevicePage> {
               onPressed: _running ? null : _start,
               style: FilledButton.styleFrom(
                 backgroundColor: const Color(0xFF4BA3C7),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(15),
+                ),
                 elevation: 6,
                 shadowColor: const Color(0xFF4BA3C7).withValues(alpha: 0.4),
               ),
               icon: const Icon(Icons.play_arrow_rounded, size: 26),
-              label: Text(_running ? '取水进行中…' : '开始取水', style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+              label: Text(
+                _running ? '取水进行中…' : '开始取水',
+                style: const TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
             ),
           ),
           const SizedBox(height: 12),
@@ -283,13 +326,20 @@ class _HuishDevicePageState extends ConsumerState<HuishDevicePage> {
             child: FilledButton.icon(
               onPressed: _running ? _stop : null,
               style: FilledButton.styleFrom(
-                backgroundColor: _running ? const Color(0xFFB85450) : Colors.white.withValues(alpha: 0.5),
+                backgroundColor: _running
+                    ? const Color(0xFFB85450)
+                    : Colors.white.withValues(alpha: 0.5),
                 foregroundColor: _running ? Colors.white : kTextMuted,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(15),
+                ),
                 elevation: 0,
               ),
               icon: const Icon(Icons.stop_rounded, size: 24),
-              label: const Text('停止取水', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+              label: const Text(
+                '停止取水',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+              ),
             ),
           ),
           // 设备信息
@@ -301,9 +351,18 @@ class _HuishDevicePageState extends ConsumerState<HuishDevicePage> {
               live: false,
               child: Row(
                 children: [
-                  const Icon(Icons.location_on_outlined, size: 16, color: kPrimary),
+                  const Icon(
+                    Icons.location_on_outlined,
+                    size: 16,
+                    color: kPrimary,
+                  ),
                   const SizedBox(width: 6),
-                  Expanded(child: Text(_addr, style: const TextStyle(fontSize: 12.5, color: kTextMain))),
+                  Expanded(
+                    child: Text(
+                      _addr,
+                      style: const TextStyle(fontSize: 12.5, color: kTextMain),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -316,7 +375,14 @@ class _HuishDevicePageState extends ConsumerState<HuishDevicePage> {
   Widget _buildStat(String label, String value) {
     return Column(
       children: [
-        Text(value, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: kInk)),
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w700,
+            color: kInk,
+          ),
+        ),
         const SizedBox(height: 3),
         Text(label, style: const TextStyle(fontSize: 11.5, color: kTextMuted)),
       ],
