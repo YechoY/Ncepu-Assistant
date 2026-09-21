@@ -231,10 +231,12 @@ class _MainShellState extends ConsumerState<MainShell> {
                     await Future.delayed(const Duration(milliseconds: 200));
                     if (!context.mounted) return;
                     final st = ref.read(dataStateProvider);
-                    if (st.notice != null) {
-                      showGlassSnackBar(context, '刷新失败，请联网后重试');
-                    } else {
+                    if (st.notice == null) {
                       showGlassSnackBar(context, '课表已刷新');
+                    } else if (st.notice!.contains('缓存')) {
+                      showGlassSnackBar(context, st.notice!);
+                    } else {
+                      showGlassSnackBar(context, st.notice!);
                     }
                   },
                   1 => () async {
@@ -242,10 +244,12 @@ class _MainShellState extends ConsumerState<MainShell> {
                     await Future.delayed(const Duration(milliseconds: 200));
                     if (!context.mounted) return;
                     final st = ref.read(dataStateProvider);
-                    if (st.notice != null) {
-                      showGlassSnackBar(context, '刷新失败，请联网后重试');
-                    } else {
+                    if (st.notice == null) {
                       showGlassSnackBar(context, '成绩已刷新');
+                    } else if (st.notice!.contains('缓存')) {
+                      showGlassSnackBar(context, st.notice!);
+                    } else {
+                      showGlassSnackBar(context, st.notice!);
                     }
                   },
                   _ => () async {
@@ -255,10 +259,12 @@ class _MainShellState extends ConsumerState<MainShell> {
                     await Future.delayed(const Duration(milliseconds: 200));
                     if (!context.mounted) return;
                     final st = ref.read(dataStateProvider);
-                    if (st.notice != null) {
-                      showGlassSnackBar(context, '刷新失败，请联网后重试');
+                    if (st.notice == null) {
+                      showGlassSnackBar(context, '考试已刷新');
+                    } else if (st.notice!.contains('缓存')) {
+                      showGlassSnackBar(context, st.notice!);
                     } else {
-                      showGlassSnackBar(context, '已刷新');
+                      showGlassSnackBar(context, st.notice!);
                     }
                   },
                 },

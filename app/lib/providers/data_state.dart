@@ -189,8 +189,14 @@ class DataNotifier extends Notifier<DataState> {
             currentWeek: info.current,
             currentWeekBase: base,
             totalWeeks: info.total,
+            online: true, // fetchSemesterInfo 成功 = 已联网
           );
         }
+      } else {
+        // 缓存全新鲜 + 周次信息也有：虽然不联网取数据，
+        // 但还是要检测一下网络是否可用，否则 offline banner 会一直误显示。
+        final ok = await _ensureLogin();
+        if (ok) state = state.copyWith(online: true);
       }
       return;
     }
@@ -299,10 +305,34 @@ class DataNotifier extends Notifier<DataState> {
         state = state.copyWith(
           timetable: cachedRows,
           timetableWeek: monday,
+          notice: null, // 清掉之前失败残留的 notice
           timetableUpdatedAt: await cache.updatedAt(key),
         );
         return;
       }
+    }
+    // 需要联网时先快速检测网络：离线直接走缓存兜底，
+    // 避免 tryAutoLogin 12s 超时才返回，让用户等好几秒才看到反馈。
+    // 不管是 force 刷新还是非 force 切周但没缓存，都覆盖。
+    if (!await api.online()) {
+      if (cached != null) {
+        final cachedRows = ttFromJson(cached);
+        if (cachedRows.isNotEmpty) {
+          state = state.copyWith(
+            timetable: cachedRows,
+            timetableWeek: monday,
+            notice: '正在使用缓存数据',
+            timetableUpdatedAt: await cache.updatedAt(key),
+          );
+          return;
+        }
+      }
+      state = state.copyWith(
+        timetable: const [],
+        timetableWeek: monday,
+        notice: '该周暂无缓存，联网后可查看',
+      );
+      return;
     }
     try {
       // 会话可能还没建立（离线启动场景），先确保登录；失败等同联网失败走缓存兜底。
@@ -324,6 +354,7 @@ class DataNotifier extends Notifier<DataState> {
           state = state.copyWith(
             timetable: cachedRows,
             timetableWeek: monday,
+            notice: '正在使用缓存数据',
             timetableUpdatedAt: await cache.updatedAt(key),
           );
           return;
@@ -340,7 +371,16 @@ class DataNotifier extends Notifier<DataState> {
   Future<void> refreshGrades() async {
     final cache = ref.read(cacheServiceProvider);
     final api = ref.read(apiClientProvider);
-    state = state.copyWith(loading: true);
+    state = state.copyWith(loading: true, notice: null);
+    // 快速离线检测：避免 tryAutoLogin 12s 超时才返回
+    if (!await api.online()) {
+      final hasCache = await cache.loadJson('grades') != null;
+      state = state.copyWith(
+        loading: false,
+        notice: hasCache ? '获取失败，已显示缓存数据' : '暂无缓存，联网后可查看',
+      );
+      return;
+    }
     try {
       // 会话可能还没建立（离线启动场景），先确保登录；失败按获取失败处理。
       if (!await _ensureLogin()) throw Exception('未连接校园网');
@@ -406,6 +446,7 @@ class DataNotifier extends Notifier<DataState> {
       examTerm: t,
       exams: cachedList,
       examsUpdatedAt: cachedAt,
+      notice: null,
     );
     // 非手动刷新且有 7 天内的非空缓存：直接用，不联网。
     final fresh =
@@ -416,6 +457,14 @@ class DataNotifier extends Notifier<DataState> {
             const Duration(days: examsCacheDays);
     if (!force && cachedList.isNotEmpty && fresh) {
       state = state.copyWith(loading: false, notice: null);
+      return;
+    }
+    // 强制刷新或缓存过期：快速离线检测，避免 tryAutoLogin 12s 超时
+    if (!await api.online()) {
+      state = state.copyWith(
+        loading: false,
+        notice: cachedList.isNotEmpty ? '获取失败，已显示缓存数据' : '暂无缓存，联网后可查看',
+      );
       return;
     }
     try {
@@ -433,7 +482,7 @@ class DataNotifier extends Notifier<DataState> {
     } catch (_) {
       state = state.copyWith(
         loading: false,
-        notice: cachedList.isNotEmpty ? '获取失败，已显示缓存数据' : null,
+        notice: cachedList.isNotEmpty ? '获取失败，已显示缓存数据' : '暂无缓存，联网后可查看',
       );
     }
   }

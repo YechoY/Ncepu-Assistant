@@ -112,16 +112,21 @@ class _GlassSnackCard extends StatelessWidget {
       opacity: kFrostAlpha,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
       child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
           const Icon(Icons.info_outline, size: 17, color: kPrimary),
           const SizedBox(width: 8),
-          Expanded(
+          Flexible(
             child: Text(
               message,
+              textAlign: TextAlign.center,
+              maxLines: 3,
+              overflow: TextOverflow.visible,
               style: const TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w500,
                 color: kTextMain,
+                height: 1.35,
               ),
             ),
           ),

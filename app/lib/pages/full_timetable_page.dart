@@ -111,12 +111,26 @@ class _FullTimetablePageState extends ConsumerState<FullTimetablePage> {
   /// [manual] 为 true（点刷新按钮）时失败会弹提示；后台静默刷新失败不打扰。
   /// 会话失效时接口会返回登录页并解析为空列表，此时若本地已有数据则不覆盖、不写缓存。
   Future<void> _fetch({bool manual = false}) async {
+    final api = ref.read(apiClientProvider);
+    // 快速离线检测：避免 tryAutoLogin 12s 超时才返回
+    if (!await api.online()) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _refreshing = false;
+      });
+      if (_courses.isEmpty) {
+        setState(() => _error = '离线或网络异常，请联网后重试');
+      } else if (manual) {
+        showGlassSnackBar(context, '刷新失败，已显示缓存数据');
+      }
+      return;
+    }
     try {
       // 离线启动场景：会话可能还没建立，先确保登录（用记住的账号静默登录）。
       if (!ref.read(authStateProvider).loggedIn) {
         await ref.read(authStateProvider.notifier).tryAutoLogin();
       }
-      final api = ref.read(apiClientProvider);
       final p = await api.fetchFullTimetable(); // 仅当前学期
       final list = p.courses;
       if (!mounted) return;
@@ -141,6 +155,7 @@ class _FullTimetablePageState extends ConsumerState<FullTimetablePage> {
         final at = await ref.read(cacheServiceProvider).updatedAt(_cacheKey);
         setState(() => _updatedAt = at);
       }
+      if (manual && mounted) showGlassSnackBar(context, '全部课表已刷新');
     } catch (_) {
       if (!mounted) return;
       setState(() {
