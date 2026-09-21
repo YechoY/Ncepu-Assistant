@@ -772,7 +772,7 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
                 borderRadius: BorderRadius.circular(22),
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFF4BA3C7).withValues(alpha: 0.28),
+                    color: kHuish.withValues(alpha: 0.28),
                     blurRadius: 22,
                     offset: const Offset(0, 10),
                   ),
@@ -780,7 +780,7 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
                 gradient: const LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
-                  colors: [Color(0xFF4BA3C7), Color(0xFF2E6B8C)],
+                  colors: [kHuish, kHuishDeep],
                 ),
               ),
               child: Padding(
@@ -1046,13 +1046,13 @@ class _DeviceCard extends StatelessWidget {
               height: 44,
               alignment: Alignment.center,
               decoration: BoxDecoration(
-                color: const Color(0xFF4BA3C7).withValues(alpha: 0.14),
+                color: kHuish.withValues(alpha: 0.14),
                 borderRadius: BorderRadius.circular(13),
               ),
               child: const Icon(
                 Icons.water_drop_rounded,
                 size: 22,
-                color: Color(0xFF4BA3C7),
+                color: kHuish,
               ),
             ),
             const SizedBox(width: 12),
@@ -1088,11 +1088,11 @@ class _DeviceCard extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 7),
               decoration: BoxDecoration(
-                color: const Color(0xFF4BA3C7),
+                color: kHuish,
                 borderRadius: BorderRadius.circular(12),
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFF4BA3C7).withValues(alpha: 0.35),
+                    color: kHuish.withValues(alpha: 0.35),
                     blurRadius: 10,
                     offset: const Offset(0, 4),
                   ),

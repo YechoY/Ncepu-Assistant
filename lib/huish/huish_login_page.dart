@@ -184,12 +184,12 @@ class _HuishLoginPageState extends ConsumerState<HuishLoginPage> {
                     gradient: const LinearGradient(
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
-                      colors: [Color(0xFF4BA3C7), Color(0xFF2E6B8C)],
+                      colors: [kHuish, kHuishDeep],
                     ),
                     borderRadius: BorderRadius.circular(20),
                     boxShadow: [
                       BoxShadow(
-                        color: const Color(0xFF4BA3C7).withValues(alpha: 0.35),
+                        color: kHuish.withValues(alpha: 0.35),
                         blurRadius: 20,
                         offset: const Offset(0, 8),
                       ),
@@ -333,13 +333,12 @@ class _HuishLoginPageState extends ConsumerState<HuishLoginPage> {
                         child: FilledButton(
                           onPressed: _submitting ? null : _login,
                           style: FilledButton.styleFrom(
-                            backgroundColor: const Color(0xFF4BA3C7),
+                            backgroundColor: kHuishDeep,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(15),
                             ),
                             elevation: 6,
-                            shadowColor: const Color(0xFF4BA3C7)
-                                .withValues(alpha: 0.4),
+                            shadowColor: kHuishDeep.withValues(alpha: 0.4),
                           ),
                           child: Text(
                             _submitting ? '登录中…' : '登 录',
