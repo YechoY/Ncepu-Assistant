@@ -39,6 +39,7 @@ class _HuishDevicePageState extends ConsumerState<HuishDevicePage> {
   int _priceFen = 0; // 单价（分/升），gene.price
   String _unit = '升';
   String _addr = '';
+  String _apiName = ''; // 从 API 取的设备名
   Timer? _pollTimer;
   bool _alreadyFav = true;
   double? _lastBillPayment; // 停止后从最新账单取的本次真实消费
@@ -78,9 +79,12 @@ class _HuishDevicePageState extends ConsumerState<HuishDevicePage> {
       }
       final homeData = home.dataMap ?? {};
       final statusData = status.dataMap ?? {};
+      // 设备名：优先从 homeData.device.name 取
+      final devInfo = homeData['device'] as Map<String, dynamic>?;
+      _apiName = (devInfo?['name'] ?? devInfo?['nickname'])?.toString() ?? '';
       final bm = homeData['bm'] as Map<String, dynamic>?;
       _unit = bm?['unit'] as String? ?? '升';
-      final addr = homeData['addr'] as Map<String, dynamic>?;
+      final addr = devInfo?['addr'] as Map<String, dynamic>?;
       _addr = addr?['detail']?.toString() ?? '';
       final wallet = homeData['wallet'] as Map<String, dynamic>?;
       _balance = (wallet?['olCash'] as num?)?.toDouble() ?? 0;
@@ -354,7 +358,11 @@ class _HuishDevicePageState extends ConsumerState<HuishDevicePage> {
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  widget.deviceName,
+                  _apiName.isNotEmpty
+                      ? _apiName
+                      : (widget.deviceName.isNotEmpty
+                            ? widget.deviceName
+                            : '饮水设备'),
                   style: const TextStyle(
                     fontSize: 17,
                     fontWeight: FontWeight.w700,

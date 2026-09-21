@@ -291,7 +291,7 @@ class _ModuleNavPageState extends ConsumerState<ModuleNavPage> {
                 ),
               ),
               // 中间空白区：装饰动效
-              Expanded(child: Center(child: _DecorDots())),
+              Expanded(child: Center(child: _DecorIcon())),
               // 免责声明 + 勾选框（贴近底部）
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
@@ -467,66 +467,54 @@ class _ServiceCard extends StatelessWidget {
   }
 }
 
-/// 中间空白区装饰：三个柔光圆点呼吸动效
-class _DecorDots extends StatefulWidget {
-  @override
-  State<_DecorDots> createState() => _DecorDotsState();
-}
-
-class _DecorDotsState extends State<_DecorDots> with TickerProviderStateMixin {
-  late final AnimationController _ctrl;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 2400),
-    )..repeat(reverse: true);
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
+/// 中间空白区装饰：静态柔光图标（不动效，避免"加载中"错觉）
+class _DecorIcon extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _ctrl,
-      builder: (_, child) {
-        final t = _ctrl.value;
-        return Row(
-          mainAxisSize: MainAxisSize.min,
-          children: List.generate(3, (i) {
-            final delay = i * 0.2;
-            final phase = ((t - delay).clamp(0, 1) * 2);
-            final scale = 0.6 + 0.4 * (phase < 1 ? phase : 2 - phase);
-            final alpha = 0.15 + 0.25 * (phase < 1 ? phase : 2 - phase);
-            return Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 5),
-              child: Transform.scale(
-                scale: scale,
-                child: Container(
-                  width: 10,
-                  height: 10,
-                  decoration: BoxDecoration(
-                    color: kPrimary.withValues(alpha: alpha),
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: kPrimarySoft.withValues(alpha: alpha * 0.8),
-                        blurRadius: 8,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            );
-          }),
-        );
-      },
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // 柔光圆环
+        Container(
+          width: 80,
+          height: 80,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: RadialGradient(
+              colors: [
+                kPrimarySoft.withValues(alpha: 0.18),
+                kPrimarySoft.withValues(alpha: 0.06),
+                Colors.transparent,
+              ],
+            ),
+          ),
+          child: Container(
+            width: 44,
+            height: 44,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.white.withValues(alpha: 0.45),
+              border: Border.all(color: kPrimarySoft.withValues(alpha: 0.3)),
+            ),
+            child: Icon(
+              Icons.school_rounded,
+              size: 24,
+              color: kPrimary.withValues(alpha: 0.5),
+            ),
+          ),
+        ),
+        const SizedBox(height: 10),
+        Text(
+          '选择服务进入',
+          style: TextStyle(
+            fontSize: 12,
+            color: kTextMuted.withValues(alpha: 0.5),
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ],
     );
   }
 }
