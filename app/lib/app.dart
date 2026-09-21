@@ -222,21 +222,45 @@ class _MainShellState extends ConsumerState<MainShell> {
                     : null,
                 // onRefresh 根据当前 Tab 决定刷新哪块数据。用 switch 表达式返回不同的回调函数。
                 onRefresh: switch (tab) {
-                  0 => () {
+                  0 => () async {
                     final week = ref.read(dataStateProvider).timetableWeek;
-                    if (week.isNotEmpty) {
-                      // 点刷新：强制联网重查当周课表，使更新时间刷新
-                      ref
-                          .read(dataStateProvider.notifier)
-                          .loadTimetable(week, force: true);
+                    if (week.isEmpty) return;
+                    await ref
+                        .read(dataStateProvider.notifier)
+                        .loadTimetable(week, force: true);
+                    await Future.delayed(const Duration(milliseconds: 200));
+                    if (!context.mounted) return;
+                    final st = ref.read(dataStateProvider);
+                    if (st.notice != null) {
+                      showGlassSnackBar(context, '刷新失败，请联网后重试');
+                    } else {
+                      showGlassSnackBar(context, '课表已刷新');
                     }
                   },
-                  1 =>
-                    () => ref.read(dataStateProvider.notifier).refreshGrades(),
-                  _ =>
-                    () => ref
+                  1 => () async {
+                    await ref.read(dataStateProvider.notifier).refreshGrades();
+                    await Future.delayed(const Duration(milliseconds: 200));
+                    if (!context.mounted) return;
+                    final st = ref.read(dataStateProvider);
+                    if (st.notice != null) {
+                      showGlassSnackBar(context, '刷新失败，请联网后重试');
+                    } else {
+                      showGlassSnackBar(context, '成绩已刷新');
+                    }
+                  },
+                  _ => () async {
+                    await ref
                         .read(dataStateProvider.notifier)
-                        .refreshExams(force: true), // _ 是默认分支：手动刷新强制联网
+                        .refreshExams(force: true);
+                    await Future.delayed(const Duration(milliseconds: 200));
+                    if (!context.mounted) return;
+                    final st = ref.read(dataStateProvider);
+                    if (st.notice != null) {
+                      showGlassSnackBar(context, '刷新失败，请联网后重试');
+                    } else {
+                      showGlassSnackBar(context, '已刷新');
+                    }
+                  },
                 },
                 userName: userName,
                 userClass: userClass,
