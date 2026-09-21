@@ -174,9 +174,14 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
     if (!mounted) return;
     // 扫码后直接进入取水页（无论是否收藏）
     final name = (r['name'] as String?) ?? _currentDeviceName(did);
+    final inList = _devices.any((d) => _deviceId(d) == did);
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => HuishDevicePage(deviceId: did, deviceName: name),
+        builder: (_) => HuishDevicePage(
+          deviceId: did,
+          deviceName: name,
+          alreadyFav: inList,
+        ),
       ),
     );
   }
@@ -806,7 +811,7 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Text(
-                            '添加设备',
+                            '扫码取水',
                             style: TextStyle(
                               fontSize: 20,
                               fontWeight: FontWeight.w800,
@@ -847,6 +852,11 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
                 ),
               ),
               const Spacer(),
+              const Text(
+                '长按拖动排序',
+                style: TextStyle(fontSize: 11, color: kTextMuted),
+              ),
+              const SizedBox(width: 10),
               GestureDetector(
                 onTap: _manageGroups,
                 child: Container(
@@ -877,21 +887,6 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
                     ],
                   ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Row(
-            children: [
-              Icon(
-                Icons.drag_indicator_rounded,
-                size: 13,
-                color: kTextMuted.withValues(alpha: 0.75),
-              ),
-              const SizedBox(width: 4),
-              const Text(
-                '长按设备卡片可拖动排序',
-                style: TextStyle(fontSize: 11, color: kTextMuted),
               ),
             ],
           ),

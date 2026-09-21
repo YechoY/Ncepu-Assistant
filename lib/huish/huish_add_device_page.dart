@@ -29,7 +29,6 @@ class _HuishAddDevicePageState extends ConsumerState<HuishAddDevicePage> {
   bool _torch = false;
   bool _looking = false; // 查询中
   bool _done = false; // 已完成，停止重复识别
-  Map<String, dynamic>? _result; // getDeviceQr 的 dataMap
   String? _error;
 
   @override
@@ -89,13 +88,13 @@ class _HuishAddDevicePageState extends ConsumerState<HuishAddDevicePage> {
       final resp = await api.getDeviceQr(did);
       if (!mounted) return;
       if (resp.isSuccess) {
-        setState(() {
-          _result = resp.dataMap;
-          _looking = false;
-        });
+        // 设备有效 → 直接回首页进入取水页（不经过确认卡）
+        final dev = resp.dataMap?['dev'] as Map<String, dynamic>?;
+        final name = (dev?['name'] ?? dev?['nickname'])?.toString();
+        _popBack(did, name, false);
       } else if (resp.code == 400 || resp.code == 409) {
-        // 已在列表/已绑定 → 回首页刷新并直接进入取水
-        _finish(did, fav: true, name: null);
+        // 已在列表/已绑定 → 首页刷新列表后进入取水
+        _popBack(did, null, true);
       } else {
         setState(() {
           _error =
@@ -112,50 +111,13 @@ class _HuishAddDevicePageState extends ConsumerState<HuishAddDevicePage> {
     }
   }
 
-  String _devId() {
-    final dev = _result?['dev'] as Map<String, dynamic>?;
-    return dev?['id']?.toString() ?? '';
-  }
-
-  String _devName() {
-    final dev = _result?['dev'] as Map<String, dynamic>?;
-    return (dev?['name'] ?? dev?['nickname'])?.toString() ?? '饮水机';
-  }
-
-  // 直接取水（不收藏）
-  void _drinkNow() {
-    final did = _devId();
-    if (did.isEmpty) return;
-    _finish(did, fav: false, name: _devName());
-  }
-
-  // 收藏设备（加进设备列表）后回首页
-  Future<void> _favorite() async {
-    final did = _devId();
-    if (did.isEmpty) return;
-    try {
-      final api = ref.read(huishApiClientProvider);
-      final resp = await api.favoriteDevice(did);
-      if (!mounted) return;
-      if (resp.isSuccess) {
-        showGlassSnackBar(context, '已收藏设备');
-        _finish(did, fav: true, name: _devName());
-      } else {
-        showGlassSnackBar(context, '收藏失败 (code: ${resp.code})');
-      }
-    } catch (_) {
-      if (mounted) showGlassSnackBar(context, '网络异常，请重试');
-    }
-  }
-
-  void _finish(String did, {required bool fav, required String? name}) {
+  void _popBack(String did, String? name, bool fav) {
     setState(() => _done = true);
     Navigator.of(context).pop({'did': did, 'fav': fav, 'name': name});
   }
 
   void _reset() {
     setState(() {
-      _result = null;
       _error = null;
       _looking = false;
       _codeCtrl.clear();
@@ -166,7 +128,6 @@ class _HuishAddDevicePageState extends ConsumerState<HuishAddDevicePage> {
     if (_manualMode == manual) return;
     setState(() {
       _manualMode = manual;
-      _result = null;
       _error = null;
     });
     if (manual) {
@@ -245,9 +206,7 @@ class _HuishAddDevicePageState extends ConsumerState<HuishAddDevicePage> {
               Expanded(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-                  child: _result != null
-                      ? _buildResultView()
-                      : _error != null
+                  child: _error != null
                       ? _buildErrorView()
                       : _manualMode
                       ? _buildManualView()
@@ -487,104 +446,6 @@ class _HuishAddDevicePageState extends ConsumerState<HuishAddDevicePage> {
                       )
                     : const Icon(Icons.search_rounded, size: 19),
                 label: const Text('查询设备'),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ── 查询结果视图 ─────────────────────────────────────────
-
-  Widget _buildResultView() {
-    final dev = _result?['dev'] as Map<String, dynamic>?;
-    final name = (dev?['name'] ?? dev?['nickname'])?.toString() ?? '未知设备';
-    final did = dev?['id']?.toString() ?? '';
-
-    final addrRaw = dev?['addr'];
-    String addrText = '';
-    if (addrRaw is Map) {
-      addrText = (addrRaw['detail'] ?? addrRaw['name'] ?? '').toString();
-    } else if (addrRaw is String) {
-      addrText = addrRaw;
-    }
-
-    return Center(
-      child: GlassCard(
-        radius: 24,
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const Icon(
-              Icons.water_drop_rounded,
-              size: 40,
-              color: Color(0xFF4BA3C7),
-            ),
-            const SizedBox(height: 12),
-            Center(
-              child: Text(
-                name,
-                style: const TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.w800,
-                  color: kInk,
-                ),
-              ),
-            ),
-            if (addrText.isNotEmpty) ...[
-              const SizedBox(height: 6),
-              Center(
-                child: Text(
-                  addrText,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 12.5, color: kTextMuted),
-                ),
-              ),
-            ],
-            if (did.isNotEmpty) ...[
-              const SizedBox(height: 4),
-              Center(
-                child: Text(
-                  '设备码 $did',
-                  style: const TextStyle(fontSize: 12, color: kTextMuted),
-                ),
-              ),
-            ],
-            const SizedBox(height: 24),
-            SizedBox(
-              height: 46,
-              child: FilledButton.icon(
-                onPressed: _drinkNow,
-                style: FilledButton.styleFrom(backgroundColor: kPrimary),
-                icon: const Icon(Icons.water_drop_rounded, size: 19),
-                label: const Text('直接取水'),
-              ),
-            ),
-            const SizedBox(height: 8),
-            SizedBox(
-              height: 44,
-              child: OutlinedButton.icon(
-                onPressed: _favorite,
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: kPrimary,
-                  side: BorderSide(color: kPrimary.withValues(alpha: 0.45)),
-                ),
-                icon: const Icon(Icons.bookmark_add_rounded, size: 18),
-                label: const Text('收藏到设备列表'),
-              ),
-            ),
-            const SizedBox(height: 4),
-            SizedBox(
-              height: 36,
-              child: TextButton(
-                onPressed: _reset,
-                child: const Text(
-                  '返回重扫',
-                  style: TextStyle(color: kTextMuted, fontSize: 13),
-                ),
               ),
             ),
           ],

@@ -17,10 +17,12 @@ import 'huish_auth_state.dart';
 class HuishDevicePage extends ConsumerStatefulWidget {
   final String deviceId;
   final String deviceName;
+  final bool alreadyFav; // 是否已在"我的设备"列表
   const HuishDevicePage({
     super.key,
     required this.deviceId,
     required this.deviceName,
+    this.alreadyFav = true,
   });
   @override
   ConsumerState<HuishDevicePage> createState() => _HuishDevicePageState();
@@ -38,10 +40,14 @@ class _HuishDevicePageState extends ConsumerState<HuishDevicePage> {
   String _unit = '升';
   String _addr = '';
   Timer? _pollTimer;
+  bool _alreadyFav = true;
+  double? _lastBillPayment; // 停止后从最新账单取的本次真实消费
+  int _startTs = 0; // 本次开始时间（秒），用于匹配账单
 
   @override
   void initState() {
     super.initState();
+    _alreadyFav = widget.alreadyFav;
     _load();
   }
 
@@ -51,11 +57,13 @@ class _HuishDevicePageState extends ConsumerState<HuishDevicePage> {
     super.dispose();
   }
 
-  Future<void> _load() async {
-    setState(() {
-      _loading = true;
-      _error = false;
-    });
+  Future<void> _load({bool silent = false}) async {
+    if (!silent) {
+      setState(() {
+        _loading = true;
+        _error = false;
+      });
+    }
     try {
       final api = ref.read(huishApiClientProvider);
       final home = await api.getDeviceHome(widget.deviceId);
@@ -120,14 +128,17 @@ class _HuishDevicePageState extends ConsumerState<HuishDevicePage> {
       final gene = device?['gene'] as Map<String, dynamic>?;
       if (gene != null) {
         final out = (gene['out'] as num?)?.toDouble() ?? _currentOut;
+        final still = gene['status'] as int? ?? 99;
         setState(() {
           _currentOut = out;
-          final status = gene['status'] as int? ?? 99;
-          if (status != 1) {
-            _running = false;
-            _pollTimer?.cancel();
-          }
+          _running = still == 1;
         });
+        if (!_running) {
+          // 服务端已停止（水接完/设备自停）
+          _pollTimer?.cancel();
+          _load(silent: true);
+          _fetchLatestBill();
+        }
       }
     } catch (_) {}
   }
@@ -137,9 +148,18 @@ class _HuishDevicePageState extends ConsumerState<HuishDevicePage> {
 
   double get _thisCost => _thisUse * _priceFen / 100;
 
+  String get _costLabel {
+    final p = _lastBillPayment;
+    if (p != null) return '¥${p.toStringAsFixed(2)}';
+    if (_priceFen > 0) return '¥${_thisCost.toStringAsFixed(2)}';
+    return '--';
+  }
+
   Future<void> _start() async {
     _startOut = _currentOut;
     _hasSession = true;
+    _lastBillPayment = null;
+    _startTs = DateTime.now().millisecondsSinceEpoch ~/ 1000;
     setState(() => _running = true);
     try {
       final api = ref.read(huishApiClientProvider);
@@ -167,14 +187,67 @@ class _HuishDevicePageState extends ConsumerState<HuishDevicePage> {
       if (!mounted) return;
       setState(() => _running = false);
       if (resp.isSuccess) {
-        showGlassSnackBar(context, '设备已停止');
+        showGlassSnackBar(context, '已暂停出水');
       }
-      await _load(); // 刷新状态/余额
+      await _load(silent: true); // 静默刷新状态/余额
+      await _fetchLatestBill(); // 取本次真实消费
     } catch (e) {
       if (mounted) {
         setState(() => _running = false);
-        showGlassSnackBar(context, '设备已停止（网络异常）');
+        showGlassSnackBar(context, '已暂停出水（网络异常）');
       }
+    }
+  }
+
+  // 停止后从最新按量账单取本次真实消费（type=21 且结算时间晚于本次开始）
+  Future<void> _fetchLatestBill() async {
+    if (_startTs == 0) return; // 接手远端会话时无从匹配，仅显示估算
+    try {
+      final api = ref.read(huishApiClientProvider);
+      final resp = await api.getBillList(page: 0, size: 5);
+      if (!mounted || !resp.isSuccess) return;
+      for (final b in resp.dataList ?? const []) {
+        if (b is! Map<String, dynamic>) continue;
+        final type = b['type'] as int? ?? 0;
+        final ctime = b['ctime'] as int? ?? 0;
+        if (type == 21 && ctime >= _startTs - 5) {
+          final pay = (b['payment'] as num?)?.toDouble();
+          if (pay != null && mounted) setState(() => _lastBillPayment = pay);
+          return;
+        }
+      }
+    } catch (_) {}
+  }
+
+  // 退出取水：取水中先暂停出水再离开
+  Future<void> _exit() async {
+    if (_running) {
+      _pollTimer?.cancel();
+      try {
+        final api = ref.read(huishApiClientProvider);
+        await api.stopDevice(widget.deviceId);
+      } catch (_) {}
+    }
+    if (mounted) Navigator.of(context).pop();
+  }
+
+  // 添加到"我的设备"列表
+  Future<void> _favoriteDevice() async {
+    try {
+      final api = ref.read(huishApiClientProvider);
+      final resp = await api.favoriteDevice(widget.deviceId);
+      if (!mounted) return;
+      if (resp.isSuccess) {
+        setState(() => _alreadyFav = true);
+        showGlassSnackBar(context, '已添加到我的设备列表');
+      } else if (resp.code == 400 || resp.code == 409) {
+        setState(() => _alreadyFav = true);
+        showGlassSnackBar(context, '设备已在列表中');
+      } else {
+        showGlassSnackBar(context, '添加失败 (code: ${resp.code})');
+      }
+    } catch (_) {
+      if (mounted) showGlassSnackBar(context, '网络异常，请重试');
     }
   }
 
@@ -292,14 +365,17 @@ class _HuishDevicePageState extends ConsumerState<HuishDevicePage> {
                   ),
                 ],
                 const SizedBox(height: 18),
-                // 统计信息行：有单价时显示本次消费（估算）
+                // 统计信息行：本次消费（真实/估算/--）+ 累计出水 + 余额
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
-                    if (_priceFen > 0) ...[
-                      _buildStat('本次消费(估)', '¥${_thisCost.toStringAsFixed(2)}'),
-                      Container(width: 1, height: 36, color: kGlassGridLine),
-                    ],
+                    _buildStat(
+                      _lastBillPayment != null || _priceFen <= 0
+                          ? '本次消费'
+                          : '本次消费(估)',
+                      _costLabel,
+                    ),
+                    Container(width: 1, height: 36, color: kGlassGridLine),
                     _buildStat(
                       '累计出水',
                       '${_currentOut.toStringAsFixed(1)} $_unit',
@@ -312,23 +388,29 @@ class _HuishDevicePageState extends ConsumerState<HuishDevicePage> {
             ),
           ),
           const SizedBox(height: 16),
-          // 取水/停水按钮
+          // 开始取水 / 暂停取水（单击切换）
           SizedBox(
             width: double.infinity,
             height: 56,
             child: FilledButton.icon(
-              onPressed: _running ? null : _start,
+              onPressed: _running ? _stop : _start,
               style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFF4BA3C7),
+                backgroundColor: _running
+                    ? const Color(0xFFB85450)
+                    : const Color(0xFF4BA3C7),
+                foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(15),
                 ),
-                elevation: 6,
+                elevation: _running ? 0 : 6,
                 shadowColor: const Color(0xFF4BA3C7).withValues(alpha: 0.4),
               ),
-              icon: const Icon(Icons.play_arrow_rounded, size: 26),
+              icon: Icon(
+                _running ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                size: 26,
+              ),
               label: Text(
-                _running ? '取水进行中…' : '开始取水',
+                _running ? '暂停取水' : '开始取水',
                 style: const TextStyle(
                   fontSize: 17,
                   fontWeight: FontWeight.w700,
@@ -337,28 +419,51 @@ class _HuishDevicePageState extends ConsumerState<HuishDevicePage> {
             ),
           ),
           const SizedBox(height: 12),
+          // 退出取水
           SizedBox(
             width: double.infinity,
-            height: 56,
-            child: FilledButton.icon(
-              onPressed: _running ? _stop : null,
-              style: FilledButton.styleFrom(
-                backgroundColor: _running
-                    ? const Color(0xFFB85450)
-                    : Colors.white.withValues(alpha: 0.5),
-                foregroundColor: _running ? Colors.white : kTextMuted,
+            height: 48,
+            child: OutlinedButton.icon(
+              onPressed: _exit,
+              style: OutlinedButton.styleFrom(
+                foregroundColor: kTextMuted,
+                side: BorderSide(color: Colors.white.withValues(alpha: 0.65)),
+                backgroundColor: Colors.white.withValues(alpha: 0.4),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(15),
                 ),
-                elevation: 0,
               ),
-              icon: const Icon(Icons.stop_rounded, size: 24),
+              icon: const Icon(Icons.logout_rounded, size: 19),
               label: const Text(
-                '停止取水',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                '退出取水',
+                style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w600),
               ),
             ),
           ),
+          // 添加到"我的设备"列表（已在列表时隐藏）
+          if (!_alreadyFav) ...[
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: OutlinedButton.icon(
+                onPressed: _favoriteDevice,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: kPrimary,
+                  side: BorderSide(color: kPrimary.withValues(alpha: 0.45)),
+                  backgroundColor: Colors.white.withValues(alpha: 0.4),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(15),
+                  ),
+                ),
+                icon: const Icon(Icons.bookmark_add_rounded, size: 19),
+                label: const Text(
+                  '添加到我的列表',
+                  style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w600),
+                ),
+              ),
+            ),
+          ],
           // 设备信息
           if (_addr.isNotEmpty) ...[
             const SizedBox(height: 20),
