@@ -159,4 +159,96 @@ class DevicePrefs {
     );
     await saveDeviceCustoms(changed);
   }
+
+  // ── 取水会话持久化 ─────────────────────────────────────────
+
+  static const _kActiveSession = 'huish_active_session';
+  static const _sessionTimeoutMinutes = 30;
+
+  /// 保存当前活跃的取水会话（App 被杀后 Resume 用）。
+  static Future<void> saveActiveSession({
+    required String deviceId,
+    required double startOut,
+    required int startTs,
+  }) async {
+    final sp = await SharedPreferences.getInstance();
+    await sp.setString(
+      _kActiveSession,
+      jsonEncode({
+        'deviceId': deviceId,
+        'startOut': startOut,
+        'startTs': startTs,
+      }),
+    );
+  }
+
+  /// 清除活跃会话（停止取水或超时清理）。
+  static Future<void> clearActiveSession() async {
+    final sp = await SharedPreferences.getInstance();
+    await sp.remove(_kActiveSession);
+  }
+
+  /// 读取活跃会话，超时（>30 分钟）自动清掉并返回 null。
+  static Future<HuishActiveSession?> loadActiveSession() async {
+    final sp = await SharedPreferences.getInstance();
+    final raw = sp.getString(_kActiveSession);
+    if (raw == null) return null;
+    try {
+      final json = jsonDecode(raw) as Map<String, dynamic>;
+      final startTs = json['startTs'] as int? ?? 0;
+      final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+      if (now - startTs > _sessionTimeoutMinutes * 60) {
+        await sp.remove(_kActiveSession);
+        return null;
+      }
+      return HuishActiveSession(
+        deviceId: json['deviceId'] as String? ?? '',
+        startOut: (json['startOut'] as num?)?.toDouble() ?? 0,
+        startTs: startTs,
+      );
+    } catch (_) {
+      await sp.remove(_kActiveSession);
+      return null;
+    }
+  }
+
+  // ── 本机停水记录（服务端 gene.status 滞后期间的乐观覆盖）──────────
+
+  static const _kStoppedPrefix = 'huish_stopped_';
+  static const _stoppedWindow = Duration(seconds: 120);
+
+  /// 记录本机刚刚成功停止该设备的时间戳。
+  static Future<void> markStoppedByMe(String deviceId) async {
+    final sp = await SharedPreferences.getInstance();
+    await sp.setInt(
+      '$_kStoppedPrefix$deviceId',
+      DateTime.now().millisecondsSinceEpoch,
+    );
+  }
+
+  /// 清除本机停水记录（重新启动取水时调用）。
+  static Future<void> clearStoppedByMe(String deviceId) async {
+    final sp = await SharedPreferences.getInstance();
+    await sp.remove('$_kStoppedPrefix$deviceId');
+  }
+
+  /// 本机是否在窗口期内停止过该设备——服务端 gene.status 可能仍为 1（滞后）。
+  static Future<bool> wasRecentlyStopped(String deviceId) async {
+    final sp = await SharedPreferences.getInstance();
+    final ts = sp.getInt('$_kStoppedPrefix$deviceId');
+    if (ts == null) return false;
+    return DateTime.now().millisecondsSinceEpoch - ts <
+        _stoppedWindow.inMilliseconds;
+  }
+}
+
+class HuishActiveSession {
+  final String deviceId;
+  final double startOut;
+  final int startTs;
+  const HuishActiveSession({
+    required this.deviceId,
+    required this.startOut,
+    required this.startTs,
+  });
 }
