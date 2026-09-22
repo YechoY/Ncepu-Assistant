@@ -349,44 +349,88 @@ class _ClassroomsPageState extends ConsumerState<ClassroomsPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Wrap(
-                    spacing: 35,
-                    runSpacing: 13,
+                  // 固定行布局（不用 Wrap）：每行控件等分对齐，避免流式换行错乱
+                  // 第 1 行：校区 + 教学楼
+                  Row(
                     children: [
-                      _cond('校区', ['1', '2'], ['一校区', '二校区'], campus, (v) {
-                        if (v == campus) return;
-                        setState(() => campus = v);
-                        // 换校区只刷新教学楼列表（教学楼随校区变），不自动查询；
-                        // 真正查询等用户点「查询」按钮。
-                        _loadBuildings(query: false);
-                      }),
-                      _cond(
-                        '教学楼',
-                        [for (final b in buildings) b.id],
-                        [for (final b in buildings) b.name],
-                        building,
-                        (v) {
-                          if (v == building) return;
-                          setState(() => building = v);
-                        },
+                      Expanded(
+                        child: _cond('校区', ['1', '2'], ['一校区', '二校区'], campus, (
+                          v,
+                        ) {
+                          if (v == campus) return;
+                          setState(() => campus = v);
+                          // 换校区只刷新教学楼列表（教学楼随校区变），不自动查询；
+                          // 真正查询等用户点「查询」按钮。
+                          _loadBuildings(query: false);
+                        }, expand: true),
                       ),
-                      // 周次：日历选一天自动定位学期周次
-                      _weekChip(week),
-                      // 日期段（星期由日期换算）：起/止，结束日期限定本周内
-                      _dateChip('起', dateFrom, () => _pickDate(isFrom: true)),
-                      _dateChip('止', dateTo, () => _pickDate(isFrom: false)),
-                      // 节次段：第几节到第几节，1~10 自由起止
-                      _cond(
-                        '节次起',
-                        _sectionVals,
-                        _sectionNames,
-                        jcFrom,
-                        _setJcFrom,
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _cond(
+                          '教学楼',
+                          [for (final b in buildings) b.id],
+                          [for (final b in buildings) b.name],
+                          building,
+                          (v) {
+                            if (v == building) return;
+                            setState(() => building = v);
+                          },
+                          expand: true,
+                        ),
                       ),
-                      _cond('节次止', _sectionVals, _sectionNames, jcTo, _setJcTo),
                     ],
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 8),
+                  // 第 2 行：周次 + 起止日期（三等分，内容居中）
+                  Row(
+                    children: [
+                      Expanded(child: _weekChip(week)),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _dateChip(
+                          '起',
+                          dateFrom,
+                          () => _pickDate(isFrom: true),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _dateChip(
+                          '止',
+                          dateTo,
+                          () => _pickDate(isFrom: false),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  // 第 3 行：节次起 + 节次止（1~10 自由起止）
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _cond(
+                          '节次起',
+                          _sectionVals,
+                          _sectionNames,
+                          jcFrom,
+                          _setJcFrom,
+                          expand: true,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _cond(
+                          '节次止',
+                          _sectionVals,
+                          _sectionNames,
+                          jcTo,
+                          _setJcTo,
+                          expand: true,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
                   // 查询按钮：铺满整行
                   SizedBox(
                     width: double.infinity,
@@ -484,22 +528,31 @@ class _ClassroomsPageState extends ConsumerState<ClassroomsPage> {
     List<String> values,
     List<String> names,
     String current,
-    ValueChanged<String> onChanged,
-  ) {
+    ValueChanged<String> onChanged, {
+    bool expand = false,
+  }) {
     return GlassDropdown(
       label: label,
       value: current,
       items: values,
       displayNames: names,
       onChanged: onChanged,
+      expand: expand,
     );
   }
 
   /// 玻璃风小按钮的通用外壳（样式对齐 GlassDropdown：半透明白 + 高光描边 + 冷调柔影）。
-  Widget _chipShell({required Widget child, required VoidCallback onTap}) {
+  /// [expand] 为 true 时撑满父宽度、内容居中（配合外层 Expanded 三等分行使用）。
+  Widget _chipShell({
+    required Widget child,
+    required VoidCallback onTap,
+    bool expand = false,
+  }) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
+        width: expand ? double.infinity : null,
+        alignment: expand ? Alignment.center : null,
         padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
         decoration: BoxDecoration(
           color: Colors.white.withValues(alpha: 0.55),
@@ -522,6 +575,7 @@ class _ClassroomsPageState extends ConsumerState<ClassroomsPage> {
   Widget _weekChip(int week) {
     return _chipShell(
       onTap: _pickWeek,
+      expand: true,
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -548,6 +602,7 @@ class _ClassroomsPageState extends ConsumerState<ClassroomsPage> {
   Widget _dateChip(String label, DateTime d, VoidCallback onTap) {
     return _chipShell(
       onTap: onTap,
+      expand: true,
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
