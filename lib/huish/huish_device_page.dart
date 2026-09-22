@@ -13,6 +13,8 @@ import '../../widgets/glass_background.dart';
 import '../../widgets/glass_card.dart';
 import '../../widgets/glass_snackbar.dart';
 import 'huish_auth_state.dart';
+import 'huish_home_page.dart';
+import 'device_prefs.dart';
 
 class HuishDevicePage extends ConsumerStatefulWidget {
   final String deviceId;
@@ -32,18 +34,22 @@ class _HuishDevicePageState extends ConsumerState<HuishDevicePage> {
   bool _loading = true;
   bool _error = false;
   bool _running = false;
+  DeviceRuntimeStatus _deviceStatus = DeviceRuntimeStatus.unknown;
   bool _hasSession = false; // 本次页面内是否已有取水会话（防止把累计值当"本次"）
   double _currentOut = 0;
   double _startOut = 0;
   double _balance = 0;
   int _priceFen = 0; // 单价（分/升），gene.price
   String _unit = '升';
-  String _addr = '';
   String _apiName = ''; // 从 API 取的设备名
   Timer? _pollTimer;
   bool _alreadyFav = true;
   double? _lastBillPayment; // 停止后从最新账单取的本次真实消费
   int _startTs = 0; // 本次开始时间（秒），用于匹配账单
+  int _preStartLatestBillCtime = 0; // 本次开始前最新 type=21 账单的 ctime（基线）
+  bool _baselineReady = false; // 基线是否成功建立（无历史账单时同样置 true）
+  bool _leaving = false; // 正在离开页面（供 PopScope 放行）
+  bool _busy = false; // 启停请求进行中（防止连点重复调用接口）
 
   @override
   void initState() {
@@ -66,6 +72,15 @@ class _HuishDevicePageState extends ConsumerState<HuishDevicePage> {
       });
     }
     try {
+      // 先尝试 Resume 本地活跃会话
+      final localSession = await DevicePrefs.loadActiveSession();
+      final hasLocalSession =
+          localSession != null && localSession.deviceId == widget.deviceId;
+      if (hasLocalSession) {
+        _hasSession = true;
+        _startOut = localSession.startOut;
+        _startTs = localSession.startTs;
+      }
       final api = ref.read(huishApiClientProvider);
       final home = await api.getDeviceHome(widget.deviceId);
       final status = await api.getDeviceStatus(widget.deviceId);
@@ -84,8 +99,6 @@ class _HuishDevicePageState extends ConsumerState<HuishDevicePage> {
       _apiName = (devInfo?['name'] ?? devInfo?['nickname'])?.toString() ?? '';
       final bm = homeData['bm'] as Map<String, dynamic>?;
       _unit = bm?['unit'] as String? ?? '升';
-      final addr = devInfo?['addr'] as Map<String, dynamic>?;
-      _addr = addr?['detail']?.toString() ?? '';
       final wallet = homeData['wallet'] as Map<String, dynamic>?;
       _balance = (wallet?['olCash'] as num?)?.toDouble() ?? 0;
       final device = statusData['device'] as Map<String, dynamic>?;
@@ -93,13 +106,29 @@ class _HuishDevicePageState extends ConsumerState<HuishDevicePage> {
       if (gene != null) {
         _currentOut = (gene['out'] as num?)?.toDouble() ?? 0;
         _priceFen = (gene['price'] as num?)?.toInt() ?? 0;
-        final status = gene['status'] as int? ?? 99;
-        _running = status == 1;
+        final rawStatus = gene['status'] as int? ?? 99;
+        // 本机刚停过水 → 服务端状态滞后期间按"空闲"处理，避免要求重复停止
+        final effStatus =
+            (rawStatus == 1 &&
+                await DevicePrefs.wasRecentlyStopped(widget.deviceId))
+            ? 99
+            : rawStatus;
+        _running = effStatus == 1;
+        _deviceStatus = DeviceRuntimeStatusX.fromGeneStatus(effStatus);
         // 设备远端已在取水（如从别处启动）：以当前累计为本次起点，从 0 开始计
         if (_running && !_hasSession) {
           _startOut = _currentOut;
           _hasSession = true;
         }
+        // 设备确认已停 → 本地残留会话失效，清掉并复位，避免显示上次的"本次接水完成"旧值
+        if (!_running && hasLocalSession) {
+          await DevicePrefs.clearActiveSession();
+          _hasSession = false;
+          _startOut = 0;
+          _startTs = 0;
+        }
+      } else {
+        _deviceStatus = DeviceRuntimeStatus.offline;
       }
       setState(() {
         _loading = false;
@@ -136,10 +165,12 @@ class _HuishDevicePageState extends ConsumerState<HuishDevicePage> {
         setState(() {
           _currentOut = out;
           _running = still == 1;
+          _deviceStatus = DeviceRuntimeStatusX.fromGeneStatus(still);
         });
         if (!_running) {
           // 服务端已停止（水接完/设备自停）
           _pollTimer?.cancel();
+          await DevicePrefs.clearActiveSession();
           _refreshBalance();
           _fetchLatestBill();
         }
@@ -150,57 +181,98 @@ class _HuishDevicePageState extends ConsumerState<HuishDevicePage> {
   double get _thisUse =>
       _hasSession ? (_currentOut - _startOut).clamp(0, double.infinity) : 0;
 
-  double get _thisCost => _thisUse * _priceFen / 100;
-
   String get _costLabel {
     final p = _lastBillPayment;
     if (p != null) return '¥${p.toStringAsFixed(2)}';
-    if (_priceFen > 0) return '¥${_thisCost.toStringAsFixed(2)}';
+    // 取水中/刚停止但账单未出 → 不显示估算，等 _fetchLatestBill 回填
     return '--';
   }
 
   Future<void> _start() async {
-    _startOut = _currentOut;
-    _hasSession = true;
-    _lastBillPayment = null;
-    _startTs = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-    setState(() => _running = true);
+    if (_busy) return; // 连点保护：避免重复调用 /dev/start 建出两个会话
+    _busy = true;
     try {
+      _startOut = _currentOut;
+      _hasSession = true;
+      _lastBillPayment = null;
+      _startTs = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+      // 记录本次开始前最新 type=21 账单的 ctime，作为停止后匹配新账单的基线
+      await _snapshotPreStartBill();
+      if (!mounted) return;
+      setState(() {
+        _running = true;
+        _deviceStatus = DeviceRuntimeStatus.running;
+      });
       final api = ref.read(huishApiClientProvider);
       final resp = await api.startDevice(widget.deviceId);
       if (!mounted) return;
       if (!resp.isSuccess) {
-        showGlassSnackBar(context, '启动失败 (code: ${resp.code})');
-        setState(() => _running = false);
+        showGlassSnackBar(context, _mapStartError(resp.code));
+        setState(() {
+          _running = false;
+          _deviceStatus = DeviceRuntimeStatus.idle;
+        });
+        _hasSession = false;
+        _preStartLatestBillCtime = 0;
+        _baselineReady = false;
         return;
       }
+      // 启动成功 → 持久化会话，并清除"本机停水"覆盖标记
+      await DevicePrefs.saveActiveSession(
+        deviceId: widget.deviceId,
+        startOut: _startOut,
+        startTs: _startTs,
+      );
+      await DevicePrefs.clearStoppedByMe(widget.deviceId);
       _startPolling();
     } catch (e) {
       if (mounted) {
-        showGlassSnackBar(context, '启动失败: $e');
-        setState(() => _running = false);
+        showGlassSnackBar(context, '启动失败，请稍后重试');
+        setState(() {
+          _running = false;
+          _deviceStatus = DeviceRuntimeStatus.idle;
+        });
+        _hasSession = false;
+        _preStartLatestBillCtime = 0;
+        _baselineReady = false;
       }
+    } finally {
+      _busy = false;
     }
   }
 
   Future<void> _stop() async {
+    if (_busy) return; // 连点保护：避免重复调用 /dev/end 并弹"停止失败"
+    _busy = true;
     _pollTimer?.cancel();
     try {
       final api = ref.read(huishApiClientProvider);
       final resp = await api.stopDevice(widget.deviceId);
       if (!mounted) return;
-      setState(() => _running = false);
-      if (resp.isSuccess) {
-        showGlassSnackBar(context, '已暂停出水');
+      if (!resp.isSuccess) {
+        // 停止被拒 → 不假装已停，恢复轮询以反映真实状态
+        showGlassSnackBar(context, _mapStopError(resp.code));
+        _startPolling();
+        return;
       }
+      setState(() {
+        _running = false;
+        _deviceStatus = DeviceRuntimeStatus.idle;
+      });
+      showGlassSnackBar(context, '已结束取水');
+      await DevicePrefs.clearActiveSession();
+      // 服务端 gene.status 会滞后数秒仍为 1 → 记录本机已停，滞后期间覆盖为"空闲"
+      await DevicePrefs.markStoppedByMe(widget.deviceId);
       // 只刷余额，不调 _load（避免覆盖本次会话数据）
       await _refreshBalance();
       await _fetchLatestBill(); // 取本次真实消费
     } catch (e) {
-      if (mounted) {
-        setState(() => _running = false);
-        showGlassSnackBar(context, '已暂停出水（网络异常）');
-      }
+      if (!mounted) return;
+      // 网络异常 → 不假装已停，恢复轮询
+      showGlassSnackBar(context, '停止失败，请检查网络后重试');
+      _startPolling();
+    } finally {
+      _busy = false;
     }
   }
 
@@ -230,10 +302,31 @@ class _HuishDevicePageState extends ConsumerState<HuishDevicePage> {
     } catch (_) {}
   }
 
-  // 停止后从最新按量账单取本次真实消费（type=21 且结算时间晚于本次开始）
+  // 记录本次开始前最新 type=21 账单的 ctime，作为停止后匹配新账单的基线
+  // 避免误命中上次的旧账单（0.00 新账单还没生成时旧账单的 ctime 可能 >= _startTs - 5）
+  Future<void> _snapshotPreStartBill() async {
+    try {
+      final api = ref.read(huishApiClientProvider);
+      final resp = await api.getBillList(page: 0, size: 5);
+      if (!resp.isSuccess) return;
+      int latest = 0;
+      for (final b in resp.dataList ?? const []) {
+        if (b is! Map<String, dynamic>) continue;
+        final type = b['type'] as int? ?? 0;
+        final ctime = b['ctime'] as int? ?? 0;
+        if (type == 21 && ctime > latest) latest = ctime;
+      }
+      _preStartLatestBillCtime = latest;
+      _baselineReady = true; // 请求成功即认为基线可用（无历史账单时 latest=0）
+    } catch (_) {}
+  }
+
+  // 停止后从最新按量账单取本次真实消费（type=21 且 ctime 严格大于本次开始前的基线）
   // 账单生成有延迟，重试 2s × 5 次
   Future<void> _fetchLatestBill({int attempt = 0}) async {
     if (_startTs == 0) return;
+    // 基线没建立成功（_snapshotPreStartBill 网络异常）→ 无法区分新旧账单，跳过避免误显旧账单
+    if (!_baselineReady) return;
     if (attempt >= 5) return; // 最多 5 次
     try {
       await Future.delayed(const Duration(seconds: 2));
@@ -248,8 +341,8 @@ class _HuishDevicePageState extends ConsumerState<HuishDevicePage> {
         if (b is! Map<String, dynamic>) continue;
         final type = b['type'] as int? ?? 0;
         final ctime = b['ctime'] as int? ?? 0;
-        // 账单生成后 ctime 可能比 _startTs 略晚（秒级匹配）
-        if (type == 21 && ctime >= _startTs - 5) {
+        // 只接受 ctime 严格大于基线的账单（避免误命中上次旧账单）
+        if (type == 21 && ctime > _preStartLatestBillCtime) {
           final pay = (b['payment'] as num?)?.toDouble();
           if (pay != null && mounted) {
             setState(() => _lastBillPayment = pay);
@@ -268,12 +361,29 @@ class _HuishDevicePageState extends ConsumerState<HuishDevicePage> {
   Future<void> _exit() async {
     if (_running) {
       _pollTimer?.cancel();
-      try {
-        final api = ref.read(huishApiClientProvider);
-        await api.stopDevice(widget.deviceId);
-      } catch (_) {}
+      setState(() {
+        _running = false;
+        _deviceStatus = DeviceRuntimeStatus.idle;
+      });
+      // 已有启停请求在途（如刚点"结束取水"）→ 不再重复调用 /dev/end
+      if (!_busy) {
+        try {
+          final api = ref.read(huishApiClientProvider);
+          final resp = await api.stopDevice(widget.deviceId);
+          if (resp.isSuccess) {
+            await DevicePrefs.markStoppedByMe(widget.deviceId);
+          }
+        } catch (_) {}
+        await DevicePrefs.clearActiveSession();
+      }
+      if (mounted) showGlassSnackBar(context, '已结束取水');
     }
-    if (mounted) Navigator.of(context).pop();
+    if (!mounted) return;
+    // 先放行 PopScope，再在下一帧真正 pop（避免被拦截形成死循环）
+    setState(() => _leaving = true);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) Navigator.of(context).pop();
+    });
   }
 
   // 添加到"我的设备"列表
@@ -315,14 +425,22 @@ class _HuishDevicePageState extends ConsumerState<HuishDevicePage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: GlassBackground(
-        child: SafeArea(
-          child: _loading
-              ? const Center(child: CircularProgressIndicator())
-              : _error
-              ? Center(child: _ErrorView(onRetry: _load))
-              : _buildContent(),
+    return PopScope(
+      canPop: _leaving,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        // 系统返回手势 / 硬件返回键：先停水再离开（否则水会一直流）
+        _exit();
+      },
+      child: Scaffold(
+        body: GlassBackground(
+          child: SafeArea(
+            child: _loading
+                ? const Center(child: CircularProgressIndicator())
+                : _error
+                ? Center(child: _ErrorView(onRetry: _load))
+                : _buildContent(),
+          ),
         ),
       ),
     );
@@ -385,7 +503,48 @@ class _HuishDevicePageState extends ConsumerState<HuishDevicePage> {
                     _running ? Icons.water_drop : Icons.water_drop_outlined,
                     key: ValueKey(_running),
                     size: 56,
-                    color: _running ? kHuish : kTextMuted,
+                    color: _deviceStatus == DeviceRuntimeStatus.offline
+                        ? const Color(0xFFB0B5C2)
+                        : (_running ? kHuish : kTextMuted),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                // 状态徽章
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.55),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.8),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 7,
+                        height: 7,
+                        decoration: BoxDecoration(
+                          color: _deviceStatus.dotColor,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 5),
+                      Text(
+                        _deviceStatus == DeviceRuntimeStatus.unknown
+                            ? '加载中…'
+                            : _deviceStatus.label,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: _deviceStatus.dotColor,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -435,12 +594,7 @@ class _HuishDevicePageState extends ConsumerState<HuishDevicePage> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
-                    _buildStat(
-                      _lastBillPayment != null || _priceFen <= 0
-                          ? '本次消费'
-                          : '本次消费(估)',
-                      _costLabel,
-                    ),
+                    _buildStat('本次消费', _costLabel),
                     Container(width: 1, height: 36, color: kGlassGridLine),
                     _buildStat(
                       '累计出水',
@@ -540,6 +694,38 @@ class _HuishDevicePageState extends ConsumerState<HuishDevicePage> {
         Text(label, style: const TextStyle(fontSize: 11.5, color: kTextMuted)),
       ],
     );
+  }
+
+  /// 启动取水错误码映射（对齐 life-798 / FlandreSY）。
+  String _mapStartError(int? code) {
+    switch (code) {
+      case -52:
+        return '账户欠费，请充值后使用';
+      case -88:
+        return '未签约代扣协议，请先完成签约';
+      case -87:
+        return '签约已过期，请重新签约';
+      case -20:
+        return '未绑定一卡通账号，请先绑定';
+      case -19:
+        return '设备准备中，请稍后重试';
+      case -99:
+        return '登录已过期，请重新登录';
+      case -21:
+        return '设备控制登录信息缺失，请先添加设备';
+      default:
+        return '启动失败，请稍后重试';
+    }
+  }
+
+  /// 停止取水错误码映射。
+  String _mapStopError(int? code) {
+    switch (code) {
+      case -99:
+        return '登录已过期，请重新登录';
+      default:
+        return '停止失败，请稍后重试';
+    }
   }
 }
 

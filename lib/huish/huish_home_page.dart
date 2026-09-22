@@ -16,6 +16,44 @@ import 'huish_bill_page.dart';
 import 'huish_device_page.dart';
 import 'huish_add_device_page.dart';
 
+/// 设备运行状态（从 getDeviceStatus 的 gene.status 映射）
+enum DeviceRuntimeStatus { idle, running, offline, unknown }
+
+extension DeviceRuntimeStatusX on DeviceRuntimeStatus {
+  String get label {
+    switch (this) {
+      case DeviceRuntimeStatus.idle:
+        return '空闲';
+      case DeviceRuntimeStatus.running:
+        return '使用中';
+      case DeviceRuntimeStatus.offline:
+        return '离线';
+      case DeviceRuntimeStatus.unknown:
+        return '未知';
+    }
+  }
+
+  Color get dotColor {
+    switch (this) {
+      case DeviceRuntimeStatus.idle:
+        return const Color(0xFF5E9C80); // 柔绿
+      case DeviceRuntimeStatus.running:
+        return kHuish;
+      case DeviceRuntimeStatus.offline:
+        return const Color(0xFFB0B5C2); // 雾灰
+      case DeviceRuntimeStatus.unknown:
+        return const Color(0xFFD0D4DE); // 浅灰（加载中）
+    }
+  }
+
+  static DeviceRuntimeStatus fromGeneStatus(int? status) {
+    final s = status ?? -1;
+    if (s == 99) return DeviceRuntimeStatus.idle;
+    if (s == 1) return DeviceRuntimeStatus.running;
+    return DeviceRuntimeStatus.offline;
+  }
+}
+
 class HuishHomePage extends ConsumerStatefulWidget {
   const HuishHomePage({super.key});
   @override
@@ -26,6 +64,7 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
   bool _loading = true;
   String? _error;
   List<dynamic> _devices = [];
+  Map<String, DeviceRuntimeStatus> _statuses = {}; // did → 运行状态
   Map<String, DeviceCustomInfo> _customs = {};
   List<String> _groups = ['default'];
   final Set<String> _collapsed = {};
@@ -44,9 +83,9 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
     super.dispose();
   }
 
-  Future<void> _load() async {
+  Future<void> _load({bool silent = false}) async {
     setState(() {
-      _loading = true;
+      if (!silent) _loading = true;
       _error = null;
     });
     try {
@@ -69,8 +108,10 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
       _customs = await DevicePrefs.loadDeviceCustoms();
       _groups = await DevicePrefs.loadGroups();
       _order = await DevicePrefs.loadDeviceOrder();
-      // 默认所有分组展开（除了 default 也展开）
+      // 默认所有分组展开
       setState(() {});
+      // 并发查设备状态（3 并发上限，总超时 8s）
+      _fetchStatuses(_devices.map(_deviceId).toList());
     } catch (e) {
       if (mounted) {
         setState(() {
@@ -78,6 +119,48 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
           _loading = false;
         });
       }
+    }
+  }
+
+  // 并发查询设备状态（3 并发上限，总超时 8s）
+  Future<void> _fetchStatuses(List<String> dids) async {
+    if (dids.isEmpty) return;
+    final api = ref.read(huishApiClientProvider);
+    final results = <String, DeviceRuntimeStatus>{};
+    // 3 并发分批次
+    for (var i = 0; i < dids.length; i += 3) {
+      final batch = dids.skip(i).take(3).toList();
+      final futures = batch.map((did) async {
+        try {
+          final resp = await api
+              .getDeviceStatus(did)
+              .timeout(
+                const Duration(seconds: 8),
+                onTimeout: () => throw TimeoutException('超时'),
+              );
+          if (!resp.isSuccess) {
+            return MapEntry(did, DeviceRuntimeStatus.offline);
+          }
+          final device = resp.dataMap?['device'] as Map<String, dynamic>?;
+          final gene = device?['gene'] as Map<String, dynamic>?;
+          final status = gene?['status'] as int?;
+          var result = DeviceRuntimeStatusX.fromGeneStatus(status);
+          // 本机刚停过水 → 服务端状态滞后期间覆盖为"空闲"
+          if (result == DeviceRuntimeStatus.running &&
+              await DevicePrefs.wasRecentlyStopped(did)) {
+            result = DeviceRuntimeStatus.idle;
+          }
+          return MapEntry(did, result);
+        } catch (_) {
+          return MapEntry(did, DeviceRuntimeStatus.offline);
+        }
+      });
+      final batchResults = await Future.wait(futures);
+      results.addEntries(
+        batchResults.whereType<MapEntry<String, DeviceRuntimeStatus>>(),
+      );
+      if (!mounted) return;
+      setState(() => _statuses = {..._statuses, ...results});
     }
   }
 
@@ -153,14 +236,16 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
     return '饮水机';
   }
 
-  void _tapDevice(dynamic d) {
+  Future<void> _tapDevice(dynamic d) async {
     final id = _deviceId(d);
-    Navigator.of(context).push(
+    await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) =>
             HuishDevicePage(deviceId: id, deviceName: _deviceName(d)),
       ),
     );
+    if (!mounted) return;
+    await _load(silent: true); // 返回后刷新列表与设备状态（可能刚取水/停水）
   }
 
   Future<void> _addDevice() async {
@@ -171,12 +256,12 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
     final did = r['did'] as String? ?? '';
     if (did.isEmpty) return;
     final fav = r['fav'] as bool? ?? false;
-    if (fav) await _load(); // 已收藏 → 刷新设备列表
+    if (fav) await _load(silent: true); // 已收藏 → 刷新设备列表
     if (!mounted) return;
     // 扫码后直接进入取水页（无论是否收藏）
     final name = (r['name'] as String?) ?? _currentDeviceName(did);
     final inList = _devices.any((d) => _deviceId(d) == did);
-    Navigator.of(context).push(
+    await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => HuishDevicePage(
           deviceId: did,
@@ -185,6 +270,8 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
         ),
       ),
     );
+    if (!mounted) return;
+    await _load(silent: true); // 返回后刷新（可能已收藏/已取水）
   }
 
   String _currentDeviceName(String did) {
@@ -974,6 +1061,9 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
                           padding: const EdgeInsets.only(bottom: 8),
                           child: _DeviceCard(
                             customName: _deviceName(d),
+                            status:
+                                _statuses[_deviceId(d)] ??
+                                DeviceRuntimeStatus.unknown,
                             onTap: () => _tapDevice(d),
                             onEdit: () => _showDeviceActions(d),
                           ),
@@ -1020,16 +1110,19 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
 
 class _DeviceCard extends StatelessWidget {
   final String customName;
+  final DeviceRuntimeStatus status;
   final VoidCallback onTap;
   final VoidCallback onEdit;
   const _DeviceCard({
     required this.customName,
+    required this.status,
     required this.onTap,
     required this.onEdit,
   });
 
   @override
   Widget build(BuildContext context) {
+    final disabled = status == DeviceRuntimeStatus.offline;
     return GestureDetector(
       onTap: onTap,
       child: GlassCard(
@@ -1043,24 +1136,57 @@ class _DeviceCard extends StatelessWidget {
               height: 44,
               alignment: Alignment.center,
               decoration: BoxDecoration(
-                color: kHuish.withValues(alpha: 0.14),
+                color: disabled
+                    ? const Color(0xFFB0B5C2).withValues(alpha: 0.14)
+                    : kHuish.withValues(alpha: 0.14),
                 borderRadius: BorderRadius.circular(13),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.water_drop_rounded,
                 size: 22,
-                color: kHuish,
+                color: disabled ? const Color(0xFFB0B5C2) : kHuish,
               ),
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: Text(
-                customName,
-                style: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                  color: kInk,
-                ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    customName,
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: disabled ? kTextMuted : kInk,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 3),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 7,
+                        height: 7,
+                        decoration: BoxDecoration(
+                          color: status.dotColor,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 5),
+                      Text(
+                        status.label,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          color: status.dotColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ),
             GestureDetector(
@@ -1085,19 +1211,31 @@ class _DeviceCard extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 7),
               decoration: BoxDecoration(
-                color: kHuish,
+                color: disabled
+                    ? const Color(0xFFB0B5C2)
+                    : (status == DeviceRuntimeStatus.running
+                          ? const Color(0xFFB85450)
+                          : kHuish),
                 borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(
-                    color: kHuish.withValues(alpha: 0.35),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
+                boxShadow: disabled
+                    ? null
+                    : [
+                        BoxShadow(
+                          color:
+                              (status == DeviceRuntimeStatus.running
+                                      ? const Color(0xFFB85450)
+                                      : kHuish)
+                                  .withValues(alpha: 0.35),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
               ),
-              child: const Text(
-                '取水',
-                style: TextStyle(
+              child: Text(
+                disabled
+                    ? '离线'
+                    : (status == DeviceRuntimeStatus.running ? '结束' : '取水'),
+                style: const TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w700,
                   color: Colors.white,
