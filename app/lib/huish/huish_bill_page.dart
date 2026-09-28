@@ -112,8 +112,8 @@ class _HuishBillPageState extends ConsumerState<HuishBillPage> {
   }
 
   String _typeLabel(int type) => switch (type) {
-    21 => '按量消费',
-    91 => '按次消费',
+    21 => '取水消费',
+    91 => '取水消费', // 服务端新版出水协议产生的消费记录
     _ => '消费',
   };
 

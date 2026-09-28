@@ -46,7 +46,7 @@ class _HuishDevicePageState extends ConsumerState<HuishDevicePage> {
   bool _alreadyFav = true;
   double? _lastBillPayment; // 停止后从最新账单取的本次真实消费
   int _startTs = 0; // 本次开始时间（秒），用于匹配账单
-  int _preStartLatestBillCtime = 0; // 本次开始前最新 type=21 账单的 ctime（基线）
+  int _preStartLatestBillCtime = 0; // 本次开始前最新取水账单(type 21/91)的 ctime（基线）
   bool _baselineReady = false; // 基线是否成功建立（无历史账单时同样置 true）
   bool _leaving = false; // 正在离开页面（供 PopScope 放行）
   bool _busy = false; // 启停请求进行中（防止连点重复调用接口）
@@ -196,7 +196,7 @@ class _HuishDevicePageState extends ConsumerState<HuishDevicePage> {
       _hasSession = true;
       _lastBillPayment = null;
       _startTs = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-      // 记录本次开始前最新 type=21 账单的 ctime，作为停止后匹配新账单的基线
+      // 记录本次开始前最新取水账单（type 21/91）的 ctime，作为停止后匹配新账单的基线
       await _snapshotPreStartBill();
       if (!mounted) return;
       setState(() {
@@ -302,7 +302,7 @@ class _HuishDevicePageState extends ConsumerState<HuishDevicePage> {
     } catch (_) {}
   }
 
-  // 记录本次开始前最新 type=21 账单的 ctime，作为停止后匹配新账单的基线
+  // 记录本次开始前最新取水账单（type 21/91，服务端新版出水走 91）的 ctime 作为基线
   // 避免误命中上次的旧账单（0.00 新账单还没生成时旧账单的 ctime 可能 >= _startTs - 5）
   Future<void> _snapshotPreStartBill() async {
     try {
@@ -314,14 +314,14 @@ class _HuishDevicePageState extends ConsumerState<HuishDevicePage> {
         if (b is! Map<String, dynamic>) continue;
         final type = b['type'] as int? ?? 0;
         final ctime = b['ctime'] as int? ?? 0;
-        if (type == 21 && ctime > latest) latest = ctime;
+        if ((type == 21 || type == 91) && ctime > latest) latest = ctime;
       }
       _preStartLatestBillCtime = latest;
       _baselineReady = true; // 请求成功即认为基线可用（无历史账单时 latest=0）
     } catch (_) {}
   }
 
-  // 停止后从最新按量账单取本次真实消费（type=21 且 ctime 严格大于本次开始前的基线）
+  // 停止后从最新取水账单取本次真实消费（type 21/91 且 ctime 严格大于本次开始前的基线）
   // 账单生成有延迟，重试 2s × 5 次
   Future<void> _fetchLatestBill({int attempt = 0}) async {
     if (_startTs == 0) return;
@@ -342,7 +342,7 @@ class _HuishDevicePageState extends ConsumerState<HuishDevicePage> {
         final type = b['type'] as int? ?? 0;
         final ctime = b['ctime'] as int? ?? 0;
         // 只接受 ctime 严格大于基线的账单（避免误命中上次旧账单）
-        if (type == 21 && ctime > _preStartLatestBillCtime) {
+        if ((type == 21 || type == 91) && ctime > _preStartLatestBillCtime) {
           final pay = (b['payment'] as num?)?.toDouble();
           if (pay != null && mounted) {
             setState(() => _lastBillPayment = pay);
@@ -713,6 +713,8 @@ class _HuishDevicePageState extends ConsumerState<HuishDevicePage> {
         return '登录已过期，请重新登录';
       case -21:
         return '设备控制登录信息缺失，请先添加设备';
+      case -82:
+        return '需要支付，请完成支付后使用';
       default:
         return '启动失败，请稍后重试';
     }
