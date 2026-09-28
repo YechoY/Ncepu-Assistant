@@ -490,125 +490,129 @@ class _HuishDevicePageState extends ConsumerState<HuishDevicePage> {
               ),
             ],
           ),
-          const SizedBox(height: 20),
-          // 大号接水量卡片
-          GlassCard(
-            radius: 24,
-            padding: const EdgeInsets.all(28),
-            child: Column(
-              children: [
-                AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 300),
-                  child: Icon(
-                    _running ? Icons.water_drop : Icons.water_drop_outlined,
-                    key: ValueKey(_running),
-                    size: 56,
-                    color: _deviceStatus == DeviceRuntimeStatus.offline
-                        ? const Color(0xFFB0B5C2)
-                        : (_running ? kHuish : kTextMuted),
-                  ),
-                ),
-                const SizedBox(height: 6),
-                // 状态徽章
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 5,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.55),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.8),
+          const SizedBox(height: 12),
+          // 接水量大卡片：占据返回栏与底部按钮之间的剩余空间，垂直居中
+          Expanded(
+            child: Center(
+              child: GlassCard(
+                radius: 24,
+                padding: const EdgeInsets.all(28),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 300),
+                      child: Icon(
+                        _running ? Icons.water_drop : Icons.water_drop_outlined,
+                        key: ValueKey(_running),
+                        size: 56,
+                        color: _deviceStatus == DeviceRuntimeStatus.offline
+                            ? const Color(0xFFB0B5C2)
+                            : (_running ? kHuish : kTextMuted),
+                      ),
                     ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        width: 7,
-                        height: 7,
-                        decoration: BoxDecoration(
-                          color: _deviceStatus.dotColor,
-                          shape: BoxShape.circle,
+                    const SizedBox(height: 6),
+                    // 状态徽章
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.55),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.8),
                         ),
                       ),
-                      const SizedBox(width: 5),
-                      Text(
-                        _deviceStatus == DeviceRuntimeStatus.unknown
-                            ? '加载中…'
-                            : _deviceStatus.label,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 7,
+                            height: 7,
+                            decoration: BoxDecoration(
+                              color: _deviceStatus.dotColor,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 5),
+                          Text(
+                            _deviceStatus == DeviceRuntimeStatus.unknown
+                                ? '加载中…'
+                                : _deviceStatus.label,
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: _deviceStatus.dotColor,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      _running
+                          ? '正在接水…'
+                          : _hasSession
+                          ? '本次接水完成'
+                          : '待取水',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: _running ? kHuish : kTextMuted,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    // 本次接水量大字
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 200),
+                      child: Text(
+                        '${_thisUse.toStringAsFixed(1)} $_unit',
+                        key: ValueKey(_thisUse.toStringAsFixed(1)),
                         style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: _deviceStatus.dotColor,
+                          fontSize: 48,
+                          fontWeight: FontWeight.w800,
+                          color: kInk,
+                          height: 1.1,
+                          shadows: [
+                            Shadow(
+                              color: kPrimary.withValues(alpha: 0.15),
+                              offset: const Offset(0, 2),
+                              blurRadius: 8,
+                            ),
+                          ],
                         ),
+                      ),
+                    ),
+                    if (_running) ...[
+                      const SizedBox(height: 4),
+                      const Text(
+                        '3 秒刷新',
+                        style: TextStyle(fontSize: 11, color: kTextMuted),
                       ),
                     ],
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  _running
-                      ? '正在接水…'
-                      : _hasSession
-                      ? '本次接水完成'
-                      : '待取水',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: _running ? kHuish : kTextMuted,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                // 本次接水量大字
-                AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 200),
-                  child: Text(
-                    '${_thisUse.toStringAsFixed(1)} $_unit',
-                    key: ValueKey(_thisUse.toStringAsFixed(1)),
-                    style: TextStyle(
-                      fontSize: 48,
-                      fontWeight: FontWeight.w800,
-                      color: kInk,
-                      height: 1.1,
-                      shadows: [
-                        Shadow(
-                          color: kPrimary.withValues(alpha: 0.15),
-                          offset: const Offset(0, 2),
-                          blurRadius: 8,
+                    const SizedBox(height: 18),
+                    // 统计信息行：本次消费（真实/估算/--）+ 累计出水 + 余额
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        _buildStat('本次消费', _costLabel),
+                        Container(width: 1, height: 36, color: kGlassGridLine),
+                        _buildStat(
+                          '累计出水',
+                          '${_currentOut.toStringAsFixed(1)} $_unit',
                         ),
+                        Container(width: 1, height: 36, color: kGlassGridLine),
+                        _buildStat('账户余额', '¥${_balance.toStringAsFixed(2)}'),
                       ],
                     ),
-                  ),
-                ),
-                if (_running) ...[
-                  const SizedBox(height: 4),
-                  const Text(
-                    '3 秒刷新',
-                    style: TextStyle(fontSize: 11, color: kTextMuted),
-                  ),
-                ],
-                const SizedBox(height: 18),
-                // 统计信息行：本次消费（真实/估算/--）+ 累计出水 + 余额
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    _buildStat('本次消费', _costLabel),
-                    Container(width: 1, height: 36, color: kGlassGridLine),
-                    _buildStat(
-                      '累计出水',
-                      '${_currentOut.toStringAsFixed(1)} $_unit',
-                    ),
-                    Container(width: 1, height: 36, color: kGlassGridLine),
-                    _buildStat('账户余额', '¥${_balance.toStringAsFixed(2)}'),
                   ],
                 ),
-              ],
+              ),
             ),
           ),
-          const SizedBox(height: 16),
-          // 开始取水 / 暂停取水（单击切换）
+          // 底部操作区：开始取水 + 移出列表（沉底，拇指易达）
           SizedBox(
             width: double.infinity,
             height: 56,
@@ -638,7 +642,7 @@ class _HuishDevicePageState extends ConsumerState<HuishDevicePage> {
               ),
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 12),
           // 添加/移出"我的设备"列表（深水蓝）
           SizedBox(
             width: double.infinity,
