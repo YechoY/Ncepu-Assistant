@@ -198,10 +198,11 @@ class HuishApiClient {
 
   Future<HuishApiResponse> startDevice(
     String deviceId, {
-    int ptype = 21,
+    // 官方新版出水协议 ptype=91（旧 21 已被服务端弃用，启动会被拒）
+    int ptype = 91,
   }) async {
     final resp = await _get(
-      '/api/v1/dev/start?did=$deviceId&upgrade=true&ptype=$ptype&args=&rcp=false&cnt=1',
+      '/api/v1/dev/start?did=$deviceId&upgrade=true&ptype=$ptype&rcp=false',
     );
     return HuishApiResponse.fromJson(
       jsonDecode(resp.body) as Map<String, dynamic>,
@@ -209,7 +210,7 @@ class HuishApiClient {
   }
 
   Future<HuishApiResponse> stopDevice(String deviceId) async {
-    final resp = await _get('/api/v1/dev/end?did=$deviceId&rcp=false');
+    final resp = await _get('/api/v1/dev/end?did=$deviceId');
     return HuishApiResponse.fromJson(
       jsonDecode(resp.body) as Map<String, dynamic>,
     );
