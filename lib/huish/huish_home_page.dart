@@ -74,6 +74,7 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
   String? _quickDeviceId;
   String? _quickDeviceName;
   bool _quickBusy = false;
+  bool _quickOn = false; // 授权已开启（服务端 status 在实体键按下前仍为空闲）
 
   @override
   void initState() {
@@ -85,6 +86,7 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
   Future<void> _loadQuickDevice() async {
     _quickDeviceId = await DevicePrefs.getQuickDeviceId();
     _quickDeviceName = await DevicePrefs.getQuickDeviceName();
+    _quickOn = await DevicePrefs.isQuickOn();
     if (mounted) setState(() {});
   }
 
@@ -165,8 +167,10 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
     if (selected == null) return;
     if (selected == '__clear__') {
       await DevicePrefs.clearQuickDevice();
+      await DevicePrefs.setQuickOn(false);
       _quickDeviceId = null;
       _quickDeviceName = null;
+      _quickOn = false;
       if (mounted) showGlassSnackBar(context, '已取消一键取水绑定');
     } else {
       final name = allDevices.firstWhere((e) => e.key == selected).value;
@@ -203,24 +207,41 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
           (rawStatus == 1 && await DevicePrefs.wasRecentlyStopped(did))
           ? 99
           : rawStatus;
+      // 授权开着 or 设备在出水 → 应关闭；否则启动
+      final shouldStop = _quickOn || effStatus == 1;
 
-      if (effStatus == 1) {
-        // 使用中 → 停止
+      if (shouldStop) {
         final resp = await api.stopDevice(did);
         if (!mounted) return;
         if (resp.isSuccess) {
           await DevicePrefs.clearActiveSession();
           await DevicePrefs.markStoppedByMe(did);
+          await DevicePrefs.setQuickOn(false);
+          setState(() => _quickOn = false);
           showGlassSnackBar(context, '已关闭取水');
         } else {
-          showGlassSnackBar(context, _mapQuickError(resp.code));
+          // 停止被拒：若设备已不在出水（授权可能早已超时失效）→ 视为已关闭
+          final recheck = await api.getDeviceStatus(did);
+          final gene2 =
+              (recheck.dataMap?['device'] as Map<String, dynamic>?)?['gene']
+                  as Map<String, dynamic>?;
+          final still = gene2?['status'] as int? ?? 99;
+          if (recheck.isSuccess && still != 1) {
+            await DevicePrefs.setQuickOn(false);
+            setState(() => _quickOn = false);
+            showGlassSnackBar(context, '取水已结束（授权已失效）');
+          } else {
+            showGlassSnackBar(context, _mapQuickError(resp.code));
+          }
         }
       } else if (effStatus == 99) {
-        // 空闲 → 启动
+        // 空闲 → 启动（远程启动 = 授权，实体键按下后才开始出水）
         final resp = await api.startDevice(did);
         if (!mounted) return;
         if (resp.isSuccess) {
-          showGlassSnackBar(context, '已开启取水，请到设备处操作');
+          await DevicePrefs.setQuickOn(true);
+          setState(() => _quickOn = true); // 立即变色反馈
+          showGlassSnackBar(context, '已开启取水授权，请在设备上按出水键');
         } else {
           showGlassSnackBar(context, _mapQuickError(resp.code));
         }
@@ -336,6 +357,13 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
         batchResults.whereType<MapEntry<String, DeviceRuntimeStatus>>(),
       );
       if (!mounted) return;
+      // 服务端确认在出水 → 同步点亮授权状态（如从别处启动的）
+      if (_quickDeviceId != null &&
+          results[_quickDeviceId] == DeviceRuntimeStatus.running &&
+          !_quickOn) {
+        _quickOn = true;
+        DevicePrefs.setQuickOn(true);
+      }
       setState(() => _statuses = {..._statuses, ...results});
     }
   }
@@ -1020,7 +1048,8 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
   Widget _buildQuickButton() {
     final hasDevice = _quickDeviceId != null;
     final status = hasDevice ? _statuses[_quickDeviceId] : null;
-    final isRunning = status == DeviceRuntimeStatus.running;
+    // 授权开着 或 设备在出水 → 都算"已开启"（远程启动只是授权，实体键按下前服务端仍报空闲）
+    final isRunning = _quickOn || status == DeviceRuntimeStatus.running;
     final isOffline = status == DeviceRuntimeStatus.offline;
 
     // 未绑定 → 灰底"选择设备"；空闲 → 蓝底"一键取水"；使用中 → 红底"关闭取水"；离线 → 灰底"离线"
