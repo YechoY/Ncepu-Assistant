@@ -128,7 +128,7 @@ class _DebugLogPageState extends State<DebugLogPage> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Debug Log',
+                            '调试日志',
                             style: TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.w800,
