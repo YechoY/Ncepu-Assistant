@@ -11,7 +11,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart'; // 状态管理框架 R
 import 'package:path_provider/path_provider.dart'; // 拿到手机上「应用专属目录」的路径
 
 import 'app.dart'; // 根组件 HdjwApp
-import 'providers/app_state.dart'; // 里面定义了 cacheServiceProvider（缓存服务的“插座”）
+import 'core/debug_log.dart'; // 调试日志器：开机时读开关状态（SharedPreferences）
+import 'providers/app_state.dart'; // 里面定义了 cacheServiceProvider（缓存服务的"插座"）
 import 'services/cache_service.dart'; // SQLite 缓存服务
 
 // Dart 里 async 函数返回 Future；main 需要 await 一些异步初始化，所以声明成 `Future<void> async`。
@@ -19,6 +20,10 @@ Future<void> main() async {
   // 只要在 runApp 之前调用了异步代码（比如下面读文件目录、打开数据库），
   // 就必须先手动初始化 Flutter 引擎与 Widget 绑定，否则会报错。
   WidgetsFlutterBinding.ensureInitialized();
+
+  // 调试日志器初始化（读取开关状态 + 从 SharedPreferences 恢复持久化日志缓冲）。
+  // 必须在 Provider 创建之前调用，否则 LoggingHttpClient 首次构造时看不到 enabled 状态。
+  await AppDebugLog.instance.init();
 
   // 获取「应用文档目录」——这是系统分配给本 App 的私有目录，卸载 App 时会一起清除，
   // 适合存数据库、缓存等。await 表示等这个异步操作完成再往下走。

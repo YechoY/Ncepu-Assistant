@@ -10,6 +10,8 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../app.dart';
+import '../core/debug_log.dart';
+import '../core/debug_log_page.dart';
 import '../huish/huish_auth_state.dart';
 import '../providers/auth_state.dart';
 import '../providers/data_state.dart';
@@ -292,8 +294,56 @@ class _ModuleNavPageState extends ConsumerState<ModuleNavPage> {
                   ],
                 ),
               ),
-              // 中间空白区：装饰动效
-              Expanded(child: Center(child: _DecorIcon())),
+              // 中间空白区：icon + 文字 + 调试胶囊（同一行）
+              Expanded(
+                child: Center(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // 左：装饰 icon
+                      _DecorIcon(),
+                      const SizedBox(width: 12),
+                      // 中：文字
+                      Text(
+                        '选择服务进入',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: kTextMuted.withValues(alpha: 0.5),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      // 右：调试胶囊 × 2
+                      _DebugPill(
+                        icon: AppDebugLog.instance.isEnabled
+                            ? Icons.radio_button_checked
+                            : Icons.radio_button_off,
+                        label: '记录',
+                        active: AppDebugLog.instance.isEnabled,
+                        onTap: () {
+                          setState(() {});
+                          AppDebugLog.instance
+                              .setEnabled(!AppDebugLog.instance.isEnabled)
+                              .then((_) {
+                                if (mounted) setState(() {});
+                              });
+                        },
+                      ),
+                      const SizedBox(width: 8),
+                      _DebugPill(
+                        icon: Icons.terminal,
+                        label: '日志',
+                        active: false,
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const DebugLogPage(),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
               // 免责声明 + 勾选框（贴近底部）
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
@@ -469,54 +519,88 @@ class _ServiceCard extends StatelessWidget {
   }
 }
 
-/// 中间空白区装饰：静态柔光图标（不动效，避免"加载中"错觉）
+/// 中间空白区装饰：柔光圆环图标（文字已移到外层行内）
 class _DecorIcon extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        // 柔光圆环
-        Container(
-          width: 80,
-          height: 80,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            gradient: RadialGradient(
-              colors: [
-                kPrimarySoft.withValues(alpha: 0.18),
-                kPrimarySoft.withValues(alpha: 0.06),
-                Colors.transparent,
-              ],
-            ),
-          ),
-          child: Container(
-            width: 44,
-            height: 44,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: Colors.white.withValues(alpha: 0.45),
-              border: Border.all(color: kPrimarySoft.withValues(alpha: 0.3)),
-            ),
-            child: Icon(
-              Icons.school_rounded,
-              size: 24,
-              color: kPrimary.withValues(alpha: 0.5),
-            ),
+    return Container(
+      width: 44,
+      height: 44,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: RadialGradient(
+          colors: [
+            kPrimarySoft.withValues(alpha: 0.18),
+            kPrimarySoft.withValues(alpha: 0.06),
+            Colors.transparent,
+          ],
+        ),
+      ),
+      child: Container(
+        width: 32,
+        height: 32,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: Colors.white.withValues(alpha: 0.45),
+          border: Border.all(color: kPrimarySoft.withValues(alpha: 0.3)),
+        ),
+        child: Icon(
+          Icons.school_rounded,
+          size: 18,
+          color: kPrimary.withValues(alpha: 0.5),
+        ),
+      ),
+    );
+  }
+}
+
+/// 调试胶囊按钮
+class _DebugPill extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool active;
+  final VoidCallback onTap;
+  const _DebugPill({
+    required this.icon,
+    required this.label,
+    required this.active,
+    required this.onTap,
+  });
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          color: active
+              ? Colors.orange.withValues(alpha: 0.12)
+              : Colors.white.withValues(alpha: 0.45),
+          border: Border.all(
+            color: active
+                ? Colors.orange.withValues(alpha: 0.5)
+                : kPrimarySoft.withValues(alpha: 0.3),
           ),
         ),
-        const SizedBox(height: 10),
-        Text(
-          '选择服务进入',
-          style: TextStyle(
-            fontSize: 12,
-            color: kTextMuted.withValues(alpha: 0.5),
-            fontWeight: FontWeight.w500,
-          ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 13, color: active ? Colors.orange : kTextMuted),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: active ? Colors.orange : kTextMuted,
+              ),
+            ),
+          ],
         ),
-      ],
+      ),
     );
   }
 }

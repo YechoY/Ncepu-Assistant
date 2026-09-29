@@ -14,6 +14,9 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/io_client.dart';
 
+import '../core/debug_log.dart';
+import '../core/logging_http_client.dart';
+
 class HuishApiClient {
   static const String _baseUrl = 'https://i.ilife798.com';
 
@@ -37,7 +40,7 @@ class HuishApiClient {
   String? _eid;
 
   HuishApiClient() {
-    _client = _createPinnedClient();
+    _client = LoggingHttpClient(_createPinnedClient());
   }
 
   static String _certSha256(X509Certificate cert) {
@@ -61,7 +64,8 @@ class HuishApiClient {
   Map<String, String> get _baseHeaders => {
     'ApplicationType': '1,1',
     'VersionCode': '3.1.4',
-    'user-agent': 'Android_ilife798_3.1.4',
+    'user-agent': 'WaterWidget/3.1.4 (Android)',
+    'Accept-Language': 'zh-Hans-CN;q=1',
   };
 
   Map<String, String> get _authHeaders {
@@ -150,7 +154,12 @@ class HuishApiClient {
   }) async {
     final resp = await _post(
       '/api/v1/acc/login',
-      data: {'authCode': smsCode, 'un': phone},
+      data: {
+        'openCode': '',
+        'authCode': smsCode,
+        'un': phone,
+        'cid': '', // 参考项目的客户端标识（开源仓库留空，实际由 secrets.properties 注入）
+      },
     );
     final json = jsonDecode(resp.body) as Map<String, dynamic>;
     final result = HuishApiResponse.fromJson(json);
@@ -201,12 +210,16 @@ class HuishApiClient {
     // 官方新版出水协议 ptype=91（旧 21 已被服务端弃用，启动会被拒）
     int ptype = 91,
   }) async {
-    final resp = await _get(
-      '/api/v1/dev/start?did=$deviceId&upgrade=true&ptype=$ptype&rcp=false',
-    );
-    return HuishApiResponse.fromJson(
-      jsonDecode(resp.body) as Map<String, dynamic>,
-    );
+    final path =
+        '/api/v1/dev/start?did=$deviceId&upgrade=true&ptype=$ptype&rcp=false';
+    final resp = await _get(path);
+    final dbg = AppDebugLog.instance;
+    if (dbg.isEnabled) {
+      // startDevice 是关键路径，额外记录完整 response body（LoggingHttpClient 只记 uri+status）
+      dbg.log('HUISH-BODY', 'startDevice → ${resp.body}');
+    }
+    final json = jsonDecode(resp.body) as Map<String, dynamic>;
+    return HuishApiResponse.fromJson(json);
   }
 
   Future<HuishApiResponse> stopDevice(String deviceId) async {
@@ -268,10 +281,33 @@ class HuishApiClient {
   }
 
   // ── 底层 HTTP ────────────────────────────────────────────
+  // LoggingHttpClient 已在构造时包装 _client，自动记录 HTTP 层（method/url/status）。
+  // 这里再解析响应体，记录业务层（code/msg），便于定位接口失败根因。
+
+  /// 从响应体里提取 code/msg，记一条业务日志（开关关闭时零开销）。
+  void _logBizResponse(String path, http.Response resp) {
+    final dbg = AppDebugLog.instance;
+    if (!dbg.isEnabled) return;
+    try {
+      final json = jsonDecode(resp.body) as Map<String, dynamic>;
+      final code = json['code'] ?? '?';
+      final msg = json['msg'] ?? '';
+      // 路径截取最后一段作为接口名，日志更紧凑
+      final apiName = path.split('?').first.split('/').last;
+      dbg.log('HUISH-BIZ', '$apiName → code=$code msg="$msg"');
+    } catch (_) {
+      dbg.log(
+        'HUISH-BIZ',
+        '解析响应失败: ${resp.body.substring(0, resp.body.length > 200 ? 200 : resp.body.length)}',
+      );
+    }
+  }
 
   Future<http.Response> _get(String path) async {
     final url = Uri.parse('$_baseUrl$path');
-    return _client.get(url, headers: _authHeaders);
+    final resp = await _client.get(url, headers: _authHeaders);
+    _logBizResponse(path, resp);
+    return resp;
   }
 
   Future<http.Response> _post(
@@ -279,7 +315,7 @@ class HuishApiClient {
     required Map<String, dynamic> data,
   }) async {
     final url = Uri.parse('$_baseUrl$path');
-    return _client.post(
+    final resp = await _client.post(
       url,
       headers: {
         ..._authHeaders,
@@ -287,6 +323,8 @@ class HuishApiClient {
       },
       body: jsonEncode(data),
     );
+    _logBizResponse(path, resp);
+    return resp;
   }
 
   void dispose() => _client.close();
@@ -309,12 +347,14 @@ class HuishApiResponse {
   final int code;
   final dynamic data;
   final int? time;
-  HuishApiResponse({required this.code, this.data, this.time});
+  final String msg; // 服务端返回的错误消息（如"设备未绑定"等）
+  HuishApiResponse({required this.code, this.data, this.time, this.msg = ''});
   factory HuishApiResponse.fromJson(Map<String, dynamic> json) {
     return HuishApiResponse(
       code: json['code'] as int? ?? -1,
       data: json['data'],
       time: json['time'] as int?,
+      msg: (json['msg'] as String?) ?? '',
     );
   }
   bool get isSuccess => code == 0;
