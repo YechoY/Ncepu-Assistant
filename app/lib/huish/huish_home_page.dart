@@ -1153,14 +1153,14 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
                 ),
                 if (hasDevice && _quickDeviceName != null) ...[
                   const SizedBox(width: 8),
-                  // 设备名同行展示，右侧状态文字占空间后会自动省略
+                  // 设备名占满 label 和状态文字之间的全部空间
                   Expanded(
                     child: Text(
                       '· ${_quickDeviceName!}',
                       style: const TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
-                        color: Colors.white, // 纯白，看清
+                        color: Colors.white,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -1173,8 +1173,7 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
                     '长按选设备',
                     style: TextStyle(fontSize: 12, color: Colors.white70),
                   ),
-                const Spacer(),
-                // 右侧状态文字
+                // 右侧状态文字（Expanded 已占满左侧，状态自然靠右）
                 if (hasDevice)
                   Text(
                     isRunning
@@ -1439,7 +1438,15 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
   }
 
   String _maskPhone(String? p) {
-    if (p == null || p.length < 11) return '未登录';
+    if (p == null || p.length < 11) {
+      // 已登录但 phone 为空（旧 token 没存 phone）→ 显示 UID 后 4 位
+      final auth = ref.read(huishAuthStateProvider);
+      if (auth.loggedIn && auth.uid != null && auth.uid!.isNotEmpty) {
+        final uid = auth.uid!;
+        return 'UID ${uid.length >= 4 ? uid.substring(uid.length - 4) : uid}';
+      }
+      return '未登录';
+    }
     return '${p.substring(0, 3)}****${p.substring(7)}';
   }
 
