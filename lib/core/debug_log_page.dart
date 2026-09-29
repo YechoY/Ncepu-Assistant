@@ -160,7 +160,7 @@ class _DebugLogPageState extends State<DebugLogPage> {
                 ),
               ),
               const SizedBox(height: 8),
-              // ── 日志列表（现代化着色卡片） ──────────────────────
+              // ── 日志列表（现代化着色卡片 + 滚动条） ─────────────
               Expanded(
                 child: GlassCard(
                   radius: 18,
@@ -178,13 +178,18 @@ class _DebugLogPageState extends State<DebugLogPage> {
                             ),
                           ),
                         )
-                      : ListView.builder(
-                          reverse: true,
-                          itemCount: lines.length,
-                          itemBuilder: (_, i) {
-                            final line = lines[lines.length - 1 - i];
-                            return _LogCard(line: line);
-                          },
+                      : Scrollbar(
+                          thickness: 4,
+                          radius: const Radius.circular(2),
+                          child: ListView.builder(
+                            reverse: true,
+                            padding: const EdgeInsets.only(right: 4),
+                            itemCount: lines.length,
+                            itemBuilder: (_, i) {
+                              final line = lines[lines.length - 1 - i];
+                              return _LogCard(line: line);
+                            },
+                          ),
                         ),
                 ),
               ),
@@ -241,7 +246,7 @@ class _LogCard extends StatelessWidget {
 
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 2),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.35),
         borderRadius: BorderRadius.circular(8),
@@ -250,48 +255,61 @@ class _LogCard extends StatelessWidget {
           width: 0.5,
         ),
       ),
-      child: Row(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 时间戳
-          Text(
-            time,
-            style: TextStyle(
-              fontSize: 10,
-              color: kTextMuted.withValues(alpha: 0.6),
-              fontWeight: FontWeight.w500,
-              fontFamily: 'monospace',
-            ),
-          ),
-          const SizedBox(width: 6),
-          // tag 胶囊
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-            decoration: BoxDecoration(
-              color: tagBg,
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: Text(
-              tag,
-              style: TextStyle(
-                fontSize: 9.5,
-                fontWeight: FontWeight.w700,
+          // 上排：时间 + tag 胶囊
+          Row(
+            children: [
+              Icon(
+                tag.contains('GET') || tag.contains('HTTP')
+                    ? Icons.arrow_forward_ios_rounded
+                    : tag.contains('BIZ') || tag.contains('BODY')
+                    ? Icons.business_center_rounded
+                    : tag.contains('ERROR') || tag.contains('FAIL')
+                    ? Icons.error_outline_rounded
+                    : Icons.info_outline_rounded,
+                size: 11,
                 color: tagColor,
-                fontFamily: 'monospace',
               ),
-            ),
+              const SizedBox(width: 4),
+              Text(
+                time,
+                style: TextStyle(
+                  fontSize: 10,
+                  color: kTextMuted.withValues(alpha: 0.55),
+                  fontWeight: FontWeight.w600,
+                  fontFamily: 'monospace',
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                decoration: BoxDecoration(
+                  color: tagBg,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  tag,
+                  style: TextStyle(
+                    fontSize: 9.5,
+                    fontWeight: FontWeight.w800,
+                    color: tagColor,
+                    fontFamily: 'monospace',
+                  ),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: 6),
-          // 消息
-          Expanded(
-            child: SelectableText(
-              msg,
-              style: TextStyle(
-                fontSize: 11,
-                fontFamily: 'monospace',
-                color: hasError ? const Color(0xFFB85450) : kInk,
-                height: 1.35,
-              ),
+          const SizedBox(height: 3),
+          // 下排：消息
+          SelectableText(
+            msg,
+            style: TextStyle(
+              fontSize: 11,
+              fontFamily: 'monospace',
+              color: hasError ? const Color(0xFFB85450) : kInk,
+              height: 1.35,
             ),
           ),
         ],
@@ -334,13 +352,10 @@ class _BuildSwitch extends StatelessWidget {
             color: active ? Colors.orange : kTextMuted,
           ),
           alignment: Alignment.center,
-          child: Text(
-            'D',
-            style: TextStyle(
-              fontSize: 9,
-              fontWeight: FontWeight.w800,
-              color: active ? Colors.white : Colors.white70,
-            ),
+          child: Icon(
+            Icons.bug_report_rounded,
+            size: 13,
+            color: active ? Colors.white : Colors.white70,
           ),
         ),
       ),
