@@ -61,14 +61,13 @@ class HuishApiClient {
     return IOClient(httpClient);
   }
 
-  // WaterWidget 客户端协议：httpRawApp 只发 5 个头，不发送 VersionCode。
-  // 服务端对 dev/start 做版本校验：带 VersionCode 且低于最低版本 → code=-1。
-  // 不带 VersionCode → 跳过版本检查（WaterWidget 实测可用）。
+  // 官方安卓客户端协议（9-22 真机验证可正常取水，逐字恢复）：
+  // ApplicationType + VersionCode + UA 三件套；不放 Content-Type/Accept-Language
+  // （_post 时才单独加 Content-Type）。任何多余头都可能触发 dev/start 的 -1。
   Map<String, String> get _baseHeaders => {
     'ApplicationType': '1,1',
-    'user-agent': 'WaterWidget/5.4.2 (Android)',
-    'Content-Type': 'application/json',
-    'Accept-Language': 'zh-Hans-CN;q=1',
+    'VersionCode': '3.1.4',
+    'user-agent': 'Android_ilife798_3.1.4',
   };
 
   Map<String, String> get _authHeaders {
@@ -157,7 +156,7 @@ class HuishApiClient {
   }) async {
     final resp = await _post(
       '/api/v1/acc/login',
-      data: {'openCode': '', 'authCode': smsCode, 'un': phone, 'cid': ''},
+      data: {'authCode': smsCode, 'un': phone},
     );
     final json = jsonDecode(resp.body) as Map<String, dynamic>;
     final result = HuishApiResponse.fromJson(json);
@@ -203,39 +202,17 @@ class HuishApiClient {
     );
   }
 
-  /// 启动设备（出水授权）。
-  ///
-  /// 官方安卓客户端默认用按量计费 ptype=21（带 args/cnt 参数，9-22 验证可用）；
-  /// 部分按次计费设备只支持 ptype=91。首次 21 失败时自动回退 91 再试一次，
-  /// 两次结果都写调试日志。两次都失败则返回最后一次的响应（由页面映射错误码）。
+  /// 启动设备（出水授权）。官方安卓协议 ptype=21（9-22 真机验证可用）。
   Future<HuishApiResponse> startDevice(
     String deviceId, {
     int ptype = 21,
   }) async {
-    final dbg = AppDebugLog.instance;
-
-    // 第一次：官方安卓协议 ptype=21（args 留空、cnt=1）
-    final path21 =
-        '/api/v1/dev/start?did=$deviceId&upgrade=true'
-        '&ptype=21&args=&rcp=false&cnt=1';
-    final resp21 = await _get(path21);
-    final json21 = jsonDecode(resp21.body) as Map<String, dynamic>;
-    final r21 = HuishApiResponse.fromJson(json21);
-    if (r21.isSuccess) return r21;
-
-    dbg.log(
-      'HUISH-BODY',
-      'start ptype=21 失败 code=${r21.code} msg="${r21.msg}"，回退 ptype=91',
+    final resp = await _get(
+      '/api/v1/dev/start?did=$deviceId&upgrade=true&ptype=$ptype&args=&rcp=false&cnt=1',
     );
-
-    // 第二次：WaterWidget 协议 ptype=91（按次设备）
-    final path91 =
-        '/api/v1/dev/start?did=$deviceId&upgrade=true&ptype=91&rcp=false';
-    final resp91 = await _get(path91);
-    final json91 = jsonDecode(resp91.body) as Map<String, dynamic>;
-    final r91 = HuishApiResponse.fromJson(json91);
-    dbg.log('HUISH-BODY', 'start ptype=91 → code=${r91.code} msg="${r91.msg}"');
-    return r91;
+    return HuishApiResponse.fromJson(
+      jsonDecode(resp.body) as Map<String, dynamic>,
+    );
   }
 
   Future<HuishApiResponse> stopDevice(String deviceId) async {
