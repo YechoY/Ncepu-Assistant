@@ -24,6 +24,7 @@ class HuishApiClient {
   static const _kToken = 'huish_auth_token';
   static const _kUid = 'huish_auth_uid';
   static const _kEid = 'huish_auth_eid';
+  static const _kPhone = 'huish_auth_phone';
 
   // SHA256 fingerprints of trusted certificates (uppercase hex, colon-separated)
   // Get them: openssl s_client -connect i.ilife798.com:443 -servername i.ilife798.com </dev/null 2>/dev/null | openssl x509 -noout -fingerprint -sha256
@@ -85,9 +86,8 @@ class HuishApiClient {
       await _storage.write(key: _kUid, value: _uid ?? '');
       await _storage.write(key: _kEid, value: _eid ?? '');
       if (phone != null) {
-        await _storage.write(key: '${_kPrefix}_phone', value: phone);
+        await _storage.write(key: _kPhone, value: phone);
       }
-    }
   }
 
   Future<bool> restoreToken() async {
@@ -102,7 +102,7 @@ class HuishApiClient {
   }
 
   Future<String?> readSavedPhone() async {
-    return await _storage.read(key: '${_kPrefix}_phone');
+    return await _storage.read(key: _kPhone);
   }
 
   Future<void> clearToken() async {
@@ -112,7 +112,7 @@ class HuishApiClient {
     await _storage.delete(key: _kToken);
     await _storage.delete(key: _kUid);
     await _storage.delete(key: _kEid);
-    await _storage.delete(key: '${_kPrefix}_phone');
+    await _storage.delete(key: _kPhone);
   }
 
   bool get isLoggedIn => _token != null;

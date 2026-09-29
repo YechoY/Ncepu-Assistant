@@ -1153,13 +1153,14 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
                 ),
                 if (hasDevice && _quickDeviceName != null) ...[
                   const SizedBox(width: 8),
-                  // 设备名同行展示，超长省略
-                  Flexible(
+                  // 设备名同行展示，右侧状态文字占空间后会自动省略
+                  Expanded(
                     child: Text(
                       '· ${_quickDeviceName!}',
                       style: const TextStyle(
-                        fontSize: 12,
-                        color: Colors.white70,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white, // 纯白，看清
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
