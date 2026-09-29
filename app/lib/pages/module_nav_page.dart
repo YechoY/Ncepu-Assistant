@@ -586,13 +586,10 @@ class _DebugSwitch extends StatelessWidget {
             color: active ? Colors.orange : kTextMuted,
           ),
           alignment: Alignment.center,
-          child: Text(
-            'D',
-            style: TextStyle(
-              fontSize: 9,
-              fontWeight: FontWeight.w800,
-              color: active ? Colors.white : Colors.white70,
-            ),
+          child: Icon(
+            Icons.bug_report_rounded,
+            size: 13,
+            color: active ? Colors.white : Colors.white70,
           ),
         ),
       ),
