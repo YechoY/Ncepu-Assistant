@@ -1076,7 +1076,7 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
         : Icons.water_drop_rounded;
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+      padding: const EdgeInsets.fromLTRB(20, 4, 20, 30), // 底部留大间距防误触
       child: GestureDetector(
         onTap: _quickBusy ? null : _quickToggle,
         onLongPress: _pickQuickDevice,
@@ -1084,7 +1084,7 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
           duration: const Duration(milliseconds: 280),
           curve: kSpring,
           width: double.infinity,
-          height: 56,
+          height: 52,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(18),
             boxShadow: [
@@ -1101,65 +1101,60 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
             ),
           ),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
+            padding: const EdgeInsets.symmetric(horizontal: 18),
             child: Row(
               children: [
                 if (_quickBusy)
                   const SizedBox(
-                    width: 22,
-                    height: 22,
+                    width: 20,
+                    height: 20,
                     child: CircularProgressIndicator(
                       strokeWidth: 2.5,
                       color: Colors.white,
                     ),
                   )
                 else
-                  Icon(icon, color: Colors.white, size: 24),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        label,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w800,
-                          color: Colors.white,
-                        ),
-                      ),
-                      if (hasDevice && _quickDeviceName != null)
-                        Text(
-                          _quickDeviceName!,
-                          style: const TextStyle(
-                            fontSize: 11,
-                            color: Colors.white70,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        )
-                      else if (!hasDevice)
-                        const Text(
-                          '长按选择设备 · 点按取水',
-                          style: TextStyle(fontSize: 11, color: Colors.white70),
-                        ),
-                    ],
+                  Icon(icon, color: Colors.white, size: 21),
+                const SizedBox(width: 10),
+                Text(
+                  label,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
                   ),
                 ),
-                // 状态小圆点
-                if (hasDevice)
-                  Container(
-                    width: 8,
-                    height: 8,
-                    decoration: BoxDecoration(
-                      color: isRunning
-                          ? const Color(0xFF5E9C80)
-                          : isOffline
-                          ? const Color(0xFFB0B5C2)
-                          : const Color(0xFF5E9C80),
-                      shape: BoxShape.circle,
+                if (hasDevice && _quickDeviceName != null) ...[
+                  const SizedBox(width: 8),
+                  // 设备名同行展示，超长省略
+                  Flexible(
+                    child: Text(
+                      '· ${_quickDeviceName!}',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Colors.white70,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
+                  ),
+                ] else if (!hasDevice)
+                  const SizedBox(width: 8),
+                if (!hasDevice)
+                  const Text(
+                    '长按选设备',
+                    style: TextStyle(fontSize: 12, color: Colors.white70),
+                  ),
+                const Spacer(),
+                // 右侧状态文字
+                if (hasDevice)
+                  Text(
+                    isRunning
+                        ? '使用中'
+                        : isOffline
+                        ? '离线'
+                        : '空闲',
+                    style: const TextStyle(fontSize: 11, color: Colors.white70),
                   ),
               ],
             ),
