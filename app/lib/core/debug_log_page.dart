@@ -1,6 +1,6 @@
 // debug_log_page.dart —— 调试日志查看页（全局）。
 //
-// 功能：滑动开关 / 实时日志流 / 复制 / 清空。
+// 按日志类型着色：HTTP 蓝、BIZ 绿、错误红，卡片式分行展示。
 // 入口：首页中间区域 debug 滑动开关旁的"日志"胶囊。
 
 import 'package:flutter/material.dart';
@@ -53,7 +53,6 @@ class _DebugLogPageState extends State<DebugLogPage> {
 
   @override
   Widget build(BuildContext context) {
-    // 每秒刷新读取最新日志（setState 触发 rebuild）
     final logText = AppDebugLog.instance.read();
     final lines = logText.isEmpty
         ? <String>[]
@@ -64,7 +63,7 @@ class _DebugLogPageState extends State<DebugLogPage> {
         child: SafeArea(
           child: Column(
             children: [
-              // 顶部栏
+              // ── 顶部栏 ─────────────────────────────────────────
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 12, 16, 8),
                 child: Row(
@@ -109,12 +108,11 @@ class _DebugLogPageState extends State<DebugLogPage> {
                         ],
                       ),
                     ),
-                    // 滑动开关（和首页同步）
                     _BuildSwitch(active: _enabled, onChanged: _setEnabled),
                   ],
                 ),
               ),
-              // 操作按钮
+              // ── 操作按钮 ────────────────────────────────────────
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Row(
@@ -162,11 +160,11 @@ class _DebugLogPageState extends State<DebugLogPage> {
                 ),
               ),
               const SizedBox(height: 8),
-              // 日志流（reverse: 最新在底部，自动滚动）
+              // ── 日志列表（现代化着色卡片） ──────────────────────
               Expanded(
                 child: GlassCard(
                   radius: 18,
-                  padding: const EdgeInsets.all(10),
+                  padding: const EdgeInsets.all(8),
                   live: false,
                   child: lines.isEmpty
                       ? const Center(
@@ -184,20 +182,8 @@ class _DebugLogPageState extends State<DebugLogPage> {
                           reverse: true,
                           itemCount: lines.length,
                           itemBuilder: (_, i) {
-                            // reverse 后 i=0 是最新，倒序显示
                             final line = lines[lines.length - 1 - i];
-                            return Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 1),
-                              child: SelectableText(
-                                line,
-                                style: const TextStyle(
-                                  fontFamily: 'monospace',
-                                  fontSize: 11,
-                                  color: kInk,
-                                  height: 1.4,
-                                ),
-                              ),
-                            );
+                            return _LogCard(line: line);
                           },
                         ),
                 ),
@@ -206,6 +192,109 @@ class _DebugLogPageState extends State<DebugLogPage> {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// ── 解析单条日志行，着色展示 ─────────────────────────────────
+class _LogCard extends StatelessWidget {
+  final String line;
+  const _LogCard({required this.line});
+
+  @override
+  Widget build(BuildContext context) {
+    // 解析格式: [HH:mm:ss] [TAG] message
+    final match = RegExp(r'^\[(\d{2}:\d{2}:\d{2})\]\s*\[([^\]]+)\]\s*(.*)$')
+        .firstMatch(line);
+    final time = match?.group(1) ?? '';
+    final tag = match?.group(2) ?? '';
+    final msg = match?.group(3) ?? line;
+
+    // 按 tag 着色
+    Color tagColor;
+    Color tagBg;
+    if (tag.contains('ERROR') || tag.contains('FAIL')) {
+      tagColor = const Color(0xFFB85450);
+      tagBg = const Color(0xFFB85450).withValues(alpha: 0.1);
+    } else if (tag.contains('BIZ')) {
+      tagColor = const Color(0xFF4A7F4E); // 绿
+      tagBg = const Color(0xFF4A7F4E).withValues(alpha: 0.08);
+    } else if (tag.contains('HTTP') ||
+        tag.contains('GET') ||
+        tag.contains('POST')) {
+      tagColor = const Color(0xFF3B6EAB); // 蓝
+      tagBg = const Color(0xFF3B6EAB).withValues(alpha: 0.08);
+    } else if (tag.contains('BODY') || tag.contains('HUISH')) {
+      tagColor = const Color(0xFF7B5BA0); // 紫
+      tagBg = const Color(0xFF7B5BA0).withValues(alpha: 0.08);
+    } else {
+      tagColor = kTextMuted;
+      tagBg = Colors.grey.withValues(alpha: 0.06);
+    }
+
+    // msg 里 code=非0 标红
+    final hasError =
+        RegExp(r'code\s*[!=]=?\s*(?!0\b)[-9]').hasMatch(msg) ||
+        msg.contains('失败') ||
+        msg.contains('错误');
+
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.35),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.4),
+          width: 0.5,
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 时间戳
+          Text(
+            time,
+            style: TextStyle(
+              fontSize: 10,
+              color: kTextMuted.withValues(alpha: 0.6),
+              fontWeight: FontWeight.w500,
+              fontFamily: 'monospace',
+            ),
+          ),
+          const SizedBox(width: 6),
+          // tag 胶囊
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+            decoration: BoxDecoration(
+              color: tagBg,
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Text(
+              tag,
+              style: TextStyle(
+                fontSize: 9.5,
+                fontWeight: FontWeight.w700,
+                color: tagColor,
+                fontFamily: 'monospace',
+              ),
+            ),
+          ),
+          const SizedBox(width: 6),
+          // 消息
+          Expanded(
+            child: SelectableText(
+              msg,
+              style: TextStyle(
+                fontSize: 11,
+                fontFamily: 'monospace',
+                color: hasError ? const Color(0xFFB85450) : kInk,
+                height: 1.35,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
