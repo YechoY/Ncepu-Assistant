@@ -8,7 +8,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:file_picker/file_picker.dart';
+import 'package:path_provider/path_provider.dart';
 
 import '../core/debug_log.dart';
 import '../theme.dart';
@@ -66,33 +66,32 @@ class _DebugLogPageState extends State<DebugLogPage> {
     final fname =
         'debug_log_${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}_${now.hour.toString().padLeft(2, '0')}${now.minute.toString().padLeft(2, '0')}${now.second.toString().padLeft(2, '0')}.txt';
     try {
-      final path = await FilePicker.platform.saveFile(
-        dialogTitle: '保存调试日志',
-        fileName: fname,
-        type: FileType.custom,
-        allowedExtensions: ['txt'],
-      );
-      if (path == null) return; // 用户取消
-      // file_picker.saveFile 在安卓 13+ 可能返回 content:// URI
-      // 直接写文件失败的话 fallback 到应用文档目录
-      final result = await _writeLogToFile(path, text);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(result ? '已保存到 $path' : '保存失败，请重试')),
-      );
-    } catch (e) {
+      // 优先写下载目录（Android 13+ Downloads）
+      Directory? dir;
+      if (Platform.isAndroid) {
+        // getDownloadsDirectory 在安卓上返回 /storage/emulated/0/Download
+        dir = await getDownloadsDirectory();
+      }
+      dir ??= await getApplicationDocumentsDirectory();
+      final file = File('${dir.path}/$fname');
+      await file.writeAsString(text, encoding: utf8);
       if (!mounted) return;
       ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('导出失败: $e')));
-    }
-  }
-
-  Future<bool> _writeLogToFile(String path, String content) async {
-    try {
-      await File(path).writeAsString(content, encoding: utf8);
-      return true;
-    } catch (_) {
-      return false;
+          .showSnackBar(SnackBar(content: Text('已保存到 ${dir.path}/$fname')));
+    } catch (e) {
+      // fallback: 应用文档目录
+      try {
+        final dir = await getApplicationDocumentsDirectory();
+        final file = File('${dir.path}/$fname');
+        await file.writeAsString(text, encoding: utf8);
+        if (!mounted) return;
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('已保存到 ${dir.path}/$fname')));
+      } catch (e2) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('导出失败: $e2')));
+      }
     }
   }
 
