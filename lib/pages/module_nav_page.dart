@@ -326,11 +326,15 @@ class _ModuleNavPageState extends ConsumerState<ModuleNavPage> {
                       _DebugPill(
                         icon: Icons.terminal,
                         label: '日志',
-                        onTap: () => Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => const DebugLogPage(),
-                          ),
-                        ),
+                        onTap: () async {
+                          await Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => const DebugLogPage(),
+                            ),
+                          );
+                          // 日志页里可能切换了开关 → 返回后同步外层状态
+                          if (mounted) setState(() {});
+                        },
                       ),
                     ],
                   ),
