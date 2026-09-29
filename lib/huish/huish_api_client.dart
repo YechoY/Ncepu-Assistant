@@ -61,14 +61,13 @@ class HuishApiClient {
     return IOClient(httpClient);
   }
 
-  // 模拟官方安卓客户端（9-22 验证 3.1.4 可正常取水）。
-  // 服务端对 dev/start 做了版本校验，但官方 App 未更新也仍可出水，
-  // 说明 3.1.4 仍在白名单内——code=-1 的根因是 ptype/登录体被改坏，
-  // 不是 UA 版本号。
+  // WaterWidget 客户端协议：httpRawApp 只发 5 个头，不发送 VersionCode。
+  // 服务端对 dev/start 做版本校验：带 VersionCode 且低于最低版本 → code=-1。
+  // 不带 VersionCode → 跳过版本检查（WaterWidget 实测可用）。
   Map<String, String> get _baseHeaders => {
     'ApplicationType': '1,1',
-    'VersionCode': '3.1.4',
-    'user-agent': 'Android_ilife798_3.1.4',
+    'user-agent': 'WaterWidget/5.4.2 (Android)',
+    'Content-Type': 'application/json',
     'Accept-Language': 'zh-Hans-CN;q=1',
   };
 
@@ -158,7 +157,7 @@ class HuishApiClient {
   }) async {
     final resp = await _post(
       '/api/v1/acc/login',
-      data: {'authCode': smsCode, 'un': phone},
+      data: {'openCode': '', 'authCode': smsCode, 'un': phone, 'cid': ''},
     );
     final json = jsonDecode(resp.body) as Map<String, dynamic>;
     final result = HuishApiResponse.fromJson(json);
