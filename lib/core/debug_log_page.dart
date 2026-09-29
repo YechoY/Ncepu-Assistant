@@ -3,8 +3,12 @@
 // 按日志类型着色：HTTP 蓝、BIZ 绿、错误红，卡片式分行展示。
 // 入口：首页中间区域 debug 滑动开关旁的"日志"胶囊。
 
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:file_picker/file_picker.dart';
 
 import '../core/debug_log.dart';
 import '../theme.dart';
@@ -49,6 +53,47 @@ class _DebugLogPageState extends State<DebugLogPage> {
   Future<void> _clear() async {
     await AppDebugLog.instance.clear();
     if (mounted) setState(() {});
+  }
+
+  Future<void> _export() async {
+    final text = AppDebugLog.instance.read();
+    if (text.isEmpty) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('日志为空')));
+      return;
+    }
+    final now = DateTime.now();
+    final fname =
+        'debug_log_${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}_${now.hour.toString().padLeft(2, '0')}${now.minute.toString().padLeft(2, '0')}${now.second.toString().padLeft(2, '0')}.txt';
+    try {
+      final path = await FilePicker.platform.saveFile(
+        dialogTitle: '保存调试日志',
+        fileName: fname,
+        type: FileType.custom,
+        allowedExtensions: ['txt'],
+      );
+      if (path == null) return; // 用户取消
+      // file_picker.saveFile 在安卓 13+ 可能返回 content:// URI
+      // 直接写文件失败的话 fallback 到应用文档目录
+      final result = await _writeLogToFile(path, text);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(result ? '已保存到 $path' : '保存失败，请重试')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('导出失败: $e')));
+    }
+  }
+
+  Future<bool> _writeLogToFile(String path, String content) async {
+    try {
+      await File(path).writeAsString(content, encoding: utf8);
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   @override
@@ -119,6 +164,25 @@ class _DebugLogPageState extends State<DebugLogPage> {
                   children: [
                     Expanded(
                       child: OutlinedButton.icon(
+                        onPressed: _export,
+                        icon: const Icon(Icons.save_alt_rounded, size: 16),
+                        label: const Text('导出'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFF5A7BA6),
+                          side: BorderSide(
+                            color: const Color(0xFF5A7BA6)
+                                .withValues(alpha: 0.5),
+                          ),
+                          backgroundColor: Colors.white.withValues(alpha: 0.5),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: OutlinedButton.icon(
                         onPressed: _copy,
                         icon: const Icon(Icons.copy_rounded, size: 16),
                         label: const Text('复制'),
@@ -134,7 +198,7 @@ class _DebugLogPageState extends State<DebugLogPage> {
                         ),
                       ),
                     ),
-                    const SizedBox(width: 10),
+                    const SizedBox(width: 8),
                     Expanded(
                       child: OutlinedButton.icon(
                         onPressed: _clear,
