@@ -88,6 +88,7 @@ class HuishApiClient {
       if (phone != null) {
         await _storage.write(key: _kPhone, value: phone);
       }
+    }
   }
 
   Future<bool> restoreToken() async {
