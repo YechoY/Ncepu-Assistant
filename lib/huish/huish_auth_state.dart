@@ -64,8 +64,10 @@ class HuishAuthNotifier extends Notifier<HuishAuthState> {
   Future<void> _tryRestore() async {
     final ok = await _api.restoreToken();
     if (ok && _api.token != null) {
+      final phone = await _api.readSavedPhone();
       state = state.copyWith(
         loggedIn: true,
+        phone: phone,
         uid: _api.uid,
         eid: _api.eid,
         token: _api.token,

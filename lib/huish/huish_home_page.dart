@@ -1004,25 +1004,52 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
                       ),
                     ),
                     const SizedBox(width: 8),
-                    GestureDetector(
-                      onTap: _logout,
-                      child: Container(
-                        width: 38,
-                        height: 38,
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.5),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.65),
+                    // 账户胶囊（显示当前登录手机号尾号，点击弹账户卡片）
+                    Builder(
+                      builder: (_) {
+                        final auth = ref.watch(huishAuthStateProvider);
+                        final phone = _maskPhone(auth.phone);
+                        return GestureDetector(
+                          onTap: _showAccountSheet,
+                          child: Container(
+                            height: 38,
+                            padding: const EdgeInsets.symmetric(horizontal: 10),
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.5),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.65),
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(
+                                  Icons.person_rounded,
+                                  size: 15,
+                                  color: kPrimary,
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  phone,
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    color: kInk,
+                                  ),
+                                ),
+                                const SizedBox(width: 2),
+                                const Icon(
+                                  Icons.keyboard_arrow_down_rounded,
+                                  size: 16,
+                                  color: kTextMuted,
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
-                        child: const Icon(
-                          Icons.logout_rounded,
-                          size: 18,
-                          color: Color(0xFFB85450),
-                        ),
-                      ),
+                        );
+                      },
                     ),
                   ],
                 ),
@@ -1408,6 +1435,102 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
   Future<void> _tapBill() async {
     Navigator.of(context)
         .push(MaterialPageRoute(builder: (_) => const HuishBillPage()));
+  }
+
+  String _maskPhone(String? p) {
+    if (p == null || p.length < 11) return '未登录';
+    return '${p.substring(0, 3)}****${p.substring(7)}';
+  }
+
+  Future<void> _showAccountSheet() async {
+    final auth = ref.read(huishAuthStateProvider);
+    if (!auth.loggedIn) return;
+    final mask = _maskPhone(auth.phone);
+    showDialog(
+      context: context,
+      barrierColor: const Color(0x402E3350),
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 340),
+          child: _sheetContainer(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: kHuish.withValues(alpha: 0.15),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.person_rounded, color: kHuish),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            mask,
+                            style: const TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.w800,
+                              color: kInk,
+                            ),
+                          ),
+                          Text(
+                            'UID: ${auth.uid ?? '-'}',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: kTextMuted,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                _sheetAction(Icons.logout_rounded, '退出登录', () {
+                  Navigator.of(ctx).pop();
+                  _logout();
+                }, color: const Color(0xFFB85450)),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _sheetStat(String label, String value) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.6),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.6)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: const TextStyle(fontSize: 10, color: kTextMuted)),
+          const SizedBox(height: 2),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w800,
+              color: kInk,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _logout() async {

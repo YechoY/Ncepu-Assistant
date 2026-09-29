@@ -79,11 +79,14 @@ class HuishApiClient {
     return h;
   }
 
-  Future<void> _persistToken() async {
+  Future<void> _persistToken([String? phone]) async {
     if (_token != null) {
       await _storage.write(key: _kToken, value: _token!);
       await _storage.write(key: _kUid, value: _uid ?? '');
       await _storage.write(key: _kEid, value: _eid ?? '');
+      if (phone != null) {
+        await _storage.write(key: '${_kPrefix}_phone', value: phone);
+      }
     }
   }
 
@@ -98,6 +101,10 @@ class HuishApiClient {
     return false;
   }
 
+  Future<String?> readSavedPhone() async {
+    return await _storage.read(key: '${_kPrefix}_phone');
+  }
+
   Future<void> clearToken() async {
     _token = null;
     _uid = null;
@@ -105,6 +112,7 @@ class HuishApiClient {
     await _storage.delete(key: _kToken);
     await _storage.delete(key: _kUid);
     await _storage.delete(key: _kEid);
+    await _storage.delete(key: '${_kPrefix}_phone');
   }
 
   bool get isLoggedIn => _token != null;
@@ -168,7 +176,7 @@ class HuishApiClient {
         _token = al['token'] as String?;
         _uid = al['uid'] as String?;
         _eid = al['eid'] as String?;
-        await _persistToken();
+        await _persistToken(phone);
       }
     }
     return result;
