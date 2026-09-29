@@ -302,17 +302,17 @@ class _ModuleNavPageState extends ConsumerState<ModuleNavPage> {
                     children: [
                       // 左：装饰 icon
                       _DecorIcon(),
-                      const SizedBox(width: 12),
+                      const SizedBox(width: 14),
                       // 中：文字
                       Text(
                         '选择服务进入',
                         style: TextStyle(
-                          fontSize: 12,
-                          color: kTextMuted.withValues(alpha: 0.5),
+                          fontSize: 14,
+                          color: kTextMuted.withValues(alpha: 0.6),
                           fontWeight: FontWeight.w500,
                         ),
                       ),
-                      const SizedBox(width: 16),
+                      const SizedBox(width: 20),
                       // 右：debug 滑动开关 + 日志查看胶囊
                       _DebugSwitch(
                         active: AppDebugLog.instance.isEnabled,
@@ -563,24 +563,24 @@ class _DebugSwitch extends StatelessWidget {
       onTap: () => onChanged(!active),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        width: 52,
-        height: 28,
+        width: 62,
+        height: 34,
         padding: const EdgeInsets.symmetric(horizontal: 3),
         alignment: active ? Alignment.centerRight : Alignment.centerLeft,
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(17),
           color: active
-              ? Colors.orange.withValues(alpha: 0.2)
+              ? Colors.orange.withValues(alpha: 0.25)
               : Colors.white.withValues(alpha: 0.5),
           border: Border.all(
             color: active
-                ? Colors.orange.withValues(alpha: 0.6)
+                ? Colors.orange.withValues(alpha: 0.7)
                 : kPrimarySoft.withValues(alpha: 0.3),
           ),
         ),
         child: Container(
-          width: 22,
-          height: 22,
+          width: 28,
+          height: 28,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             color: active ? Colors.orange : kTextMuted,
@@ -588,7 +588,7 @@ class _DebugSwitch extends StatelessWidget {
           alignment: Alignment.center,
           child: Icon(
             Icons.bug_report_rounded,
-            size: 13,
+            size: 16,
             color: active ? Colors.white : Colors.white70,
           ),
         ),
@@ -612,21 +612,21 @@ class _DebugPill extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(20),
-          color: Colors.white.withValues(alpha: 0.45),
-          border: Border.all(color: kPrimarySoft.withValues(alpha: 0.3)),
+          color: Colors.white.withValues(alpha: 0.5),
+          border: Border.all(color: kPrimarySoft.withValues(alpha: 0.35)),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 13, color: kTextMuted),
-            const SizedBox(width: 4),
+            Icon(icon, size: 15, color: kTextMuted),
+            const SizedBox(width: 5),
             Text(
               label,
               style: const TextStyle(
-                fontSize: 11,
+                fontSize: 12.5,
                 fontWeight: FontWeight.w600,
                 color: kTextMuted,
               ),
