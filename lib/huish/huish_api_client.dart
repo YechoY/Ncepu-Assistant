@@ -63,8 +63,7 @@ class HuishApiClient {
 
   Map<String, String> get _baseHeaders => {
     'ApplicationType': '1,1',
-    'VersionCode': '3.1.4',
-    'user-agent': 'WaterWidget/3.1.4 (Android)',
+    'user-agent': 'WaterWidget/5.4.2 (Android)',
     'Accept-Language': 'zh-Hans-CN;q=1',
   };
 
