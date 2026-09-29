@@ -61,13 +61,15 @@ class HuishApiClient {
     return IOClient(httpClient);
   }
 
-  // 官方安卓客户端协议（9-22 真机验证可正常取水，逐字恢复）：
-  // ApplicationType + VersionCode + UA 三件套；不放 Content-Type/Accept-Language
-  // （_post 时才单独加 Content-Type）。任何多余头都可能触发 dev/start 的 -1。
+  // 协议对齐 NcepuJw 项目（华电同学做的、当前真机可用）：
+  // 服务端 dev/start 最低版本校验 >3.1.4，NcepuJw 用 8.2.9 能过。
+  // UA + VersionCode 必须配套：Android_ilife798_<版本>。
+  // Accept-Language 是 NcepuJw 发的，不影响 dev/start，但对齐更保险。
   Map<String, String> get _baseHeaders => {
     'ApplicationType': '1,1',
-    'VersionCode': '3.1.4',
-    'user-agent': 'Android_ilife798_3.1.4',
+    'VersionCode': '8.2.9',
+    'user-agent': 'Android_ilife798_8.2.9',
+    'Accept-Language': 'zh-Hans-CN;q=1',
   };
 
   Map<String, String> get _authHeaders {
@@ -156,7 +158,7 @@ class HuishApiClient {
   }) async {
     final resp = await _post(
       '/api/v1/acc/login',
-      data: {'authCode': smsCode, 'un': phone},
+      data: {'openCode': '', 'un': phone, 'authCode': smsCode, 'cid': ''},
     );
     final json = jsonDecode(resp.body) as Map<String, dynamic>;
     final result = HuishApiResponse.fromJson(json);
@@ -202,13 +204,13 @@ class HuishApiClient {
     );
   }
 
-  /// 启动设备（出水授权）。官方安卓协议 ptype=21（9-22 真机验证可用）。
+  /// 启动设备（出水授权）。ptype=91 对齐 NcepuJw（华电同学真机可用）。
   Future<HuishApiResponse> startDevice(
     String deviceId, {
-    int ptype = 21,
+    int ptype = 91,
   }) async {
     final resp = await _get(
-      '/api/v1/dev/start?did=$deviceId&upgrade=true&ptype=$ptype&args=&rcp=false&cnt=1',
+      '/api/v1/dev/start?did=$deviceId&upgrade=true&ptype=$ptype&rcp=false',
     );
     return HuishApiResponse.fromJson(
       jsonDecode(resp.body) as Map<String, dynamic>,
@@ -216,7 +218,7 @@ class HuishApiClient {
   }
 
   Future<HuishApiResponse> stopDevice(String deviceId) async {
-    final resp = await _get('/api/v1/dev/end?did=$deviceId&rcp=false');
+    final resp = await _get('/api/v1/dev/end?did=$deviceId');
     return HuishApiResponse.fromJson(
       jsonDecode(resp.body) as Map<String, dynamic>,
     );
