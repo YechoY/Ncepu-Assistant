@@ -1173,16 +1173,8 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
                     '长按选设备',
                     style: TextStyle(fontSize: 12, color: Colors.white70),
                   ),
-                // 右侧状态文字（Expanded 已占满左侧，状态自然靠右）
-                if (hasDevice)
-                  Text(
-                    isRunning
-                        ? '使用中'
-                        : isOffline
-                        ? '离线'
-                        : '空闲',
-                    style: const TextStyle(fontSize: 11, color: Colors.white70),
-                  ),
+                // 右侧状态胶囊（底色 + 色点 + 白字，和设备列表卡片颜色一致）
+                if (hasDevice) _quickStatusBadge(isRunning, isOffline),
               ],
             ),
           ),
@@ -1511,6 +1503,51 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _quickStatusBadge(bool isRunning, bool isOffline) {
+    final label = isRunning
+        ? '使用中'
+        : isOffline
+        ? '离线'
+        : '空闲';
+    final dotColor = isRunning
+        ? kHuish
+        : isOffline
+        ? const Color(0xFFB0B5C2)
+        : const Color(0xFF5E9C80);
+    final bgColor = isRunning
+        ? kHuish.withValues(alpha: 0.28)
+        : isOffline
+        ? const Color(0xFFB0B5C2).withValues(alpha: 0.32)
+        : const Color(0xFF5E9C80).withValues(alpha: 0.28);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 6,
+            height: 6,
+            decoration: BoxDecoration(color: dotColor, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 5),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 11.5,
+              fontWeight: FontWeight.w700,
+              color: Colors.white,
+            ),
+          ),
+        ],
       ),
     );
   }
