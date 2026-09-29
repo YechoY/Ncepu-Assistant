@@ -9,7 +9,6 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:share_plus/share_plus.dart';
 
 import '../core/debug_log.dart';
 import '../theme.dart';
@@ -65,24 +64,20 @@ class _DebugLogPageState extends State<DebugLogPage> {
     final fname =
         'debug_log_${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}_${now.hour.toString().padLeft(2, '0')}${now.minute.toString().padLeft(2, '0')}${now.second.toString().padLeft(2, '0')}.txt';
     try {
-      // 写临时文件 → 用系统分享面板让用户选择如何处理
-      final dir = await getTemporaryDirectory();
-      final file = File('${dir.path}/$fname');
-      await file.writeAsString(text, encoding: utf8);
-      await Share.shareXFiles([
-        XFile(file.path, mimeType: 'text/plain'),
-      ], subject: fname);
+      Directory? dir;
+      if (Platform.isAndroid) {
+        dir = await getDownloadsDirectory();
+      }
+      dir ??= await getApplicationDocumentsDirectory();
+      await File('${dir.path}/$fname').writeAsString(text, encoding: utf8);
+      if (!mounted) return;
+      showGlassSnackBar(context, '已保存到 Download/$fname\n用文件管理器打开可选择打开方式');
     } catch (_) {
-      // fallback: 直接写下载目录
       try {
-        Directory? dl;
-        if (Platform.isAndroid) {
-          dl = await getDownloadsDirectory();
-        }
-        dl ??= await getApplicationDocumentsDirectory();
-        await File('${dl.path}/$fname').writeAsString(text, encoding: utf8);
+        final dir = await getApplicationDocumentsDirectory();
+        await File('${dir.path}/$fname').writeAsString(text, encoding: utf8);
         if (!mounted) return;
-        showGlassSnackBar(context, '已保存到 Download/$fname');
+        showGlassSnackBar(context, '已保存到 ${dir.path}/$fname');
       } catch (_) {
         if (!mounted) return;
         showGlassSnackBar(context, '导出失败');
