@@ -266,6 +266,23 @@ class DevicePrefs {
     await sp.remove(_kQuickDevice);
     await sp.remove(_kQuickDeviceName);
   }
+
+  // 一键取水：授权开关状态（远程启动只是授权，服务端 status 在实体键按下前仍为空闲）
+  static const _kQuickOn = 'huish_quick_on';
+
+  static Future<void> setQuickOn(bool on) async {
+    final sp = await SharedPreferences.getInstance();
+    if (on) {
+      await sp.setBool(_kQuickOn, true);
+    } else {
+      await sp.remove(_kQuickOn);
+    }
+  }
+
+  static Future<bool> isQuickOn() async {
+    final sp = await SharedPreferences.getInstance();
+    return sp.getBool(_kQuickOn) ?? false;
+  }
 }
 
 class HuishActiveSession {
