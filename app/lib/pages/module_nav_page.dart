@@ -294,7 +294,7 @@ class _ModuleNavPageState extends ConsumerState<ModuleNavPage> {
                   ],
                 ),
               ),
-              // 中间空白区：icon + 文字 + 调试胶囊（同一行）
+              // 中间空白区：icon + 文字 + 调试开关 + 日志查看（同一行）
               Expanded(
                 child: Center(
                   child: Row(
@@ -313,27 +313,19 @@ class _ModuleNavPageState extends ConsumerState<ModuleNavPage> {
                         ),
                       ),
                       const SizedBox(width: 16),
-                      // 右：调试胶囊 × 2
-                      _DebugPill(
-                        icon: AppDebugLog.instance.isEnabled
-                            ? Icons.radio_button_checked
-                            : Icons.radio_button_off,
-                        label: '记录',
+                      // 右：debug 滑动开关 + 日志查看胶囊
+                      _DebugSwitch(
                         active: AppDebugLog.instance.isEnabled,
-                        onTap: () {
-                          setState(() {});
-                          AppDebugLog.instance
-                              .setEnabled(!AppDebugLog.instance.isEnabled)
-                              .then((_) {
-                                if (mounted) setState(() {});
-                              });
+                        onChanged: (v) {
+                          AppDebugLog.instance.setEnabled(v).then((_) {
+                            if (mounted) setState(() {});
+                          });
                         },
                       ),
                       const SizedBox(width: 8),
                       _DebugPill(
                         icon: Icons.terminal,
                         label: '日志',
-                        active: false,
                         onTap: () => Navigator.of(context).push(
                           MaterialPageRoute(
                             builder: (_) => const DebugLogPage(),
@@ -556,16 +548,62 @@ class _DecorIcon extends StatelessWidget {
   }
 }
 
-/// 调试胶囊按钮
+/// debug 滑动开关（与日志页同步，都读写 AppDebugLog.instance）
+class _DebugSwitch extends StatelessWidget {
+  final bool active;
+  final ValueChanged<bool> onChanged;
+  const _DebugSwitch({required this.active, required this.onChanged});
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () => onChanged(!active),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        width: 52,
+        height: 28,
+        padding: const EdgeInsets.symmetric(horizontal: 3),
+        alignment: active ? Alignment.centerRight : Alignment.centerLeft,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(14),
+          color: active
+              ? Colors.orange.withValues(alpha: 0.2)
+              : Colors.white.withValues(alpha: 0.5),
+          border: Border.all(
+            color: active
+                ? Colors.orange.withValues(alpha: 0.6)
+                : kPrimarySoft.withValues(alpha: 0.3),
+          ),
+        ),
+        child: Container(
+          width: 22,
+          height: 22,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: active ? Colors.orange : kTextMuted,
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            'D',
+            style: TextStyle(
+              fontSize: 9,
+              fontWeight: FontWeight.w800,
+              color: active ? Colors.white : Colors.white70,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 调试胶囊按钮（查看日志入口）
 class _DebugPill extends StatelessWidget {
   final IconData icon;
   final String label;
-  final bool active;
   final VoidCallback onTap;
   const _DebugPill({
     required this.icon,
     required this.label,
-    required this.active,
     required this.onTap,
   });
   @override
@@ -576,26 +614,20 @@ class _DebugPill extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(20),
-          color: active
-              ? Colors.orange.withValues(alpha: 0.12)
-              : Colors.white.withValues(alpha: 0.45),
-          border: Border.all(
-            color: active
-                ? Colors.orange.withValues(alpha: 0.5)
-                : kPrimarySoft.withValues(alpha: 0.3),
-          ),
+          color: Colors.white.withValues(alpha: 0.45),
+          border: Border.all(color: kPrimarySoft.withValues(alpha: 0.3)),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 13, color: active ? Colors.orange : kTextMuted),
+            Icon(icon, size: 13, color: kTextMuted),
             const SizedBox(width: 4),
             Text(
               label,
-              style: TextStyle(
+              style: const TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w600,
-                color: active ? Colors.orange : kTextMuted,
+                color: kTextMuted,
               ),
             ),
           ],
