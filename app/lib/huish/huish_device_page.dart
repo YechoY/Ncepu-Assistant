@@ -207,7 +207,13 @@ class _HuishDevicePageState extends ConsumerState<HuishDevicePage> {
       final resp = await api.startDevice(widget.deviceId);
       if (!mounted) return;
       if (!resp.isSuccess) {
-        showGlassSnackBar(context, _mapStartError(resp.code));
+        // 调试辅助：把原始 code+msg 也拼进去，避免命中 default 时只看到"启动失败"
+        final userMsg = _mapStartError(resp.code);
+        final knownCodes = {-52, -88, -21, -82, -99, -87, -20, -19};
+        final finalMsg = knownCodes.contains(resp.code)
+            ? userMsg
+            : '$userMsg\n服务端返回: code=${resp.code} msg="${resp.msg}"';
+        showGlassSnackBar(context, finalMsg);
         setState(() {
           _running = false;
           _deviceStatus = DeviceRuntimeStatus.idle;

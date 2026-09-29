@@ -1,0 +1,14 @@
+{
+  "version": "2.1.4",
+  "release_date": "2026-09-28",
+  "changelog": [
+    "修复旧洗衣和饮水订单归属恢复，保留已有账号隔离",
+    "首页进行中卡片等宽三等分、紧凑间距、不足三项靠左",
+    "住理、U净和798新增本地登出及账号检测，保留订单与设备配置",
+    "区分热水待确认、历史加载失败与无记录",
+    "优化热水详情窄屏与大字号排版，长提示完整显示"
+  ],
+  "downloads": {
+    "github": "https://github.com/amamiyakazuki/FlandreSY/releases/download/v2.1.4/app-release.apk"
+  }
+}

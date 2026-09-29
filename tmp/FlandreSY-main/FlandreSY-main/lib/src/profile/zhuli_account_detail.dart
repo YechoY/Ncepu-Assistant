@@ -1,0 +1,175 @@
+// Design tokens used: AppColors, AppTypography.textTheme, AppCustomTokens space/radius.
+// Reference: P_PLAN/...Reference.md §4.8 + legacy ShuiScreens.kt ZhuliAccountDetail (2643).
+
+import 'package:flutter/material.dart';
+
+import '../../design_tokens.dart';
+import '../runtime/fake_shui_runtime.dart';
+import '../theme/shui_motion.dart';
+import '../theme/shui_assets.dart';
+import '../widgets/shui_components.dart';
+import '../widgets/shui_text_field.dart';
+
+/// 住理生活登录详情（手机号 + 密码 → 登录；设备码绑定）。
+/// 表单本地态用 StatefulWidget（对齐 legacy remember），提交走 runtime action。
+class ZhuliAccountDetail extends StatefulWidget {
+  const ZhuliAccountDetail({
+    required this.state,
+    required this.onLogin,
+    required this.onBindDeviceCode,
+    required this.onCheckStatus,
+    this.showCheckStatus = true,
+    required this.isDefault,
+    required this.onDefaultChanged,
+    super.key,
+  });
+
+  final ShuiHomeState state;
+  final void Function(String phone, String password) onLogin;
+  final ValueChanged<String> onBindDeviceCode;
+  final VoidCallback onCheckStatus;
+  final bool showCheckStatus;
+  final bool isDefault;
+  final ValueChanged<bool> onDefaultChanged;
+
+  @override
+  State<ZhuliAccountDetail> createState() => _ZhuliAccountDetailState();
+}
+
+class _ZhuliAccountDetailState extends State<ZhuliAccountDetail> {
+  late final TextEditingController _phone =
+      TextEditingController(text: widget.state.zhuli.phone);
+  final TextEditingController _password = TextEditingController();
+  late final TextEditingController _deviceCode =
+      TextEditingController(text: widget.state.zhuli.deviceCode);
+
+  @override
+  void didUpdateWidget(ZhuliAccountDetail oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.state.zhuli.isLoggedIn && !oldWidget.state.zhuli.isLoggedIn) {
+      FocusManager.instance.primaryFocus?.unfocus();
+    }
+  }
+
+  @override
+  void dispose() {
+    _phone.dispose();
+    _password.dispose();
+    _deviceCode.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final s = widget.state;
+    final busy = s.hotwaterLogin.isBusy;
+    final loggedIn = s.zhuli.isLoggedIn &&
+        s.hotwaterLogin.state != RuntimeTaskState.loginRequired;
+    return Column(
+      children: [
+        SectionCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              SectionTitle(icon: ShuiAssets.shuiZhuli, title: '住理生活'),
+              const SizedBox(height: AppCustomTokens.formFieldGap),
+              RuntimeStatusBanner(status: s.hotwaterLogin),
+              CheckboxListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('设为默认洗浴系统'),
+                value: widget.isDefault,
+                onChanged: (value) => widget.onDefaultChanged(value ?? false),
+              ),
+              const SizedBox(height: AppCustomTokens.formFieldGap),
+              AnimatedSwitcher(
+                duration: ShuiMotion.duration(context, ShuiMotion.local),
+                child: loggedIn
+                    ? Column(
+                        key: const ValueKey('zhuli-signed-in'),
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Text(
+                            '已登录：${s.zhuli.phone}',
+                            style: AppTypography.textTheme.bodyMedium
+                                ?.copyWith(color: AppColors.serviceGreen),
+                          ),
+                          if (widget.showCheckStatus) ...[
+                            const SizedBox(height: AppCustomTokens.spaceSm),
+                            PrimaryGradientButton(
+                              label: busy ? '正在处理中' : '检查账号状态',
+                              enabled: !busy,
+                              onTap: widget.onCheckStatus,
+                            ),
+                          ],
+                        ],
+                      )
+                    : Column(
+                        key: const ValueKey('zhuli-login-form'),
+                        children: [
+                          ShuiTextField(
+                            controller: _phone,
+                            label: '手机号',
+                            keyboardType: TextInputType.phone,
+                          ),
+                          const SizedBox(height: AppCustomTokens.formFieldGap),
+                          ShuiTextField(
+                            controller: _password,
+                            label: '密码',
+                            obscureText: true,
+                          ),
+                          const SizedBox(height: AppCustomTokens.formFieldGap),
+                          PrimaryGradientButton(
+                            label: busy ? '登录中' : '点击登录',
+                            enabled: !busy,
+                            onTap: () =>
+                                widget.onLogin(_phone.text, _password.text),
+                          ),
+                        ],
+                      ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: AppCustomTokens.sectionGap),
+        SectionCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              SectionTitle(icon: ShuiAssets.shuiFire, title: '绑定设备码'),
+              const SizedBox(height: AppCustomTokens.formFieldGap),
+              ShuiTextField(controller: _deviceCode, label: '热水设备码'),
+              const SizedBox(height: AppCustomTokens.formFieldGap),
+              Row(
+                children: [
+                  Expanded(
+                    child: PrimaryGradientButton(
+                      label: '绑定设备码',
+                      compact: true,
+                      onTap: () => widget.onBindDeviceCode(_deviceCode.text),
+                    ),
+                  ),
+                  if (widget.showCheckStatus)
+                    const SizedBox(width: AppCustomTokens.formFieldGap),
+                  if (widget.showCheckStatus)
+                    Expanded(
+                      child: PrimaryGradientButton(
+                        label: '查看状态',
+                        compact: true,
+                        onTap: widget.onCheckStatus,
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: AppCustomTokens.spaceSm),
+              Text(
+                '当前设备码：${s.zhuli.deviceCode.isEmpty ? '未绑定' : s.zhuli.deviceCode}',
+                style: AppTypography.textTheme.bodySmall
+                    ?.copyWith(color: AppColors.mutedText),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
