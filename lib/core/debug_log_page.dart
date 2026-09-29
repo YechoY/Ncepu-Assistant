@@ -9,11 +9,13 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:open_filex/open_filex.dart';
 
 import '../core/debug_log.dart';
 import '../theme.dart';
 import '../widgets/glass_background.dart';
 import '../widgets/glass_card.dart';
+import '../widgets/glass_snackbar.dart';
 
 class DebugLogPage extends StatefulWidget {
   const DebugLogPage({super.key});
@@ -39,14 +41,12 @@ class _DebugLogPageState extends State<DebugLogPage> {
   Future<void> _copy() async {
     final text = AppDebugLog.instance.read();
     if (text.isEmpty) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('日志为空')));
+      showGlassSnackBar(context, '日志为空');
       return;
     }
     await Clipboard.setData(ClipboardData(text: text));
     if (mounted) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('已复制到剪贴板')));
+      showGlassSnackBar(context, '已复制到剪贴板');
     }
   }
 
@@ -58,39 +58,43 @@ class _DebugLogPageState extends State<DebugLogPage> {
   Future<void> _export() async {
     final text = AppDebugLog.instance.read();
     if (text.isEmpty) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('日志为空')));
+      showGlassSnackBar(context, '日志为空');
       return;
     }
     final now = DateTime.now();
     final fname =
         'debug_log_${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}_${now.hour.toString().padLeft(2, '0')}${now.minute.toString().padLeft(2, '0')}${now.second.toString().padLeft(2, '0')}.txt';
     try {
-      // 优先写下载目录（Android 13+ Downloads）
-      Directory? dir;
-      if (Platform.isAndroid) {
-        // getDownloadsDirectory 在安卓上返回 /storage/emulated/0/Download
-        dir = await getDownloadsDirectory();
-      }
-      dir ??= await getApplicationDocumentsDirectory();
+      // 写临时缓存目录，然后用 open_filex 打开系统分享/保存
+      final dir = await getTemporaryDirectory();
       final file = File('${dir.path}/$fname');
       await file.writeAsString(text, encoding: utf8);
+      final result = await OpenFilex.open(file.path);
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('已保存到 ${dir.path}/$fname')));
+      if (result.type == ResultType.done) {
+        showGlassSnackBar(context, '已打开文件，可通过系统分享保存到任意位置');
+      } else {
+        // fallback: 直接写下载目录
+        final dl = await getDownloadsDirectory();
+        if (dl != null) {
+          await File('${dl.path}/$fname').writeAsString(text, encoding: utf8);
+          showGlassSnackBar(context, '已保存到 ${dl.path}/$fname');
+        } else {
+          showGlassSnackBar(context, '导出失败：${result.message}');
+        }
+      }
     } catch (e) {
+      if (!mounted) return;
       // fallback: 应用文档目录
       try {
         final dir = await getApplicationDocumentsDirectory();
         final file = File('${dir.path}/$fname');
         await file.writeAsString(text, encoding: utf8);
         if (!mounted) return;
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('已保存到 ${dir.path}/$fname')));
+        showGlassSnackBar(context, '已保存到 ${dir.path}/$fname');
       } catch (e2) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('导出失败: $e2')));
+        showGlassSnackBar(context, '导出失败');
       }
     }
   }
