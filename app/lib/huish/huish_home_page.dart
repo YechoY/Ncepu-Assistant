@@ -70,11 +70,187 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
   final Set<String> _collapsed = {};
   Map<String, List<String>> _order = {}; // 分组内设备拖拽顺序
   Timer? _refreshTimer;
+  // 一键取水
+  String? _quickDeviceId;
+  String? _quickDeviceName;
+  bool _quickBusy = false;
 
   @override
   void initState() {
     super.initState();
+    _loadQuickDevice();
     _load();
+  }
+
+  Future<void> _loadQuickDevice() async {
+    _quickDeviceId = await DevicePrefs.getQuickDeviceId();
+    _quickDeviceName = await DevicePrefs.getQuickDeviceName();
+    if (mounted) setState(() {});
+  }
+
+  // 一键取水：选择快捷设备（从已有设备列表中选）
+  Future<void> _pickQuickDevice() async {
+    if (_devices.isEmpty) {
+      showGlassSnackBar(context, '请先添加设备');
+      return;
+    }
+    final grouped = _groupDevices();
+    final allDevices = <MapEntry<String, String>>[]; // (id, name)
+    for (final g in grouped.keys) {
+      for (final d in grouped[g]!) {
+        allDevices.add(MapEntry(_deviceId(d), _deviceName(d)));
+      }
+    }
+    final selected = await showDialog<String>(
+      context: context,
+      barrierColor: const Color(0x402E3350),
+      builder: (ctx) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 360),
+            child: _sheetContainer(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Text(
+                    '选择一键取水设备',
+                    style: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w800,
+                      color: kInk,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  const Text(
+                    '点击按钮即可远程授权出水，再点一次关闭',
+                    style: TextStyle(fontSize: 12, color: kTextMuted),
+                  ),
+                  const SizedBox(height: 10),
+                  ...allDevices.map((e) {
+                    final isCurrent = e.key == _quickDeviceId;
+                    return _sheetAction(
+                      Icons.water_drop_outlined,
+                      e.value,
+                      () {
+                        Navigator.of(ctx).pop(e.key);
+                      },
+                      color: isCurrent ? kPrimary : kInk,
+                      trailing: isCurrent
+                          ? const Icon(
+                              Icons.check_rounded,
+                              size: 18,
+                              color: kPrimary,
+                            )
+                          : null,
+                    );
+                  }),
+                  if (_quickDeviceId != null) ...[
+                    const SizedBox(height: 4),
+                    _sheetAction(
+                      Icons.link_off_rounded,
+                      '取消绑定',
+                      () => Navigator.of(ctx).pop('__clear__'),
+                      color: const Color(0xFFB85450),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+    if (selected == null) return;
+    if (selected == '__clear__') {
+      await DevicePrefs.clearQuickDevice();
+      _quickDeviceId = null;
+      _quickDeviceName = null;
+      if (mounted) showGlassSnackBar(context, '已取消一键取水绑定');
+    } else {
+      final name = allDevices.firstWhere((e) => e.key == selected).value;
+      await DevicePrefs.setQuickDevice(selected, name);
+      _quickDeviceId = selected;
+      _quickDeviceName = name;
+      if (mounted) showGlassSnackBar(context, '已绑定「$name」');
+    }
+    if (mounted) setState(() {});
+  }
+
+  // 一键取水：启动/停止
+  Future<void> _quickToggle() async {
+    final did = _quickDeviceId;
+    if (did == null) {
+      await _pickQuickDevice();
+      return;
+    }
+    if (_quickBusy) return;
+    setState(() => _quickBusy = true);
+    try {
+      final api = ref.read(huishApiClientProvider);
+      // 先查当前状态
+      final statusResp = await api.getDeviceStatus(did);
+      if (!statusResp.isSuccess) {
+        if (mounted) showGlassSnackBar(context, '设备不可用');
+        return;
+      }
+      final device = statusResp.dataMap?['device'] as Map<String, dynamic>?;
+      final gene = device?['gene'] as Map<String, dynamic>?;
+      final rawStatus = gene?['status'] as int? ?? 99;
+      // 本机刚停过 → 覆盖为空闲
+      final effStatus =
+          (rawStatus == 1 && await DevicePrefs.wasRecentlyStopped(did))
+          ? 99
+          : rawStatus;
+
+      if (effStatus == 1) {
+        // 使用中 → 停止
+        final resp = await api.stopDevice(did);
+        if (!mounted) return;
+        if (resp.isSuccess) {
+          await DevicePrefs.clearActiveSession();
+          await DevicePrefs.markStoppedByMe(did);
+          showGlassSnackBar(context, '已关闭取水');
+        } else {
+          showGlassSnackBar(context, _mapQuickError(resp.code));
+        }
+      } else if (effStatus == 99) {
+        // 空闲 → 启动
+        final resp = await api.startDevice(did);
+        if (!mounted) return;
+        if (resp.isSuccess) {
+          showGlassSnackBar(context, '已开启取水，请到设备处操作');
+        } else {
+          showGlassSnackBar(context, _mapQuickError(resp.code));
+        }
+      } else {
+        if (mounted) showGlassSnackBar(context, '设备离线，请稍后重试');
+      }
+      // 刷新状态
+      await _load(silent: true);
+    } catch (_) {
+      if (mounted) showGlassSnackBar(context, '操作失败，请检查网络');
+    } finally {
+      if (mounted) setState(() => _quickBusy = false);
+    }
+  }
+
+  String _mapQuickError(int code) {
+    switch (code) {
+      case -1:
+        return '服务端拒绝：请升级最新app';
+      case -52:
+        return '账户欠费，请充值后使用';
+      case -82:
+        return '需要支付，请先完成支付';
+      case -88:
+        return '未签约代扣协议，请先完成签约';
+      case -99:
+        return '设备已被占用';
+      default:
+        return '操作失败 (code: $code)';
+    }
   }
 
   @override
@@ -832,7 +1008,132 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
                       )
                     : _buildContent(),
               ),
+              // ── 底部一键取水按钮 ────────────────────────────────
+              if (!_loading && _error == null) _buildQuickButton(),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildQuickButton() {
+    final hasDevice = _quickDeviceId != null;
+    final status = hasDevice ? _statuses[_quickDeviceId] : null;
+    final isRunning = status == DeviceRuntimeStatus.running;
+    final isOffline = status == DeviceRuntimeStatus.offline;
+
+    // 未绑定 → 灰底"选择设备"；空闲 → 蓝底"一键取水"；使用中 → 红底"关闭取水"；离线 → 灰底"离线"
+    final bgColor = !hasDevice
+        ? const Color(0xFF8E99B0) // 未绑定灰
+        : isRunning
+        ? const Color(0xFFE0705A) // 使用中橙红
+        : isOffline
+        ? const Color(0xFFB0B5C2) // 离线灰
+        : kHuish; // 空闲蓝
+    final label = !hasDevice
+        ? '选择设备'
+        : isRunning
+        ? '关闭取水'
+        : isOffline
+        ? '设备离线'
+        : '一键取水';
+    final icon = !hasDevice
+        ? Icons.add_circle_outline_rounded
+        : isRunning
+        ? Icons.stop_rounded
+        : isOffline
+        ? Icons.cloud_off_rounded
+        : Icons.water_drop_rounded;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+      child: GestureDetector(
+        onTap: _quickBusy ? null : _quickToggle,
+        onLongPress: _pickQuickDevice,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 280),
+          curve: kSpring,
+          width: double.infinity,
+          height: 56,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(18),
+            boxShadow: [
+              BoxShadow(
+                color: bgColor.withValues(alpha: 0.3),
+                blurRadius: 16,
+                offset: const Offset(0, 6),
+              ),
+            ],
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [bgColor, bgColor.withValues(alpha: 0.82)],
+            ),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Row(
+              children: [
+                if (_quickBusy)
+                  const SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.5,
+                      color: Colors.white,
+                    ),
+                  )
+                else
+                  Icon(icon, color: Colors.white, size: 24),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        label,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                        ),
+                      ),
+                      if (hasDevice && _quickDeviceName != null)
+                        Text(
+                          _quickDeviceName!,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: Colors.white70,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        )
+                      else if (!hasDevice)
+                        const Text(
+                          '长按选择设备 · 点按取水',
+                          style: TextStyle(fontSize: 11, color: Colors.white70),
+                        ),
+                    ],
+                  ),
+                ),
+                // 状态小圆点
+                if (hasDevice)
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: isRunning
+                          ? const Color(0xFF5E9C80)
+                          : isOffline
+                          ? const Color(0xFFB0B5C2)
+                          : const Color(0xFF5E9C80),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+              ],
+            ),
           ),
         ),
       ),

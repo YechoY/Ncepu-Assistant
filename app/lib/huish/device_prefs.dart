@@ -240,6 +240,32 @@ class DevicePrefs {
     return DateTime.now().millisecondsSinceEpoch - ts <
         _stoppedWindow.inMilliseconds;
   }
+
+  // ── 一键取水：绑定的快捷设备 ──────────────────────────────
+  static const _kQuickDevice = 'huish_quick_device'; // deviceId
+  static const _kQuickDeviceName = 'huish_quick_device_name';
+
+  static Future<String?> getQuickDeviceId() async {
+    final sp = await SharedPreferences.getInstance();
+    return sp.getString(_kQuickDevice);
+  }
+
+  static Future<String?> getQuickDeviceName() async {
+    final sp = await SharedPreferences.getInstance();
+    return sp.getString(_kQuickDeviceName);
+  }
+
+  static Future<void> setQuickDevice(String deviceId, String name) async {
+    final sp = await SharedPreferences.getInstance();
+    await sp.setString(_kQuickDevice, deviceId);
+    await sp.setString(_kQuickDeviceName, name);
+  }
+
+  static Future<void> clearQuickDevice() async {
+    final sp = await SharedPreferences.getInstance();
+    await sp.remove(_kQuickDevice);
+    await sp.remove(_kQuickDeviceName);
+  }
 }
 
 class HuishActiveSession {
