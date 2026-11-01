@@ -52,3 +52,6 @@ app.*.map.json
 
 # 第三方参考项目（仅本地 diff 对照用）
 /tmp/
+
+# Android Gradle 构建产物
+/android/build/
