@@ -1,7 +1,0 @@
-{
-  "versionCode": 54,
-  "versionName": "4.23",
-  "apkUrl": "https://github.com/abcde2333/NcepuJw/releases/download/v4.23/NcepuJw-v4.23.apk",
-  "apkHash": "ef06d0c76954a9ff2ad1ce6aac09ed9da2ccce909c7ccb9da6c3fc457cf46f04",
-  "notes": "v4.23 更新内容\n\n· 修复饮水功能提示「当前手机版本过旧」:慧生活接口新增客户端版本标识,出水/结束恢复正常\n· 修复法定节假日仍推送上课提醒:节假日数据改为应用启动即同步,不再依赖手动刷课表\n· 课表点击课程的详情弹层新增任课教师(多位教师轮流上课时合并显示)"
-}
