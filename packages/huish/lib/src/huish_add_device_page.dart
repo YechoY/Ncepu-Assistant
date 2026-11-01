@@ -21,9 +21,16 @@ class HuishAddDevicePage extends ConsumerStatefulWidget {
   ConsumerState<HuishAddDevicePage> createState() => _HuishAddDevicePageState();
 }
 
-class _HuishAddDevicePageState extends ConsumerState<HuishAddDevicePage> {
+class _HuishAddDevicePageState extends ConsumerState<HuishAddDevicePage>
+    with SingleTickerProviderStateMixin {
   final MobileScannerController _ctrl = MobileScannerController();
   final TextEditingController _codeCtrl = TextEditingController();
+
+  // 扫描线动画（上下往复，对齐洗衣扫码页）
+  late final AnimationController _line = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 2200),
+  )..repeat(reverse: true);
 
   bool _manualMode = false;
   bool _torch = false; // 由 _ctrl.value.torchState 驱动
@@ -47,6 +54,7 @@ class _HuishAddDevicePageState extends ConsumerState<HuishAddDevicePage> {
     _ctrl.removeListener(_ctrlListener);
     _ctrl.dispose();
     _codeCtrl.dispose();
+    _line.dispose();
     super.dispose();
   }
 
@@ -291,17 +299,48 @@ class _HuishAddDevicePageState extends ConsumerState<HuishAddDevicePage> {
                   _ScanErrorView(message: error.toString()),
             ),
           ),
+          // 取景窗口外围暗化（框内全透明，对齐洗衣扫码页）
+          Positioned.fill(
+            child: CustomPaint(painter: _HuishMaskPainter(frame: 240)),
+          ),
+          // 取景框：四角括号 + 扫描线
           Align(
             alignment: const Alignment(0, -0.35),
-            child: Container(
+            child: SizedBox(
               width: 240,
               height: 240,
-              decoration: BoxDecoration(
-                border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.85),
-                  width: 3,
-                ),
-                borderRadius: BorderRadius.circular(20),
+              child: Stack(
+                children: [
+                  CustomPaint(
+                    size: const Size(240, 240),
+                    painter: _HuishCornerPainter(),
+                  ),
+                  AnimatedBuilder(
+                    animation: _line,
+                    builder: (ctx, _) => Positioned(
+                      top: 14 + _line.value * (240 - 28),
+                      left: 18,
+                      right: 18,
+                      child: Container(
+                        height: 2.5,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(2),
+                          gradient: LinearGradient(colors: [
+                            kHuish.withValues(alpha: 0),
+                            kHuish.withValues(alpha: 0.95),
+                            kHuish.withValues(alpha: 0),
+                          ]),
+                          boxShadow: [
+                            BoxShadow(
+                              color: kHuish.withValues(alpha: 0.55),
+                              blurRadius: 8,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
@@ -535,6 +574,86 @@ class _HuishAddDevicePageState extends ConsumerState<HuishAddDevicePage> {
       ),
     );
   }
+}
+
+/// 取景框外围遮罩：挖出中央偏上窗口（与 Align(0, -0.35) 的取景框对齐）。
+class _HuishMaskPainter extends CustomPainter {
+  final double frame;
+  _HuishMaskPainter({required this.frame});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    // 对齐 Align(alignment: Alignment(0, -0.35)) 的实际定位公式：
+    // childTop = (alignment.y + 1) / 2 * (h - frame)，中心再 + frame / 2。
+    // 直接用 h * 0.325 会在非对称偏移下与四角括号错位。
+    final center = Offset(
+      size.width / 2,
+      0.325 * (size.height - frame) + frame / 2,
+    );
+    final rect = Rect.fromCenter(
+      center: center,
+      width: frame,
+      height: frame,
+    );
+    final path = Path()
+      ..addRect(Rect.fromLTWH(0, 0, size.width, size.height))
+      ..addRRect(RRect.fromRectAndRadius(rect, const Radius.circular(24)))
+      ..fillType = PathFillType.evenOdd;
+    canvas.drawPath(path, Paint()..color = Colors.black.withValues(alpha: .2));
+  }
+
+  @override
+  bool shouldRepaint(covariant _HuishMaskPainter old) => old.frame != frame;
+}
+
+/// 取景框四角括号（huish 青色）。
+class _HuishCornerPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    const len = 26.0, w = 4.0, r = 24.0;
+    final paint = Paint()
+      ..color = kHuish
+      ..strokeWidth = w
+      ..strokeCap = StrokeCap.round
+      ..style = PaintingStyle.stroke;
+
+    void draw(Path path) => canvas.drawPath(path, paint);
+    // 左上
+    draw(
+      Path()
+        ..moveTo(0, r + len)
+        ..lineTo(0, r)
+        ..quadraticBezierTo(0, 0, r, 0)
+        ..lineTo(r + len, 0),
+    );
+    // 右上
+    draw(
+      Path()
+        ..moveTo(size.width - r - len, 0)
+        ..lineTo(size.width - r, 0)
+        ..quadraticBezierTo(size.width, 0, size.width, r)
+        ..lineTo(size.width, r + len),
+    );
+    // 左下
+    draw(
+      Path()
+        ..moveTo(0, size.height - r - len)
+        ..lineTo(0, size.height - r)
+        ..quadraticBezierTo(0, size.height, r, size.height)
+        ..lineTo(r + len, size.height),
+    );
+    // 右下
+    draw(
+      Path()
+        ..moveTo(size.width - r - len, size.height)
+        ..lineTo(size.width - r, size.height)
+        ..quadraticBezierTo(size.width, size.height, size.width, size.height - r)
+        ..lineTo(size.width, size.height - r - len),
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _HuishCornerPainter old) => false;
 }
 
 class _ScanErrorView extends StatelessWidget {

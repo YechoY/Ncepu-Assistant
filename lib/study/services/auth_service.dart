@@ -9,7 +9,12 @@ class AuthPrefs {
 
 class AuthService {
   AuthService({FlutterSecureStorage? storage, this.cache})
-      : _storage = storage ?? const FlutterSecureStorage();
+      // EncryptedSharedPreferences 模式：release 包 R8 混淆下无参默认模式的
+      // keystore 加密读写会失败（表现为每次启动丢登录态），对齐洗衣模块修复。
+      : _storage = storage ??
+            const FlutterSecureStorage(
+              aOptions: AndroidOptions(encryptedSharedPreferences: true),
+            );
   final FlutterSecureStorage _storage;
   final CacheService? cache;
 

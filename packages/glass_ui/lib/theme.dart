@@ -23,6 +23,10 @@ const kAccentPink = Color(0xFFF6BEC8); // 粉彩强调（周末等小面积点�
 const kHuish = Color(0xFF4BA3C7); // 模块强调：水滴图标/渐变亮端/进度（装饰用）
 const kHuishDeep = Color(0xFF2E6B8C); // 深水蓝：实底按钮（白字对比约 5.8:1）/渐变深端
 
+// ── 洗衣服务模块色：粉彩系（用户指定 #F6BEC8）──
+const kLaundry = Color(0xFFF6BEC8); // 模块强调：洗衣机图标/渐变亮端（粉彩承托色）
+const kLaundryDeep = Color(0xFFB25D6E); // 深莓粉：实底按钮（白字对比约 4.9:1）/渐变深端
+
 // ── 中性色 ────────────────────────────────────────────────────
 const kBgTop = Color(0xFFE8F1FF); // 背景渐变上端（勿动：背景保持原样）
 const kBgBottom = Color(0xFFF7F9FD); // 背景渐变下端

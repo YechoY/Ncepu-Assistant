@@ -52,3 +52,9 @@ kotlin {
 flutter {
     source = "../.."
 }
+
+dependencies {
+    // 支付宝 SDK：洗衣订单原生支付（U净服务端下发 orderInfo → PayTask.payV2 拉起收银台）
+    // H5PayActivity 由 SDK 自带 manifest 合并进来，无需手动声明。
+    implementation("com.alipay.sdk:alipaysdk-android:15.8.42")
+}

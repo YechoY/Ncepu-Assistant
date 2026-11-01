@@ -13,6 +13,7 @@ import 'app.dart';
 import 'core/debug_log.dart';
 import 'core/debug_log_page.dart';
 import 'package:huish/huish.dart';
+import 'package:laundry/laundry.dart';
 import 'study/providers/auth_state.dart';
 import 'study/providers/data_state.dart';
 import 'package:glass_ui/theme.dart';
@@ -121,6 +122,24 @@ class _ModuleNavPageState extends ConsumerState<ModuleNavPage> {
     }
   }
 
+  Future<void> _tapLaundry() async {
+    if (!_agreed) {
+      showGlassSnackBar(context, '请先阅读并同意免责声明');
+      return;
+    }
+    // 凭证恢复是异步的，等完成后再判断登录态
+    await ref.read(laundryAuthProvider.notifier).ensureRestored();
+    if (!mounted) return;
+    final laundry = ref.read(laundryAuthProvider);
+    if (laundry.loggedIn) {
+      Navigator.of(context)
+          .push(MaterialPageRoute(builder: (_) => const LaundryHomePage()));
+    } else {
+      Navigator.of(context)
+          .push(MaterialPageRoute(builder: (_) => const LaundryLoginPage()));
+    }
+  }
+
   void _showAbout() {
     showDialog(
       context: context,
@@ -174,43 +193,11 @@ class _ModuleNavPageState extends ConsumerState<ModuleNavPage> {
         child: SafeArea(
           child: Column(
             children: [
-              // 顶栏：Logo + 标题 + 关于入口
+              // 顶栏：标题 + 关于入口
               Padding(
                 padding: const EdgeInsets.fromLTRB(24, 16, 20, 8),
                 child: Row(
                   children: [
-                    // 左上角 Logo（美化：双层柔光 + 渐变圆角胶囊）
-                    Container(
-                      width: 46,
-                      height: 46,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [kPrimarySoft, kPrimary],
-                        ),
-                        borderRadius: BorderRadius.circular(15),
-                        boxShadow: [
-                          BoxShadow(
-                            color: kPrimary.withValues(alpha: 0.28),
-                            blurRadius: 16,
-                            offset: const Offset(0, 6),
-                          ),
-                          BoxShadow(
-                            color: Colors.white.withValues(alpha: 0.6),
-                            blurRadius: 6,
-                            offset: const Offset(0, -2),
-                          ),
-                        ],
-                      ),
-                      child: const Icon(
-                        Icons.bolt_rounded,
-                        color: Colors.white,
-                        size: 26,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
                     const Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -289,17 +276,28 @@ class _ModuleNavPageState extends ConsumerState<ModuleNavPage> {
                       enabled: _agreed,
                       onTap: _tapLife,
                     ),
+                    const SizedBox(height: 14),
+                    _ServiceCard(
+                      icon: Icons.local_laundry_service_rounded,
+                      title: '洗衣服务',
+                      subtitle: 'U净 · 扫码洗衣 · 订单跟踪',
+                      gradient: const LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [kLaundry, kLaundryDeep],
+                      ),
+                      enabled: _agreed,
+                      onTap: _tapLaundry,
+                    ),
                   ],
                 ),
               ),
-              // 中间空白区：装饰 icon + 引导文字 + 开发者工具组（居中竖排）
+              // 中部工具行：左侧引导文字 + 右侧开发者工具组（单行防溢出）
               Expanded(
-                child: Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Row(
                     children: [
-                      _DecorIcon(),
-                      const SizedBox(height: 10),
                       Text(
                         '选择服务进入',
                         style: TextStyle(
@@ -308,34 +306,28 @@ class _ModuleNavPageState extends ConsumerState<ModuleNavPage> {
                           fontWeight: FontWeight.w500,
                         ),
                       ),
-                      const SizedBox(height: 14),
-                      // 调试开关 + 日志查看：空间充裕的中部区域，横排居中
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          _DebugSwitch(
-                            active: AppDebugLog.instance.isEnabled,
-                            onChanged: (v) {
-                              AppDebugLog.instance.setEnabled(v).then((_) {
-                                if (mounted) setState(() {});
-                              });
-                            },
-                          ),
-                          const SizedBox(width: 8),
-                          _DebugPill(
-                            icon: Icons.terminal,
-                            label: '日志',
-                            onTap: () async {
-                              await Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (_) => const DebugLogPage(),
-                                ),
-                              );
-                              // 日志页里可能切换了开关 → 返回后同步外层状态
-                              if (mounted) setState(() {});
-                            },
-                          ),
-                        ],
+                      const Spacer(),
+                      _DebugSwitch(
+                        active: AppDebugLog.instance.isEnabled,
+                        onChanged: (v) {
+                          AppDebugLog.instance.setEnabled(v).then((_) {
+                            if (mounted) setState(() {});
+                          });
+                        },
+                      ),
+                      const SizedBox(width: 8),
+                      _DebugPill(
+                        icon: Icons.terminal,
+                        label: '日志',
+                        onTap: () async {
+                          await Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => const DebugLogPage(),
+                            ),
+                          );
+                          // 日志页里可能切换了开关 → 返回后同步外层状态
+                          if (mounted) setState(() {});
+                        },
                       ),
                     ],
                   ),
@@ -378,9 +370,9 @@ class _ModuleNavPageState extends ConsumerState<ModuleNavPage> {
                         ],
                       ),
                       const SizedBox(height: 8),
-                      // 声明正文：可滚动列表（7 条）
+                      // 声明正文：可滚动列表（8 条）
                       SizedBox(
-                        height: 150,
+                        height: 170,
                         child: SingleChildScrollView(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -390,16 +382,33 @@ class _ModuleNavPageState extends ConsumerState<ModuleNavPage> {
                                 '与华北电力大学（保定）官方无任何隶属、合作或授权关系。',
                               ),
                               _disclaimerItem(
-                                '所有教务数据均来源于华电教务系统官网，相关数据的版权归原网站及权利方所有。',
+                                '教务数据来源于华电教务系统官网，饮水服务数据来源于惠生活798'
+                                '第三方接口，洗衣服务数据来源于U净（Ujing）第三方接口；'
+                                '相关数据的版权归原平台及权利方所有，接口可用性不作担保。',
                               ),
-                              _disclaimerItem('账号、密码等数据仅保存在本机，不上传至任何第三方服务器。'),
-                              _disclaimerItem('本应用不使用学校官方标识，若涉及侵权请及时联系更正或删除。'),
                               _disclaimerItem(
-                                '本应用按「现状」提供，开发者不作任何担保；使用产生的一切后果由使用者自行承担。',
+                                '账号、密码、登录凭证等数据仅加密保存在本机，'
+                                '不上传、不同步至任何第三方服务器。',
                               ),
-                              _disclaimerItem('在法律允许的范围内，开发者保留对本协议的最终解释权。'),
                               _disclaimerItem(
-                                '饮水服务数据来自 i.ilife798.com 第三方接口，与惠生活798无隶属或授权关系，接口可用性不做担保。',
+                                '洗衣下单产生的费用通过支付宝直接支付给服务提供商，'
+                                '开发者不经手、不托管任何资金，支付前请确认订单信息。',
+                              ),
+                              _disclaimerItem(
+                                '本应用不使用学校及第三方平台的官方标识，'
+                                '若涉及侵权请及时联系更正或删除。',
+                              ),
+                              _disclaimerItem(
+                                '本应用按「现状」提供，开发者不作任何明示或默示的担保；'
+                                '因使用本应用产生的一切后果由使用者自行承担。',
+                              ),
+                              _disclaimerItem(
+                                '本应用不用于任何商业用途；如学校或相关权利方提出要求，'
+                                '开发者将及时停止相关功能。',
+                              ),
+                              _disclaimerItem(
+                                '在法律允许的范围内，开发者保留对本声明的最终解释权；'
+                                '如与法律法规相冲突，以法律法规为准。',
                               ),
                             ],
                           ),
@@ -510,43 +519,6 @@ class _ServiceCard extends StatelessWidget {
               ),
             ],
           ),
-        ),
-      ),
-    );
-  }
-}
-
-/// 中间空白区装饰：柔光圆环图标（文字已移到外层行内）
-class _DecorIcon extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 44,
-      height: 44,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        gradient: RadialGradient(
-          colors: [
-            kPrimarySoft.withValues(alpha: 0.18),
-            kPrimarySoft.withValues(alpha: 0.06),
-            Colors.transparent,
-          ],
-        ),
-      ),
-      child: Container(
-        width: 32,
-        height: 32,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: Colors.white.withValues(alpha: 0.45),
-          border: Border.all(color: kPrimarySoft.withValues(alpha: 0.3)),
-        ),
-        child: Icon(
-          Icons.school_rounded,
-          size: 18,
-          color: kPrimary.withValues(alpha: 0.5),
         ),
       ),
     );

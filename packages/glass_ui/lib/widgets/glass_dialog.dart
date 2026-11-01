@@ -19,6 +19,9 @@ class GlassDialog extends StatelessWidget {
   /// 为空时默认 Navigator.pop(context, [popResult])。
   final VoidCallback? onConfirm;
   final Object? popResult;
+
+  /// 确认按钮/主色调。默认全局主题色；模块化场景可传模块色（如洗衣粉）。
+  final Color? accentColor;
   const GlassDialog({
     super.key,
     required this.title,
@@ -28,11 +31,47 @@ class GlassDialog extends StatelessWidget {
     this.destructive = false,
     this.onConfirm,
     this.popResult,
+    this.accentColor,
   });
+
+  /// 确认型弹窗便利方法：点确认返回 true，取消/关闭返回 false。
+  /// [destructive] 时确认键为警示红（删除/退出等高危操作），优先级高于 [accentColor]。
+  /// [accentColor] 可指定模块主色（如洗衣粉），缺省用全局主题色。
+  static Future<bool> showConfirm(
+    BuildContext context, {
+    required String title,
+    required String message,
+    String confirmText = '确定',
+    String cancelText = '取消',
+    bool destructive = false,
+    Color? accentColor,
+  }) {
+    return showDialog<bool>(
+      context: context,
+      builder: (_) => GlassDialog(
+        title: title,
+        content: Text(
+          message,
+          style: const TextStyle(
+            fontSize: 12.5,
+            height: 1.55,
+            color: kTextMuted,
+          ),
+        ),
+        confirmText: confirmText,
+        cancelText: cancelText,
+        destructive: destructive,
+        accentColor: accentColor,
+        popResult: true,
+      ),
+    ).then((v) => v == true);
+  }
 
   @override
   Widget build(BuildContext context) {
-    final tone = destructive ? const Color(0xFFB85450) : kPrimary;
+    final tone = destructive
+        ? const Color(0xFFB85450)
+        : (accentColor ?? kPrimary);
     return Dialog(
       backgroundColor: Colors.transparent,
       elevation: 0,

@@ -50,6 +50,7 @@ class GlassCard extends StatelessWidget {
         border: Border.all(color: kGlassBorder, width: 1),
       ),
       child: Stack(
+        alignment: Alignment.center, // 窄内容默认居中（全宽内容不受影响），修复 stretch 布局下贴左
         children: [
           // 第 2 层：顶部内发光（上缘白色高光向内衰减）
           Positioned(
@@ -105,10 +106,14 @@ class GlassCard extends StatelessWidget {
       child: ClipRRect(
         borderRadius: radius,
         child: live
-            ? BackdropFilter(
-                filter: glassBlurFilter(sigma: blur),
-                child: body,
-              )
+            ? // RepaintBoundary 隔离模糊层：内容变化时不连带重绘整卡，
+                // 页面转场/滚动时减少重光栅化（玻璃卡多时收益明显）
+                RepaintBoundary(
+                  child: BackdropFilter(
+                    filter: glassBlurFilter(sigma: blur),
+                    child: body,
+                  ),
+                )
             : body,
       ),
     );

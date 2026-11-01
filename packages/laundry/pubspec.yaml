@@ -1,0 +1,26 @@
+name: laundry
+description: "U净洗衣模块：扫码下单、订单状态跟踪、启停控制。自包含业务模块，宿主通过 path 依赖接入。"
+publish_to: 'none'
+version: 1.0.0
+
+environment:
+  sdk: ^3.13.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  glass_ui:
+    path: ../glass_ui
+  flutter_riverpod: ^2.6.1
+  http: ^1.2.2
+  flutter_secure_storage: ^9.2.4
+  mobile_scanner: ^5.2.3
+  url_launcher: ^6.3.0
+  shared_preferences: ^2.3.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+flutter:
+  uses-material-design: true

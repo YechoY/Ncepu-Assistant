@@ -45,5 +45,17 @@
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
         </intent>
+        <!-- url_launcher：Android 11+ 需声明可拉起的 scheme，否则 canLaunchUrl 对 https 恒为 false（支付宝 H5 拉起） -->
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <category android:name="android.intent.category.BROWSABLE"/>
+            <data android:scheme="https"/>
+        </intent>
+        <!-- 支付宝 App scheme（H5 中转跳原生支付宝） -->
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <category android:name="android.intent.category.BROWSABLE"/>
+            <data android:scheme="alipays"/>
+        </intent>
     </queries>
 </manifest>

@@ -628,20 +628,20 @@ class AppAboutDialogState extends State<AppAboutDialog> {
                       ),
                       const SizedBox(height: 4),
                       const _AboutLine(
-                        text: '② 数据来自华电（保定）教务系统官网，账号密码等数据',
-                        bold: '仅保存在本机',
-                        tail: '，不上传、不同步至任何第三方服务器',
-                      ),
-                      const SizedBox(height: 4),
-                      const _AboutLine(
-                        text: '③ 不用于任何商业用途，使用产生的一切后果',
+                        text: '② 不用于任何商业用途，使用产生的一切后果',
                         bold: '由使用者自行承担',
                       ),
                       const SizedBox(height: 4),
                       const _AboutLine(
-                        text: '④ 在法律允许的范围内，开发者保留对本声明的',
+                        text: '③ 在法律允许的范围内，开发者保留对本声明的',
                         bold: '最终解释权',
                         tail: '；如与法律法规相冲突，以法律法规为准',
+                      ),
+                      const SizedBox(height: 4),
+                      const _AboutLine(
+                        text: '④ ',
+                        bold: '开发者 YechoY',
+                        tail: ' · 联系方式 ncepu@yechoy.cn',
                       ),
                       const SizedBox(height: 12),
                       if (info != null)
