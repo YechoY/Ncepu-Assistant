@@ -59,7 +59,7 @@ class TimetablePage extends ConsumerWidget {
                       Text(
                         _weekLabel(state),
                         style: const TextStyle(
-                          fontSize: 15,
+                          fontSize: 16.5,
                           fontWeight: FontWeight.w700,
                           color: kPrimary,
                         ),
@@ -68,13 +68,55 @@ class TimetablePage extends ConsumerWidget {
                         Text(
                           _dateRange(week),
                           style: const TextStyle(
-                            fontSize: 11,
+                            fontSize: 11.5,
                             color: kTextMuted,
                           ),
                         ),
                     ],
                   ),
                 ),
+                // 「今」按钮：仅在查看非本周时显示，一键回到本周（回本周后今日列自动居中）。
+                if (week.isNotEmpty && week != mondayOf(DateTime.now()))
+                  Padding(
+                    padding: const EdgeInsets.only(right: 2),
+                    child: GestureDetector(
+                      onTap: () async {
+                        await ref
+                            .read(dataStateProvider.notifier)
+                            .loadTimetable(mondayOf(DateTime.now()));
+                        if (!context.mounted) return;
+                        final st = ref.read(dataStateProvider);
+                        if (st.notice != null) {
+                          showGlassSnackBar(context, st.notice!);
+                        } else {
+                          showGlassSnackBar(
+                            context,
+                            '已回到本周 · ${_weekLabel(st)}',
+                          );
+                        }
+                      },
+                      child: Container(
+                        width: 30,
+                        height: 26,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: kPrimary.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(999),
+                          border: Border.all(
+                            color: kPrimary.withValues(alpha: 0.35),
+                          ),
+                        ),
+                        child: const Text(
+                          '今',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: kPrimary,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
                 IconButton(
                   icon: const Icon(Icons.calendar_month, color: kPrimary),
                   onPressed: () async {
@@ -173,29 +215,6 @@ class TimetablePage extends ConsumerWidget {
     return '${m.year}年 ${f(m)}-${f(s)}';
   }
 
-  void _shift(WidgetRef ref, int delta) {
-    final cur = ref.read(dataStateProvider).timetableWeek;
-    if (cur.isEmpty) return;
-    final d = DateTime.parse(cur).add(Duration(days: 7 * delta));
-    ref.read(dataStateProvider.notifier).loadTimetable(mondayOf(d));
-  }
-
-  Future<void> _pickDate(WidgetRef ref) async {
-    // 桌面版支持点日期选课表对应周。这里用系统日期选择器，选中后取所在周的周一查询。
-    final cur = ref.read(dataStateProvider).timetableWeek;
-    final initial = cur.isNotEmpty ? DateTime.parse(cur) : DateTime.now();
-    final picked = await showDatePicker(
-      context: ref.context,
-      initialDate: initial,
-      firstDate: DateTime(2020),
-      lastDate: DateTime(2100),
-      helpText: '选择日期查看当周课表',
-    );
-    if (picked == null) return;
-    final monday = mondayOf(picked);
-    ref.read(dataStateProvider.notifier).loadTimetable(monday);
-  }
-
   Widget _grid(List<TimetableRow> rows, String monday) {
     return _TimetableGrid(rows: rows, monday: monday);
   }
@@ -211,10 +230,11 @@ class _TimetableGrid extends StatefulWidget {
   State<_TimetableGrid> createState() => _TimetableGridState();
 }
 
-class _TimetableGridState extends State<_TimetableGrid> {
+class _TimetableGridState extends State<_TimetableGrid>
+    with AutomaticKeepAliveClientMixin {
   final ScrollController _hScroll = ScrollController();
   static const _colW = 96.0; // 每列宽度（星期列）
-  static const _secW = 62.0; // 左侧节次列宽度
+  static const _secW = 66.0; // 左侧节次列宽度
   static const _cellH = 76.0; // 每个课程格高度
   static const _rowGap = 10.0; // 行间距（节次之间）
   static const _headH = 44.0; // 星期标头高度（左右两侧共用，保证节次水平对齐）
@@ -238,6 +258,11 @@ class _TimetableGridState extends State<_TimetableGrid> {
   };
 
   bool _didAutoScroll = false;
+
+  // KeepAlive：切到其他 Tab 再切回，横向滚动位置（今天列聚焦）不重置，
+  // 也免去整格重建的开销，切页更顺滑。
+  @override
+  bool get wantKeepAlive => true;
 
   @override
   void dispose() {
@@ -305,6 +330,7 @@ class _TimetableGridState extends State<_TimetableGrid> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context); // AutomaticKeepAliveClientMixin 必需
     final rows = widget.rows;
     final bySection = {for (final r in rows) r.section: r};
     final secList = <String>[];
@@ -367,7 +393,7 @@ class _TimetableGridState extends State<_TimetableGrid> {
                           secList[i],
                           textAlign: TextAlign.center,
                           style: const TextStyle(
-                            fontSize: 12,
+                            fontSize: 13.5,
                             fontWeight: FontWeight.w600,
                             color: kTextMain,
                             height: 1.1,
@@ -379,7 +405,7 @@ class _TimetableGridState extends State<_TimetableGrid> {
                             _timeFor(secList[i])!,
                             textAlign: TextAlign.center,
                             style: const TextStyle(
-                              fontSize: 9,
+                              fontSize: 10,
                               color: kTextMuted,
                               height: 1.0,
                             ),
@@ -393,69 +419,74 @@ class _TimetableGridState extends State<_TimetableGrid> {
             ],
           ),
           // 右侧：星期标头 + 网格，横向滚动
+          // 注意：不做「滚到边缘接力切页」——边缘检测竞态复杂易出切页假死。
+          // 切页手势由主壳 PageView 承担：在课表空白处/其他页横滑即可切页，
+          // 网格内横滑仍是滚动课表（更深层手势优先），互不干扰。
           Expanded(
             child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               controller: _hScroll,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: _rowGap),
-                    child: SizedBox(
-                      height: _headH,
-                      child: Row(
-                        children: [
-                          for (var i = 0; i < 7; i++)
-                            Container(
-                              width: _colW,
-                              margin: const EdgeInsets.symmetric(horizontal: 3),
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(8),
-                                color: i == todayCol
-                                    ? kPrimary.withValues(alpha: 0.22)
-                                    : Colors.white.withValues(alpha: 0.35),
-                              ),
-                              child: Center(
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Text(
-                                      '周${_weekdays[i]}',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: i == todayCol
-                                            ? FontWeight.w700
-                                            : FontWeight.w600,
-                                        color: (i == 5 || i == 6)
-                                            ? kWeekend
-                                            : kTextMain,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: _rowGap),
+                      child: SizedBox(
+                        height: _headH,
+                        child: Row(
+                          children: [
+                            for (var i = 0; i < 7; i++)
+                              Container(
+                                width: _colW,
+                                margin: const EdgeInsets.symmetric(
+                                  horizontal: 3,
+                                ),
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(8),
+                                  color: i == todayCol
+                                      ? kPrimary.withValues(alpha: 0.22)
+                                      : Colors.white.withValues(alpha: 0.35),
+                                ),
+                                child: Center(
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        '周${_weekdays[i]}',
+                                        style: TextStyle(
+                                          fontSize: 13.5,
+                                          fontWeight: i == todayCol
+                                              ? FontWeight.w700
+                                              : FontWeight.w600,
+                                          color: (i == 5 || i == 6)
+                                              ? kWeekend
+                                              : kTextMain,
+                                        ),
                                       ),
-                                    ),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      _dateFor(i),
-                                      style: TextStyle(
-                                        fontSize: 9,
-                                        color: i == todayCol
-                                            ? kPrimary
-                                            : kTextMuted,
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        _dateFor(i),
+                                        style: TextStyle(
+                                          fontSize: 10,
+                                          color: i == todayCol
+                                              ? kPrimary
+                                              : kTextMuted,
+                                        ),
                                       ),
-                                    ),
-                                  ],
+                                    ],
+                                  ),
                                 ),
                               ),
-                            ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-                  for (var i = 0; i < secList.length; i++) ...[
-                    // 与左侧节次列同位置的换时段分隔线（午休/晚课）
-                    if (i > 0) _gap(_isPeriodBreak(secList[i]), _gridW),
-                    SizedBox(
-                      height: _cellH,
-                      child: Row(
+                    for (var i = 0; i < secList.length; i++) ...[
+                      // 与左侧节次列同位置的换时段分隔线（午休/晚课）
+                      if (i > 0) _gap(_isPeriodBreak(secList[i]), _gridW),
+                      SizedBox(
+                        height: _cellH,
+                        child: Row(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           for (var j = 0; j < 7; j++)

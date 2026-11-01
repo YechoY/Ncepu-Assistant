@@ -279,8 +279,8 @@ class _ModuleNavPageState extends ConsumerState<ModuleNavPage> {
                     const SizedBox(height: 14),
                     _ServiceCard(
                       icon: Icons.water_drop_rounded,
-                      title: '生活服务',
-                      subtitle: '惠生活798 · 饮水',
+                      title: '饮水服务',
+                      subtitle: '惠生活798 · 取水 · 消费记录',
                       gradient: const LinearGradient(
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
@@ -292,16 +292,14 @@ class _ModuleNavPageState extends ConsumerState<ModuleNavPage> {
                   ],
                 ),
               ),
-              // 中间空白区：icon + 文字 + 调试开关 + 日志查看（同一行）
+              // 中间空白区：装饰 icon + 引导文字 + 开发者工具组（居中竖排）
               Expanded(
                 child: Center(
-                  child: Row(
+                  child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      // 左：装饰 icon
                       _DecorIcon(),
-                      const SizedBox(width: 14),
-                      // 中：文字
+                      const SizedBox(height: 10),
                       Text(
                         '选择服务进入',
                         style: TextStyle(
@@ -310,29 +308,34 @@ class _ModuleNavPageState extends ConsumerState<ModuleNavPage> {
                           fontWeight: FontWeight.w500,
                         ),
                       ),
-                      const SizedBox(width: 20),
-                      // 右：debug 滑动开关 + 日志查看胶囊
-                      _DebugSwitch(
-                        active: AppDebugLog.instance.isEnabled,
-                        onChanged: (v) {
-                          AppDebugLog.instance.setEnabled(v).then((_) {
-                            if (mounted) setState(() {});
-                          });
-                        },
-                      ),
-                      const SizedBox(width: 8),
-                      _DebugPill(
-                        icon: Icons.terminal,
-                        label: '日志',
-                        onTap: () async {
-                          await Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => const DebugLogPage(),
-                            ),
-                          );
-                          // 日志页里可能切换了开关 → 返回后同步外层状态
-                          if (mounted) setState(() {});
-                        },
+                      const SizedBox(height: 14),
+                      // 调试开关 + 日志查看：空间充裕的中部区域，横排居中
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _DebugSwitch(
+                            active: AppDebugLog.instance.isEnabled,
+                            onChanged: (v) {
+                              AppDebugLog.instance.setEnabled(v).then((_) {
+                                if (mounted) setState(() {});
+                              });
+                            },
+                          ),
+                          const SizedBox(width: 8),
+                          _DebugPill(
+                            icon: Icons.terminal,
+                            label: '日志',
+                            onTap: () async {
+                              await Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => const DebugLogPage(),
+                                ),
+                              );
+                              // 日志页里可能切换了开关 → 返回后同步外层状态
+                              if (mounted) setState(() {});
+                            },
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -561,12 +564,12 @@ class _DebugSwitch extends StatelessWidget {
       onTap: () => onChanged(!active),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        width: 62,
-        height: 34,
+        width: 52,
+        height: 30,
         padding: const EdgeInsets.symmetric(horizontal: 3),
         alignment: active ? Alignment.centerRight : Alignment.centerLeft,
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(17),
+          borderRadius: BorderRadius.circular(15),
           color: active
               ? Colors.orange.withValues(alpha: 0.25)
               : Colors.white.withValues(alpha: 0.5),
@@ -577,8 +580,8 @@ class _DebugSwitch extends StatelessWidget {
           ),
         ),
         child: Container(
-          width: 28,
-          height: 28,
+          width: 24,
+          height: 24,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             color: active ? Colors.orange : kTextMuted,
@@ -586,7 +589,7 @@ class _DebugSwitch extends StatelessWidget {
           alignment: Alignment.center,
           child: Icon(
             Icons.bug_report_rounded,
-            size: 16,
+            size: 14,
             color: active ? Colors.white : Colors.white70,
           ),
         ),
@@ -610,21 +613,21 @@ class _DebugPill extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(18),
           color: Colors.white.withValues(alpha: 0.5),
           border: Border.all(color: kPrimarySoft.withValues(alpha: 0.35)),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 15, color: kTextMuted),
-            const SizedBox(width: 5),
+            Icon(icon, size: 14, color: kTextMuted),
+            const SizedBox(width: 4),
             Text(
               label,
               style: const TextStyle(
-                fontSize: 12.5,
+                fontSize: 11.5,
                 fontWeight: FontWeight.w600,
                 color: kTextMuted,
               ),

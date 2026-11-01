@@ -111,6 +111,15 @@ class MainShell extends ConsumerStatefulWidget {
 class _MainShellState extends ConsumerState<MainShell> {
   int tab = 0; // 当前 Tab 下标：0课表 1成绩 2考试 3教室
 
+  // PageView 控制器：支持左右滑动切页，胶囊导航点击也走它做动画切换。
+  final PageController _pageController = PageController();
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
   // static const：类级别的编译期常量（所有实例共享，不随对象创建）。四个页面的标题。
   static const titles = ['我的课表', '课程成绩', '考试安排', '空闲教室'];
 
@@ -157,7 +166,7 @@ class _MainShellState extends ConsumerState<MainShell> {
 
   @override
   Widget build(BuildContext context) {
-    // 四个 Tab 对应的页面实例。用 IndexedStack 承载（见下），能保留各页状态。
+    // 四个 Tab 对应的页面实例。PageView 承载（见下），左右滑动即可切页。
     final pages = [
       const TimetablePage(),
       const GradesPage(),
@@ -279,21 +288,28 @@ class _MainShellState extends ConsumerState<MainShell> {
               ),
               if (!state.online) const OfflineBanner(),
               // Expanded：在 Column/Row 里「占满剩余空间」。
-              // IndexedStack：把所有子页面都建出来叠在一起，只显示 index 指定的那个。
-              // 好处是切 Tab 时其它页面不会被销毁，滚动位置/输入内容都能保留。
-              // 外层再包一层 _TabFade：切页时新页面淡入 + 轻微放大，
-              // 既符合玻璃风的轻盈感，也掩盖了页面首帧光栅化可能造成的顿挫。
+              // PageView：左右滑动即可切换页面；配合两个有状态页的
+              // AutomaticKeepAliveClientMixin，切走再滑回来状态不丢失
+              // （课表/考试页本身无本地状态，数据都在 Riverpod Provider 里）。
               Expanded(
-                child: IndexedStack(
-                  index: tab,
-                  children: [
-                    for (var i = 0; i < pages.length; i++)
-                      _TabFade(active: i == tab, child: pages[i]),
-                  ],
+                child: PageView(
+                  controller: _pageController,
+                  // 手势竞技场：课表网格内部的横向滚动优先（更深层的手势获胜），
+                  // 在课表空白处/其他页横滑则切页，两者互不干扰。
+                  onPageChanged: (i) => setState(() => tab = i),
+                  children: pages,
                 ),
               ),
-              // 底部 4 标签胶囊导航；点击时 setState 改 tab，触发重建切页。
-              CapsuleNav(index: tab, onTap: (i) => setState(() => tab = i)),
+              // 底部 4 标签胶囊导航；点击用 PageController 做动画切换，
+              // onPageChanged 回写 tab（避免 setState 与动画抢状态）。
+              CapsuleNav(
+                index: tab,
+                onTap: (i) => _pageController.animateToPage(
+                  i,
+                  duration: const Duration(milliseconds: 320),
+                  curve: kSpring,
+                ),
+              ),
             ],
           ),
         ),
@@ -927,53 +943,6 @@ class AppAboutDialogState extends State<AppAboutDialog> {
             color: textColor,
           ),
         ),
-      ),
-    );
-  }
-}
-
-/// Tab 切换时的淡入 + 轻微缩放过渡。
-/// 只有「从非激活变为激活」的那一页会播放动画（forward from 0）；
-/// 首次进入时激活的首屏直接显示（控制器初值 1），不做多余动画。
-class _TabFade extends StatefulWidget {
-  final bool active;
-  final Widget child;
-  const _TabFade({required this.active, required this.child});
-
-  @override
-  State<_TabFade> createState() => _TabFadeState();
-}
-
-class _TabFadeState extends State<_TabFade>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 280),
-    value: widget.active ? 1 : 0,
-  );
-
-  @override
-  void didUpdateWidget(covariant _TabFade oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (!oldWidget.active && widget.active) {
-      _controller.forward(from: 0);
-    }
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final curved = CurvedAnimation(parent: _controller, curve: kSpring);
-    return FadeTransition(
-      opacity: curved,
-      child: ScaleTransition(
-        scale: Tween<double>(begin: 0.985, end: 1).animate(curved),
-        child: widget.child,
       ),
     );
   }

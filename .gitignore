@@ -55,3 +55,7 @@ app.*.map.json
 
 # Android Gradle 构建产物
 /android/build/
+
+# 子包（packages/*）构建产物与 lock——库包不提交 lock
+/packages/*/build/
+/packages/*/pubspec.lock

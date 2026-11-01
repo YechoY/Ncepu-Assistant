@@ -19,7 +19,12 @@ class ClassroomsPage extends ConsumerStatefulWidget {
   ConsumerState<ClassroomsPage> createState() => _ClassroomsPageState();
 }
 
-class _ClassroomsPageState extends ConsumerState<ClassroomsPage> {
+class _ClassroomsPageState extends ConsumerState<ClassroomsPage>
+    with AutomaticKeepAliveClientMixin {
+  // PageView 横滑切页时保活，筛选条件与查询结果等本地状态不丢失。
+  @override
+  bool get wantKeepAlive => true;
+
   // 节次自由起止：第 1 节～第 10 节（值为两位字符串，对齐接口 jc 参数）
   static const _sectionVals = [
     '01',
@@ -308,10 +313,9 @@ class _ClassroomsPageState extends ConsumerState<ClassroomsPage> {
 
   @override
   Widget build(BuildContext context) {
-    // 关键时序问题：_MainShell 用 IndexedStack 一次性构建所有 Tab，
-    // 所以本页 initState 在 App 刚打开、还停在课表页时就跑了 _loadBuildings()，
-    // 那时后台自动登录/会话往往还没建立好，导致教学楼拉空、也没查询。
-    // 这里监听登录态：一旦“登录成功”且教学楼仍为空，就自动补拉并查询一次。
+    super.build(context); // AutomaticKeepAliveClientMixin 必需
+    // 关键时序兜底：主界面改为 PageView 惰性构建后，本页首次进入时一般已登录；
+    // 但若会话仍在建立中，这里监听登录态跳变自动补拉教学楼并查询一次。
     ref.listen(authStateProvider, (prev, next) {
       final justLoggedIn = (prev?.loggedIn ?? false) == false && next.loggedIn;
       if (justLoggedIn && buildings.isEmpty) {

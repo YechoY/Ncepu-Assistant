@@ -106,6 +106,9 @@ class _GlassSnackCard extends StatelessWidget {
   const _GlassSnackCard({required this.message});
   @override
   Widget build(BuildContext context) {
+    // 字体从全局主题 bodyMedium 继承（与页面正文同源），只调字号与颜色，
+    // 避免显式写全套 TextStyle 造成「通知字体与全局不一致」的观感。
+    final base = Theme.of(context).textTheme.bodyMedium;
     return GlassCard(
       radius: 16,
       live: false,
@@ -114,7 +117,7 @@ class _GlassSnackCard extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.info_outline, size: 17, color: kPrimary),
+          const Icon(Icons.info_outline, size: 18, color: kPrimary),
           const SizedBox(width: 8),
           Flexible(
             child: Text(
@@ -122,11 +125,10 @@ class _GlassSnackCard extends StatelessWidget {
               textAlign: TextAlign.center,
               maxLines: 3,
               overflow: TextOverflow.visible,
-              style: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
+              style: base?.copyWith(
+                fontSize: 14,
                 color: kTextMain,
-                height: 1.35,
+                height: 1.4,
               ),
             ),
           ),

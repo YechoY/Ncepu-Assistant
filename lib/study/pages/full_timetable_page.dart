@@ -9,6 +9,7 @@ import 'package:glass_ui/theme.dart';
 import 'package:glass_ui/widgets/glass_background.dart';
 import 'package:glass_ui/widgets/glass_snackbar.dart';
 import 'package:glass_ui/widgets/glass_card.dart';
+import 'package:glass_ui/widgets/glass_info_row.dart';
 import 'package:glass_ui/widgets/mac_card.dart';
 
 /// 周次显示：在接口原文（如 "1-12(周)"）前加「上课周次：」前缀。
@@ -28,7 +29,7 @@ class _FullTimetablePageState extends ConsumerState<FullTimetablePage> {
   static const _weekdays = ['一', '二', '三', '四', '五', '六', '日'];
   static const _sections = ['第一大节', '第二大节', '第三大节', '第四大节', '第五大节'];
   static const _colW = 116.0;
-  static const _secW = 33.0;
+  static const _secW = 36.0;
   static const _cardSlot = 76.0; // 单张课程卡高度（含卡间距）；整行高度 = 该节最多课程数 × 此值
   static const _hGap = 3.0; // 列水平间距（左右各一半）
   static const _pitch = _colW + _hGap * 2; // 单列步距（列宽+两侧间隙），网格按此步距画线
@@ -389,7 +390,7 @@ class _FullTimetablePageState extends ConsumerState<FullTimetablePage> {
                           _sections[s - 1].split('').join('\n'),
                           textAlign: TextAlign.center,
                           style: const TextStyle(
-                            fontSize: 11,
+                            fontSize: 12.5,
                             fontWeight: FontWeight.w600,
                             color: kTextMuted,
                             height: 1.35,
@@ -420,7 +421,7 @@ class _FullTimetablePageState extends ConsumerState<FullTimetablePage> {
               child: Text(
                 '周${_weekdays[i]}',
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: 13.5,
                   fontWeight: FontWeight.w700,
                   color: (i == 5 || i == 6) ? kWeekend : kTextMain,
                 ),
@@ -574,7 +575,7 @@ class _FullCourseCard extends StatelessWidget {
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              fontSize: 11,
+              fontSize: 12.5,
               fontWeight: FontWeight.w700,
               color: c.name,
               height: 1.15,
@@ -588,7 +589,7 @@ class _FullCourseCard extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
-                  fontSize: 9,
+                  fontSize: 10,
                   color: Color(0xFF44515F),
                   height: 1.1,
                 ),
@@ -602,7 +603,7 @@ class _FullCourseCard extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
-                  fontSize: 9,
+                  fontSize: 10,
                   fontWeight: FontWeight.w600,
                   color: kPrimary,
                   height: 1.1,
@@ -622,36 +623,10 @@ class _FullCourseDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // 空值的信息行直接不显示（保持弹窗紧凑），非空走统一分割线信息行
     Widget row(String k, String v) {
       if (v.trim().isEmpty) return const SizedBox.shrink();
-      return Container(
-        padding: const EdgeInsets.symmetric(vertical: 9),
-        decoration: const BoxDecoration(
-          border: Border(top: BorderSide(color: kGlassGridLine)),
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SizedBox(
-              width: 64,
-              child: Text(
-                k,
-                style: const TextStyle(fontSize: 12, color: kTextMuted),
-              ),
-            ),
-            Expanded(
-              child: Text(
-                v,
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: kTextMain,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ],
-        ),
-      );
+      return GlassInfoRow(label: k, value: v);
     }
 
     const days = ['', '周一', '周二', '周三', '周四', '周五', '周六', '周日'];

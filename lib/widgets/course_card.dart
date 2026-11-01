@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../study/models/course_cell.dart';
 import 'package:glass_ui/theme.dart';
 import 'package:glass_ui/widgets/glass_card.dart';
+import 'package:glass_ui/widgets/glass_info_row.dart';
 import 'package:glass_ui/widgets/mac_card.dart';
 
 class CourseCard extends StatelessWidget {
@@ -35,7 +36,7 @@ class CourseCard extends StatelessWidget {
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              fontSize: 11,
+              fontSize: 12.5,
               fontWeight: FontWeight.w700,
               color: c.name,
               height: 1.15,
@@ -49,7 +50,7 @@ class CourseCard extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
-                  fontSize: 9,
+                  fontSize: 10,
                   color: Color(0xFF44515F),
                   height: 1.1,
                 ),
@@ -67,33 +68,13 @@ class _CourseDetailDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Widget row(String k, String v) => Container(
-      padding: const EdgeInsets.symmetric(vertical: 9),
-      decoration: const BoxDecoration(
-        border: Border(top: BorderSide(color: kGlassGridLine)),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(k, style: const TextStyle(fontSize: 12, color: kTextMuted)),
-          Text(
-            v,
-            style: const TextStyle(
-              fontSize: 12,
-              color: kTextMain,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
-      ),
-    );
     return Dialog(
       backgroundColor: Colors.transparent,
       elevation: 0,
       insetPadding: const EdgeInsets.symmetric(horizontal: 34),
       child: GlassCard(
         radius: 22,
-        padding: const EdgeInsets.fromLTRB(18, 16, 14, 14),
+        padding: const EdgeInsets.fromLTRB(18, 16, 18, 14),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -104,22 +85,23 @@ class _CourseDetailDialog extends StatelessWidget {
                   child: Text(
                     cell.name,
                     style: const TextStyle(
-                      fontSize: 16,
+                      fontSize: 17,
                       fontWeight: FontWeight.w800,
                       color: kInk,
                     ),
                   ),
                 ),
                 IconButton(
+                  visualDensity: VisualDensity.compact,
                   icon: const Icon(Icons.close, size: 18, color: kTextMuted),
                   onPressed: () => Navigator.pop(context),
                 ),
               ],
             ),
-            row('上课时间', cell.time),
-            row('上课地点', cell.location),
-            row('课程学分', cell.credits),
-            row('课程属性', cell.attr),
+            GlassInfoRow(label: '上课时间', value: cell.time),
+            GlassInfoRow(label: '上课地点', value: cell.location),
+            GlassInfoRow(label: '课程学分', value: cell.credits),
+            GlassInfoRow(label: '课程属性', value: cell.attr),
           ],
         ),
       ),

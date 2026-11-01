@@ -13,6 +13,7 @@ export 'widgets/glass_background.dart';
 export 'widgets/glass_card.dart';
 export 'widgets/glass_dialog.dart';
 export 'widgets/glass_dropdown.dart';
+export 'widgets/glass_info_row.dart';
 export 'widgets/glass_snackbar.dart';
 export 'widgets/gradient_text.dart';
 export 'widgets/mac_card.dart';

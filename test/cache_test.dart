@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hdjw_assistant/services/cache_service.dart';
+import 'package:hdjw_assistant/study/services/cache_service.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 void main() {

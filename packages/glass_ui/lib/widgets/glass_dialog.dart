@@ -14,6 +14,10 @@ class GlassDialog extends StatelessWidget {
   final String confirmText;
   final String? cancelText;
   final bool destructive;
+
+  /// 点确认的自定义行为（如文本输入弹窗返回输入值）。
+  /// 为空时默认 Navigator.pop(context, [popResult])。
+  final VoidCallback? onConfirm;
   final Object? popResult;
   const GlassDialog({
     super.key,
@@ -22,6 +26,7 @@ class GlassDialog extends StatelessWidget {
     required this.confirmText,
     this.cancelText,
     this.destructive = false,
+    this.onConfirm,
     this.popResult,
   });
 
@@ -41,8 +46,8 @@ class GlassDialog extends StatelessWidget {
             Text(
               title,
               style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
+                fontSize: 17,
+                fontWeight: FontWeight.w800,
                 color: kInk,
               ),
             ),
@@ -55,7 +60,7 @@ class GlassDialog extends StatelessWidget {
                 confirmText,
                 Colors.white,
                 bg: tone.withValues(alpha: 0.92),
-                onTap: () => Navigator.pop(context, popResult),
+                onTap: onConfirm ?? () => Navigator.pop(context, popResult),
               )
             else
               Row(
@@ -76,7 +81,7 @@ class GlassDialog extends StatelessWidget {
                       confirmText,
                       Colors.white,
                       bg: tone.withValues(alpha: 0.92),
-                      onTap: () => Navigator.pop(context, popResult),
+                      onTap: onConfirm ?? () => Navigator.pop(context, popResult),
                     ),
                   ),
                 ],

@@ -10,6 +10,7 @@ import 'package:glass_ui/theme.dart';
 import 'package:glass_ui/widgets/glass_background.dart';
 import 'package:glass_ui/widgets/glass_dialog.dart';
 import 'package:glass_ui/widgets/glass_card.dart';
+import 'package:glass_ui/widgets/glass_info_row.dart';
 import 'huish_auth_state.dart';
 
 class HuishBillPage extends ConsumerStatefulWidget {
@@ -135,45 +136,21 @@ class _HuishBillPageState extends ConsumerState<HuishBillPage> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _detailRow('金额', '¥${payment.toStringAsFixed(2)}'),
-            _detailRow('类型', _typeLabel(type)),
+            GlassInfoRow(label: '金额', value: '¥${payment.toStringAsFixed(2)}'),
+            GlassInfoRow(label: '类型', value: _typeLabel(type)),
             if (discount > 0)
-              _detailRow('优惠', '-¥${discount.toStringAsFixed(2)}'),
-            if (msg.isNotEmpty) _detailRow('描述', msg),
-            if (devName.isNotEmpty) _detailRow('设备', devName),
-            if (payee.isNotEmpty) _detailRow('收款方', payee),
-            if (tag.isNotEmpty) _detailRow('交易号', tag),
-            _detailRow('时间', _fmtTime(ctime)),
-            _detailRow('状态', _statusStyles[status]?.label ?? '未知'),
+              GlassInfoRow(label: '优惠', value: '-¥${discount.toStringAsFixed(2)}'),
+            if (msg.isNotEmpty) GlassInfoRow(label: '描述', value: msg, maxLines: 3),
+            if (devName.isNotEmpty) GlassInfoRow(label: '设备', value: devName),
+            if (payee.isNotEmpty) GlassInfoRow(label: '收款方', value: payee),
+            if (tag.isNotEmpty) GlassInfoRow(label: '交易号', value: tag, maxLines: 3),
+            GlassInfoRow(label: '时间', value: _fmtTime(ctime)),
+            GlassInfoRow(label: '状态', value: _statusStyles[status]?.label ?? '未知'),
           ],
         ),
         confirmText: '关闭',
         cancelText: null,
         destructive: false,
-      ),
-    );
-  }
-
-  Widget _detailRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 60,
-            child: Text(
-              label,
-              style: const TextStyle(color: kTextMuted, fontSize: 13),
-            ),
-          ),
-          Expanded(
-            child: Text(
-              value,
-              style: const TextStyle(fontSize: 13, color: kTextMain),
-            ),
-          ),
-        ],
       ),
     );
   }

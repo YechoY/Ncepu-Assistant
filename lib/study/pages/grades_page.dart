@@ -34,7 +34,12 @@ class GradesPage extends ConsumerStatefulWidget {
   ConsumerState<GradesPage> createState() => _GradesPageState();
 }
 
-class _GradesPageState extends ConsumerState<GradesPage> {
+class _GradesPageState extends ConsumerState<GradesPage>
+    with AutomaticKeepAliveClientMixin {
+  // PageView 横滑切页时保活，勾选/筛选等本地状态不丢失。
+  @override
+  bool get wantKeepAlive => true;
+
   String term = '全部学期';
   String query = '';
   String attr = '全部属性';
@@ -56,6 +61,7 @@ class _GradesPageState extends ConsumerState<GradesPage> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context); // AutomaticKeepAliveClientMixin 必需
     final state = ref.watch(dataStateProvider);
     final terms = <String>{'全部学期', for (final g in state.grades) g.term};
     final attrs = <String>{'全部属性', for (final g in state.grades) g.attr};

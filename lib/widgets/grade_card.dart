@@ -3,11 +3,13 @@ import 'package:flutter/material.dart';
 import '../study/models/grade.dart';
 import 'package:glass_ui/theme.dart';
 import 'package:glass_ui/widgets/glass_card.dart';
+import 'package:glass_ui/widgets/glass_dialog.dart';
+import 'package:glass_ui/widgets/glass_info_row.dart';
 
 class GradeCard extends StatelessWidget {
   final Grade grade;
 
-  /// 勾选模式：true 时卡片可点按勾选（仅必修课会传 true）。
+  /// 勾选模式：true 时卡片可点按勾选（仅必修课会传 true），点按不再弹详情。
   final bool selectable;
 
   /// 当前勾选状态（仅 selectable=true 时有意义）。
@@ -21,10 +23,9 @@ class GradeCard extends StatelessWidget {
     this.onToggle,
   });
 
-  @override
-  Widget build(BuildContext context) {
-    final badge = grade.grade;
-    // 等级色：优良中差四档功能色（柔和版），用于左侧竖条与右侧徽章。
+  /// 等级色：优良中差四档功能色（柔和版），返回 (背景, 前景)。
+  /// 数值分数与未知等级统一用主题容器色。
+  static (Color, Color) _gradeTone(String badge) {
     final bg = badge.contains('优')
         ? const Color(0xFFE8F5EC)
         : badge.contains('良')
@@ -43,11 +44,18 @@ class GradeCard extends StatelessWidget {
         : badge.contains('不及格')
         ? const Color(0xFFB85450)
         : kInk;
+    return (bg, fg);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final badge = grade.grade;
+    final (bg, fg) = _gradeTone(badge);
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: GestureDetector(
-        // 勾选模式下点整张卡片切换选中；非勾选模式不响应。
-        onTap: selectable ? onToggle : null,
+        // 勾选模式下点整张卡片切换选中；非勾选模式点击弹成绩详情弹窗。
+        onTap: selectable ? onToggle : () => _showDetail(context),
         child: GlassCard(
           radius: 18,
           live: false,
@@ -112,6 +120,60 @@ class GradeCard extends StatelessWidget {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  /// 成绩详情弹窗：课程名做标题，成绩大徽章 + 全部字段。
+  void _showDetail(BuildContext context) {
+    final (bg, fg) = _gradeTone(grade.grade);
+    final isNumeric = double.tryParse(grade.grade) != null;
+    showDialog(
+      context: context,
+      builder: (_) => GlassDialog(
+        title: grade.name,
+        confirmText: '知道了',
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // 成绩大徽章：居中放大展示
+            Center(
+              child: Container(
+                width: 68,
+                height: 68,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: bg,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: fg.withValues(alpha: .35)),
+                ),
+                child: Text(
+                  grade.grade.isEmpty ? '—' : grade.grade,
+                  style: TextStyle(
+                    fontSize: grade.grade.length > 3 ? 18 : 24,
+                    fontWeight: FontWeight.w800,
+                    color: fg,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 4),
+            Center(
+              child: Text(
+                isNumeric ? '百分制成绩' : '等级制成绩',
+                style: const TextStyle(fontSize: 11, color: kTextMuted),
+              ),
+            ),
+            const SizedBox(height: 12),
+            GlassInfoRow(label: '所属学期', value: grade.term),
+            GlassInfoRow(label: '课程性质', value: grade.attr),
+            GlassInfoRow(
+              label: '学分',
+              value: grade.credit.isEmpty ? '' : '${grade.credit} 学分',
+            ),
+          ],
         ),
       ),
     );

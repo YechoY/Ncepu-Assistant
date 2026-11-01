@@ -591,21 +591,22 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
     final id = _deviceId(d);
     final name = await showDialog<String>(
       context: context,
-      builder: (_) {
+      builder: (ctx) {
         final c = TextEditingController(text: _deviceName(d));
-        return AlertDialog(
-          title: const Text('重命名设备'),
-          content: TextField(controller: c, autofocus: true),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('取消'),
+        return GlassDialog(
+          title: '重命名设备',
+          content: TextField(
+            controller: c,
+            autofocus: true,
+            style: const TextStyle(
+              fontSize: 13.5,
+              fontWeight: FontWeight.w600,
+              color: kTextMain,
             ),
-            TextButton(
-              onPressed: () => Navigator.pop(context, c.text.trim()),
-              child: const Text('确定'),
-            ),
-          ],
+          ),
+          cancelText: '取消',
+          confirmText: '确定',
+          onConfirm: () => Navigator.of(ctx).pop(c.text.trim()),
         );
       },
     );
@@ -621,25 +622,22 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
   Future<String?> _textInputDialog(String title, String initial) {
     return showDialog<String>(
       context: context,
-      barrierColor: const Color(0x402E3350),
-      builder: (_) {
+      builder: (ctx) {
         final c = TextEditingController(text: initial);
-        return AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
+        return GlassDialog(
+          title: title,
+          content: TextField(
+            controller: c,
+            autofocus: true,
+            style: const TextStyle(
+              fontSize: 13.5,
+              fontWeight: FontWeight.w600,
+              color: kTextMain,
+            ),
           ),
-          title: Text(title, style: const TextStyle(fontSize: 16)),
-          content: TextField(controller: c, autofocus: true),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('取消'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(context, c.text.trim()),
-              child: const Text('确定', style: TextStyle(color: kPrimary)),
-            ),
-          ],
+          cancelText: '取消',
+          confirmText: '确定',
+          onConfirm: () => Navigator.of(ctx).pop(c.text.trim()),
         );
       },
     );
@@ -650,21 +648,20 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
     final id = _deviceId(d);
     final ok = await showDialog<bool>(
       context: context,
-      barrierColor: const Color(0x402E3350),
-      builder: (_) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        title: const Text('删除设备', style: TextStyle(fontSize: 16)),
-        content: Text('将从设备列表移除「${_deviceName(d)}」，确定？'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('取消'),
+      builder: (_) => GlassDialog(
+        title: '删除设备',
+        content: Text(
+          '将从设备列表移除「${_deviceName(d)}」，确定？',
+          style: const TextStyle(
+            fontSize: 12.5,
+            height: 1.55,
+            color: kTextMuted,
           ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('删除', style: TextStyle(color: Color(0xFFB85450))),
-          ),
-        ],
+        ),
+        cancelText: '取消',
+        confirmText: '删除',
+        destructive: true,
+        popResult: true,
       ),
     );
     if (ok != true || !mounted) return;
@@ -687,21 +684,10 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
   }
 
   Widget _sheetContainer({required Widget child}) {
-    return Container(
-      margin: const EdgeInsets.all(12),
+    // 玻璃磨砂容器（与全局 GlassDialog 同体系），替代早期白底实色卡。
+    return GlassCard(
+      radius: 22,
       padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.95),
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.9)),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x1A2E3350),
-            blurRadius: 30,
-            offset: Offset(0, 12),
-          ),
-        ],
-      ),
       child: child,
     );
   }
@@ -960,40 +946,20 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
                                       onTap: () async {
                                         final ok = await showDialog<bool>(
                                           context: context,
-                                          barrierColor: const Color(0x402E3350),
-                                          builder: (_) => AlertDialog(
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(18),
-                                            ),
-                                            title: const Text(
-                                              '删除分组',
-                                              style: TextStyle(fontSize: 16),
-                                            ),
+                                          builder: (_) => GlassDialog(
+                                            title: '删除分组',
                                             content: Text(
                                               '「$g」内的 $count 台设备将移回默认分组，确定删除？',
+                                              style: const TextStyle(
+                                                fontSize: 12.5,
+                                                height: 1.55,
+                                                color: kTextMuted,
+                                              ),
                                             ),
-                                            actions: [
-                                              TextButton(
-                                                onPressed: () => Navigator.pop(
-                                                  context,
-                                                  false,
-                                                ),
-                                                child: const Text('取消'),
-                                              ),
-                                              TextButton(
-                                                onPressed: () => Navigator.pop(
-                                                  context,
-                                                  true,
-                                                ),
-                                                child: const Text(
-                                                  '删除',
-                                                  style: TextStyle(
-                                                    color: Color(0xFFB85450),
-                                                  ),
-                                                ),
-                                              ),
-                                            ],
+                                            cancelText: '取消',
+                                            confirmText: '删除',
+                                            destructive: true,
+                                            popResult: true,
                                           ),
                                         );
                                         if (ok != true) return;
