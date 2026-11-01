@@ -14,9 +14,6 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/io_client.dart';
 
-import '../core/debug_log.dart';
-import '../core/logging_http_client.dart';
-
 class HuishApiClient {
   static const String _baseUrl = 'https://i.ilife798.com';
 
@@ -35,13 +32,18 @@ class HuishApiClient {
 
   late final http.Client _client;
   final _storage = const FlutterSecureStorage();
+  final void Function(String tag, String msg)? _logger;
 
   String? _token;
   String? _uid;
   String? _eid;
 
-  HuishApiClient() {
-    _client = LoggingHttpClient(_createPinnedClient());
+  /// [logger] 可选注入宿主日志接收器（如 AppDebugLog.log）。
+  /// 不注入则模块静默运行，零宿主依赖。
+  HuishApiClient({void Function(String tag, String msg)? logger})
+      : _logger = logger {
+    final inner = _createPinnedClient();
+    _client = _logger == null ? inner : _LoggingClient(inner, _logger);
   }
 
   static String _certSha256(X509Certificate cert) {
@@ -285,22 +287,22 @@ class HuishApiClient {
   }
 
   // ── 底层 HTTP ────────────────────────────────────────────
-  // LoggingHttpClient 已在构造时包装 _client，自动记录 HTTP 层（method/url/status）。
+  // 构造时若注入了 logger，_client 会包装 _LoggingClient 自动记录 HTTP 层（method/url/status）。
   // 这里再解析响应体，记录业务层（code/msg），便于定位接口失败根因。
 
-  /// 从响应体里提取 code/msg，记一条业务日志（开关关闭时零开销）。
+  /// 从响应体里提取 code/msg，记一条业务日志（未注入 logger 时空操作）。
   void _logBizResponse(String path, http.Response resp) {
-    final dbg = AppDebugLog.instance;
-    if (!dbg.isEnabled) return;
+    final logger = _logger;
+    if (logger == null) return;
     try {
       final json = jsonDecode(resp.body) as Map<String, dynamic>;
       final code = json['code'] ?? '?';
       final msg = json['msg'] ?? '';
       // 路径截取最后一段作为接口名，日志更紧凑
       final apiName = path.split('?').first.split('/').last;
-      dbg.log('HUISH-BIZ', '$apiName → code=$code msg="$msg"');
+      logger('HUISH-BIZ', '$apiName → code=$code msg="$msg"');
     } catch (_) {
-      dbg.log(
+      logger(
         'HUISH-BIZ',
         '解析响应失败: ${resp.body.substring(0, resp.body.length > 200 ? 200 : resp.body.length)}',
       );
@@ -365,4 +367,28 @@ class HuishApiResponse {
   Map<String, dynamic>? get dataMap =>
       data is Map<String, dynamic> ? data : null;
   List<dynamic>? get dataList => data is List<dynamic> ? data : null;
+}
+
+/// 模块内 HTTP 日志装饰器：宿主通过 `HuishApiClient(logger: ...)` 注入
+/// 日志接收器后自动记录每笔请求/响应（tag 固定 HUISH）。
+/// 模块自身不依赖任何宿主日志实现，未注入时不包装。
+class _LoggingClient extends http.BaseClient {
+  _LoggingClient(this._inner, this._logger);
+  final http.Client _inner;
+  final void Function(String tag, String msg) _logger;
+
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) async {
+    final uri = request.url;
+    _logger('HUISH→', '${request.method.toUpperCase()} $uri');
+    final response = await _inner.send(request);
+    _logger(
+      'HUISH←',
+      '${response.statusCode} ${uri.path}${request.contentLength != null ? ' len=${request.contentLength}' : ''}',
+    );
+    return response;
+  }
+
+  @override
+  void close() => _inner.close();
 }

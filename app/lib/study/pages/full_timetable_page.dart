@@ -5,11 +5,11 @@ import '../models/full_course.dart';
 import '../providers/app_state.dart';
 import '../providers/auth_state.dart';
 import '../providers/data_state.dart' show formatUpdatedAt;
-import '../theme.dart';
-import '../widgets/glass_background.dart';
-import '../widgets/glass_snackbar.dart';
-import '../widgets/glass_card.dart';
-import '../widgets/mac_card.dart';
+import 'package:glass_ui/theme.dart';
+import 'package:glass_ui/widgets/glass_background.dart';
+import 'package:glass_ui/widgets/glass_snackbar.dart';
+import 'package:glass_ui/widgets/glass_card.dart';
+import 'package:glass_ui/widgets/mac_card.dart';
 
 /// 周次显示：在接口原文（如 "1-12(周)"）前加「上课周次：」前缀。
 String _formatWeeks(String raw) => '上课周次：$raw';

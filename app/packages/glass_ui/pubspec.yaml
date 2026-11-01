@@ -1,0 +1,14 @@
+name: glass_ui
+description: "浅色玻璃拟态（Light Glassmorphism）UI 体系：设计 token + 玻璃组件。零业务依赖，任何 Flutter 项目可直接复用。"
+publish_to: 'none'
+version: 1.0.0
+
+environment:
+  sdk: ^3.13.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+flutter:
+  uses-material-design: true

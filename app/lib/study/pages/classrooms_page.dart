@@ -5,13 +5,13 @@ import '../models/building.dart';
 import '../providers/app_state.dart';
 import '../providers/auth_state.dart';
 import '../providers/data_state.dart';
-import '../theme.dart';
-import '../widgets/border_beam.dart';
-import '../widgets/empty_view.dart';
-import '../widgets/glass_dropdown.dart';
-import '../widgets/glass_snackbar.dart';
-import '../widgets/reveal.dart';
-import '../widgets/room_card.dart';
+import 'package:glass_ui/theme.dart';
+import 'package:glass_ui/widgets/border_beam.dart';
+import 'package:glass_ui/widgets/empty_view.dart';
+import 'package:glass_ui/widgets/glass_dropdown.dart';
+import 'package:glass_ui/widgets/glass_snackbar.dart';
+import 'package:glass_ui/widgets/reveal.dart';
+import '../../widgets/room_card.dart';
 
 class ClassroomsPage extends ConsumerStatefulWidget {
   const ClassroomsPage({super.key});

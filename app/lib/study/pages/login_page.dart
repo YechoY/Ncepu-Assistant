@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../app.dart';
+import '../../app.dart';
 import '../providers/auth_state.dart';
-import '../widgets/glass_background.dart';
-import '../widgets/glass_card.dart';
-import '../widgets/glass_snackbar.dart';
-import '../theme.dart';
+import 'package:glass_ui/widgets/glass_background.dart';
+import 'package:glass_ui/widgets/glass_card.dart';
+import 'package:glass_ui/widgets/glass_snackbar.dart';
+import 'package:glass_ui/theme.dart';
 
 class LoginPage extends ConsumerStatefulWidget {
   const LoginPage({super.key});

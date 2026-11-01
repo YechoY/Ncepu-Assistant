@@ -12,8 +12,9 @@ import 'package:path_provider/path_provider.dart'; // 拿到手机上「应用�
 
 import 'app.dart'; // 根组件 HdjwApp
 import 'core/debug_log.dart'; // 调试日志器：开机时读开关状态（SharedPreferences）
-import 'providers/app_state.dart'; // 里面定义了 cacheServiceProvider（缓存服务的"插座"）
-import 'services/cache_service.dart'; // SQLite 缓存服务
+import 'package:huish/huish.dart'; // 饮水模块（独立包）：注入带日志的 HuishApiClient
+import 'study/providers/app_state.dart'; // 里面定义了 cacheServiceProvider（缓存服务的"插座"）
+import 'study/services/cache_service.dart'; // SQLite 缓存服务
 
 // Dart 里 async 函数返回 Future；main 需要 await 一些异步初始化，所以声明成 `Future<void> async`。
 Future<void> main() async {
@@ -42,7 +43,16 @@ Future<void> main() async {
       // app_state.dart 里 cacheServiceProvider 默认会抛异常（因为缓存必须异步打开，
       // Provider 本身不能 await）。这里把上面打开好的 cache 注入进去，
       // 之后任何地方 ref.read(cacheServiceProvider) 拿到的都是同一个实例。
-      overrides: [cacheServiceProvider.overrideWithValue(cache)],
+      overrides: [
+        cacheServiceProvider.overrideWithValue(cache),
+        // 饮水模块日志注入：把宿主调试日志器接到模块 API 客户端上，
+        // Debug 开关关闭时 AppDebugLog.log 内部早退，零开销。
+        huishApiClientProvider.overrideWithValue(
+          HuishApiClient(
+            logger: (tag, msg) => AppDebugLog.instance.log(tag, msg),
+          ),
+        ),
+      ],
       // child：真正的应用根组件。const 表示这是编译期常量，Flutter 可以复用它、减少重建。
       child: const HdjwApp(),
     ),

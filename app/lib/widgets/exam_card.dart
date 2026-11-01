@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
-import '../models/exam.dart';
-import '../theme.dart';
-import 'glass_card.dart';
+import '../study/models/exam.dart';
+import 'package:glass_ui/theme.dart';
+import 'package:glass_ui/widgets/glass_card.dart';
 
 class ExamCard extends StatelessWidget {
   final Exam exam;

@@ -1,6 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../core/logging_http_client.dart';
+import '../../core/logging_http_client.dart';
 import '../services/api_client.dart';
 import '../services/cache_service.dart';
 

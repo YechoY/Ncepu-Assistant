@@ -3,12 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/grade.dart';
 import '../providers/data_state.dart';
-import '../theme.dart';
-import '../widgets/empty_view.dart';
-import '../widgets/glass_dropdown.dart';
-import '../widgets/grade_card.dart';
-import '../widgets/gradient_text.dart';
-import '../widgets/reveal.dart';
+import 'package:glass_ui/theme.dart';
+import 'package:glass_ui/widgets/empty_view.dart';
+import 'package:glass_ui/widgets/glass_dropdown.dart';
+import '../../widgets/grade_card.dart';
+import 'package:glass_ui/widgets/gradient_text.dart';
+import 'package:glass_ui/widgets/reveal.dart';
 
 int gradeScore(String g) {
   const map = {'优': 95, '良': 85, '中': 75, '及格': 65, '不及格': 55};

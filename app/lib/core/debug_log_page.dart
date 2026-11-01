@@ -10,11 +10,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 
-import '../core/debug_log.dart';
-import '../theme.dart';
-import '../widgets/glass_background.dart';
-import '../widgets/glass_card.dart';
-import '../widgets/glass_snackbar.dart';
+import 'debug_log.dart';
+import 'package:glass_ui/theme.dart';
+import 'package:glass_ui/widgets/glass_background.dart';
+import 'package:glass_ui/widgets/glass_card.dart';
+import 'package:glass_ui/widgets/glass_snackbar.dart';
 
 class DebugLogPage extends StatefulWidget {
   const DebugLogPage({super.key});

@@ -9,10 +9,10 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../theme.dart';
-import '../../widgets/glass_background.dart';
-import '../../widgets/glass_card.dart';
-import '../../widgets/glass_snackbar.dart';
+import 'package:glass_ui/theme.dart';
+import 'package:glass_ui/widgets/glass_background.dart';
+import 'package:glass_ui/widgets/glass_card.dart';
+import 'package:glass_ui/widgets/glass_snackbar.dart';
 import 'huish_auth_state.dart';
 import 'huish_home_page.dart';
 

@@ -1,0 +1,22 @@
+name: huish
+description: "惠生活798 饮水模块：设备管理、一键取水、消费记录。自包含业务模块，宿主通过 path 依赖接入。"
+publish_to: 'none'
+version: 1.0.0
+
+environment:
+  sdk: ^3.13.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  glass_ui:
+    path: ../glass_ui
+  flutter_riverpod: ^2.6.1
+  http: ^1.2.2
+  crypto: ^3.0.0
+  flutter_secure_storage: ^9.2.4
+  shared_preferences: ^2.3.3
+  mobile_scanner: ^5.2.3
+
+flutter:
+  uses-material-design: true

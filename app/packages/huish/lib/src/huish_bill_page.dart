@@ -6,10 +6,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../theme.dart';
-import '../../widgets/glass_background.dart';
-import '../../widgets/glass_dialog.dart';
-import '../../widgets/glass_card.dart';
+import 'package:glass_ui/theme.dart';
+import 'package:glass_ui/widgets/glass_background.dart';
+import 'package:glass_ui/widgets/glass_dialog.dart';
+import 'package:glass_ui/widgets/glass_card.dart';
 import 'huish_auth_state.dart';
 
 class HuishBillPage extends ConsumerStatefulWidget {
@@ -29,23 +29,12 @@ class _HuishBillPageState extends ConsumerState<HuishBillPage> {
   double _gift = 0;
   String _epName = '';
 
-  int? _statusFilter; // null=全部 1=未付款 2=待确认 3=已付款 4=失败 9=已取消
-
   static const Map<int, _StatusStyle> _statusStyles = {
     1: _StatusStyle('未付款', Color(0xFFB07432)),
     2: _StatusStyle('待确认', Color(0xFF4A7FB5)),
     3: _StatusStyle('已付款', Color(0xFF5E9C80)),
     4: _StatusStyle('失败', Color(0xFFB85450)),
     9: _StatusStyle('已取消', Color(0xFF8A93A6)),
-  };
-
-  static const _filters = <int?, String>{
-    null: '全部',
-    1: '未付款',
-    2: '待确认',
-    3: '已付款',
-    4: '失败',
-    9: '已取消',
   };
 
   @override
@@ -62,7 +51,8 @@ class _HuishBillPageState extends ConsumerState<HuishBillPage> {
     });
     try {
       final api = ref.read(huishApiClientProvider);
-      final resp = await api.getBillList(status: _statusFilter, size: 50);
+      // size 200：覆盖较长时间范围，供今日/本月统计本地聚合
+      final resp = await api.getBillList(size: 200);
       if (!mounted) return;
       if (resp.isSuccess) {
         setState(() {
@@ -243,10 +233,10 @@ class _HuishBillPageState extends ConsumerState<HuishBillPage> {
                     children: [
                       if (!_walletLoading && _epName.isNotEmpty) ...[
                         _balanceCard(),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 12),
                       ],
-                      _filterBar(),
-                      const SizedBox(height: 10),
+                      _statsCard(),
+                      const SizedBox(height: 12),
                       if (_loading)
                         const Padding(
                           padding: EdgeInsets.only(top: 80),
@@ -255,7 +245,7 @@ class _HuishBillPageState extends ConsumerState<HuishBillPage> {
                       else if (_error != null)
                         _ErrorView(error: _error!, onRetry: _loadBills)
                       else if (_bills.isEmpty)
-                        _EmptyView(filtered: _statusFilter != null)
+                        const _EmptyView()
                       else
                         ..._bills.map(
                           (b) => _BillCard(
@@ -344,51 +334,87 @@ class _HuishBillPageState extends ConsumerState<HuishBillPage> {
     );
   }
 
-  Widget _filterBar() {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      clipBehavior: Clip.none,
+  // ── 今日 / 本月消费统计（本地聚合已付款的取水消费）────────────
+
+  /// 只统计「已付款」且类型为取水消费（21/91）的账单。
+  (double today, double month) _calcStats() {
+    final now = DateTime.now();
+    double today = 0;
+    double month = 0;
+    for (final b in _bills) {
+      final status = b['status'] as int? ?? 0;
+      if (status != 3) continue; // 只算已付款
+      final type = b['type'] as int? ?? 0;
+      if (type != 21 && type != 91) continue; // 只算取水消费
+      final ctime = b['ctime'] as int?;
+      if (ctime == null) continue;
+      final t = DateTime.fromMillisecondsSinceEpoch(ctime);
+      final payment = (b['payment'] as num?)?.toDouble() ?? 0;
+      if (t.year == now.year && t.month == now.month) {
+        month += payment;
+        if (t.day == now.day) today += payment;
+      }
+    }
+    return (today, month);
+  }
+
+  Widget _statsCard() {
+    final (today, month) = _calcStats();
+    return GlassCard(
+      radius: 18,
+      live: false,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       child: Row(
-        children: _filters.entries.map((e) {
-          final selected = _statusFilter == e.key;
-          return Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: GestureDetector(
-              onTap: () {
-                setState(() => _statusFilter = e.key);
-                _loadBills();
-              },
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 220),
-                curve: kSpring,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 7,
-                ),
-                decoration: BoxDecoration(
-                  color: selected
-                      ? kPrimary.withValues(alpha: 0.14)
-                      : Colors.white.withValues(alpha: 0.5),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: selected
-                        ? kPrimary.withValues(alpha: 0.55)
-                        : Colors.white.withValues(alpha: 0.65),
-                  ),
-                ),
-                child: Text(
-                  e.value,
-                  style: TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                    color: selected ? kPrimary : kTextMuted,
-                  ),
-                ),
+        children: [
+          Expanded(
+            child: _statItem(
+              '今日消费',
+              today,
+              Icons.today_rounded,
+            ),
+          ),
+          Container(width: 1, height: 34, color: kGlassGridLine),
+          Expanded(
+            child: _statItem(
+              '本月消费',
+              month,
+              Icons.calendar_month_rounded,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _statItem(String label, double value, IconData icon) {
+    return Column(
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 13, color: kTextMuted),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 11.5,
+                color: kTextMuted,
+                fontWeight: FontWeight.w600,
               ),
             ),
-          );
-        }).toList(),
-      ),
+          ],
+        ),
+        const SizedBox(height: 5),
+        Text(
+          '¥${value.toStringAsFixed(2)}',
+          style: const TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.w800,
+            color: kInk,
+            height: 1.1,
+          ),
+        ),
+      ],
     );
   }
 }
@@ -525,8 +551,7 @@ class _BillCard extends StatelessWidget {
 }
 
 class _EmptyView extends StatelessWidget {
-  final bool filtered;
-  const _EmptyView({required this.filtered});
+  const _EmptyView();
   @override
   Widget build(BuildContext context) {
     return Padding(
@@ -540,7 +565,7 @@ class _EmptyView extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Text(
-            filtered ? '暂无该状态账单' : '暂无消费记录',
+            '暂无消费记录',
             style: TextStyle(
               fontSize: 13,
               color: kTextMuted.withValues(alpha: 0.8),

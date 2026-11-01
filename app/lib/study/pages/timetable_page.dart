@@ -3,11 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/timetable_row.dart';
 import '../providers/data_state.dart';
-import '../theme.dart';
-import '../widgets/course_card.dart';
-import '../widgets/empty_view.dart';
-import '../widgets/glass_card.dart';
-import '../widgets/glass_snackbar.dart';
+import 'package:glass_ui/theme.dart';
+import '../../widgets/course_card.dart';
+import 'package:glass_ui/widgets/empty_view.dart';
+import 'package:glass_ui/widgets/glass_card.dart';
+import 'package:glass_ui/widgets/glass_snackbar.dart';
 
 class TimetablePage extends ConsumerWidget {
   const TimetablePage({super.key});

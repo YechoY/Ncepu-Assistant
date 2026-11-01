@@ -9,19 +9,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../app.dart';
-import '../core/debug_log.dart';
-import '../core/debug_log_page.dart';
-import '../huish/huish_auth_state.dart';
-import '../providers/auth_state.dart';
-import '../providers/data_state.dart';
-import '../theme.dart';
-import '../widgets/glass_background.dart';
-import '../widgets/glass_card.dart';
-import '../widgets/glass_snackbar.dart';
-import '../huish/huish_home_page.dart';
-import '../huish/huish_login_page.dart';
-import 'login_page.dart';
+import 'app.dart';
+import 'core/debug_log.dart';
+import 'core/debug_log_page.dart';
+import 'package:huish/huish.dart';
+import 'study/providers/auth_state.dart';
+import 'study/providers/data_state.dart';
+import 'package:glass_ui/theme.dart';
+import 'package:glass_ui/widgets/glass_background.dart';
+import 'package:glass_ui/widgets/glass_card.dart';
+import 'package:glass_ui/widgets/glass_snackbar.dart';
+import 'study/pages/login_page.dart';
 
 class ModuleNavPage extends ConsumerStatefulWidget {
   const ModuleNavPage({super.key});

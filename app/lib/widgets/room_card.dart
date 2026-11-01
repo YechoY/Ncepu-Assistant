@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../theme.dart';
-import 'glass_card.dart';
+import 'package:glass_ui/theme.dart';
+import 'package:glass_ui/widgets/glass_card.dart';
 
 class RoomCard extends StatelessWidget {
   final String name;

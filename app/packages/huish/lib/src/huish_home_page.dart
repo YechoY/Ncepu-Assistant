@@ -5,11 +5,11 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../theme.dart';
-import '../../widgets/glass_background.dart';
-import '../../widgets/glass_card.dart';
-import '../../widgets/glass_dialog.dart';
-import '../../widgets/glass_snackbar.dart';
+import 'package:glass_ui/theme.dart';
+import 'package:glass_ui/widgets/glass_background.dart';
+import 'package:glass_ui/widgets/glass_card.dart';
+import 'package:glass_ui/widgets/glass_dialog.dart';
+import 'package:glass_ui/widgets/glass_snackbar.dart';
 import 'huish_auth_state.dart';
 import 'device_prefs.dart';
 import 'huish_bill_page.dart';
@@ -75,6 +75,7 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
   String? _quickDeviceName;
   bool _quickBusy = false;
   bool _quickOn = false; // 授权已开启（服务端 status 在实体键按下前仍为空闲）
+  Timer? _quickPollTimer; // 会话活跃期间轮询状态，检测实体端关水以自动复位按钮
 
   @override
   void initState() {
@@ -87,7 +88,10 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
     _quickDeviceId = await DevicePrefs.getQuickDeviceId();
     _quickDeviceName = await DevicePrefs.getQuickDeviceName();
     _quickOn = await DevicePrefs.isQuickOn();
-    if (mounted) setState(() {});
+    if (mounted) {
+      setState(() {});
+      _updateQuickPoll(); // App 被杀重开后恢复的会话继续轮询
+    }
   }
 
   // 一键取水：选择快捷设备（从已有设备列表中选）
@@ -180,6 +184,7 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
       if (mounted) showGlassSnackBar(context, '已绑定「$name」');
     }
     if (mounted) setState(() {});
+    _updateQuickPoll();
   }
 
   // 一键取水：启动/停止
@@ -217,6 +222,7 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
           await DevicePrefs.clearActiveSession();
           await DevicePrefs.markStoppedByMe(did);
           await DevicePrefs.setQuickOn(false);
+          await DevicePrefs.clearQuickEverRunning();
           setState(() => _quickOn = false);
           showGlassSnackBar(context, '已关闭取水');
         } else {
@@ -228,6 +234,8 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
           final still = gene2?['status'] as int? ?? 99;
           if (recheck.isSuccess && still != 1) {
             await DevicePrefs.setQuickOn(false);
+            await DevicePrefs.clearQuickEverRunning();
+            await DevicePrefs.clearActiveSession();
             setState(() => _quickOn = false);
             showGlassSnackBar(context, '取水已结束（授权已失效）');
           } else {
@@ -239,7 +247,17 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
         final resp = await api.startDevice(did);
         if (!mounted) return;
         if (resp.isSuccess) {
+          await DevicePrefs.clearQuickEverRunning(); // 新会话：重置"出过水"标记
           await DevicePrefs.setQuickOn(true);
+          // 记录会话起点（当前累计出水），供结束后结算本次用量
+          final out = (gene?['out'] as num?)?.toDouble();
+          if (out != null) {
+            await DevicePrefs.saveActiveSession(
+              deviceId: did,
+              startOut: out,
+              startTs: DateTime.now().millisecondsSinceEpoch ~/ 1000,
+            );
+          }
           setState(() => _quickOn = true); // 立即变色反馈
           showGlassSnackBar(context, '已开启取水授权，请在设备上按出水键');
         } else {
@@ -254,6 +272,7 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
       if (mounted) showGlassSnackBar(context, '操作失败，请检查网络');
     } finally {
       if (mounted) setState(() => _quickBusy = false);
+      _updateQuickPoll();
     }
   }
 
@@ -274,9 +293,82 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
     }
   }
 
+  // 会话活跃期间（授权开 或 设备出水）周期轮询快速设备状态，
+  // 用于检测「在饮水机实体上关水」→ 自动复位按钮。
+  void _updateQuickPoll() {
+    final did = _quickDeviceId;
+    final st = did != null ? _statuses[did] : null;
+    final active = did != null &&
+        (_quickOn || st == DeviceRuntimeStatus.running);
+    if (active && _quickPollTimer == null) {
+      _quickPollTimer = Timer.periodic(
+        const Duration(seconds: 5),
+        (_) => _pollQuickStatus(),
+      );
+    } else if (!active && _quickPollTimer != null) {
+      _quickPollTimer?.cancel();
+      _quickPollTimer = null;
+    }
+  }
+
+  Future<void> _pollQuickStatus() async {
+    final did = _quickDeviceId;
+    if (did == null || _quickBusy) return;
+    try {
+      final resp = await ref
+          .read(huishApiClientProvider)
+          .getDeviceStatus(did)
+          .timeout(const Duration(seconds: 6));
+      if (!mounted || !resp.isSuccess) return;
+      final gene =
+          (resp.dataMap?['device'] as Map<String, dynamic>?)?['gene']
+              as Map<String, dynamic>?;
+      var result = DeviceRuntimeStatusX.fromGeneStatus(gene?['status'] as int?);
+      // 本机刚停过水 → 服务端状态滞后期间覆盖为"空闲"
+      if (result == DeviceRuntimeStatus.running &&
+          await DevicePrefs.wasRecentlyStopped(did)) {
+        result = DeviceRuntimeStatus.idle;
+      }
+      if (!mounted) return;
+      if (result == DeviceRuntimeStatus.running) {
+        // 在出水：同步点亮授权 + 标记本次会话已实际出过水
+        if (!_quickOn) {
+          _quickOn = true;
+          DevicePrefs.setQuickOn(true);
+        }
+        await DevicePrefs.markQuickEverRunning();
+        setState(() => _statuses = {..._statuses, did: result});
+        return;
+      }
+      if (result == DeviceRuntimeStatus.idle && _quickOn) {
+        // 回到空闲：若本次会话实际出过水，或本机刚停过 → 会话已结束，复位按钮
+        final ended =
+            await DevicePrefs.isQuickEverRunning() ||
+            await DevicePrefs.wasRecentlyStopped(did);
+        if (ended) {
+          await DevicePrefs.setQuickOn(false);
+          await DevicePrefs.clearQuickEverRunning();
+          await DevicePrefs.clearActiveSession(); // 防止旧会话残留影响详情页 Resume
+          if (!mounted) return;
+          setState(() {
+            _quickOn = false;
+            _statuses = {..._statuses, did: result};
+          });
+          showGlassSnackBar(context, '取水已结束');
+          _updateQuickPoll();
+          return;
+        }
+      }
+      setState(() => _statuses = {..._statuses, did: result});
+    } catch (_) {
+      // 轮询失败忽略，下一轮继续
+    }
+  }
+
   @override
   void dispose() {
     _refreshTimer?.cancel();
+    _quickPollTimer?.cancel();
     super.dispose();
   }
 
@@ -357,14 +449,20 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
         batchResults.whereType<MapEntry<String, DeviceRuntimeStatus>>(),
       );
       if (!mounted) return;
-      // 服务端确认在出水 → 同步点亮授权状态（如从别处启动的）
-      if (_quickDeviceId != null &&
-          results[_quickDeviceId] == DeviceRuntimeStatus.running &&
-          !_quickOn) {
-        _quickOn = true;
-        DevicePrefs.setQuickOn(true);
+      // 服务端确认在出水 → 同步点亮授权状态（如从别处启动的），
+      // 并标记本次会话"已实际出过水"（用于实体端关水后复位）
+      final quickStatus = _quickDeviceId != null
+          ? results[_quickDeviceId]
+          : null;
+      if (quickStatus == DeviceRuntimeStatus.running) {
+        if (!_quickOn) {
+          _quickOn = true;
+          DevicePrefs.setQuickOn(true);
+        }
+        DevicePrefs.markQuickEverRunning();
       }
       setState(() => _statuses = {..._statuses, ...results});
+      _updateQuickPoll();
     }
   }
 

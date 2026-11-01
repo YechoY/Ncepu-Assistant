@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/data_state.dart';
-import '../theme.dart';
-import '../widgets/empty_view.dart';
-import '../widgets/exam_card.dart';
-import '../widgets/glass_dropdown.dart';
-import '../widgets/reveal.dart';
+import 'package:glass_ui/theme.dart';
+import 'package:glass_ui/widgets/empty_view.dart';
+import '../../widgets/exam_card.dart';
+import 'package:glass_ui/widgets/glass_dropdown.dart';
+import 'package:glass_ui/widgets/reveal.dart';
 
 class ExamsPage extends ConsumerWidget {
   const ExamsPage({super.key});

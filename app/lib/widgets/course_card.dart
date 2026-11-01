@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 
-import '../models/course_cell.dart';
-import '../theme.dart';
-import 'glass_card.dart';
-import 'mac_card.dart';
+import '../study/models/course_cell.dart';
+import 'package:glass_ui/theme.dart';
+import 'package:glass_ui/widgets/glass_card.dart';
+import 'package:glass_ui/widgets/mac_card.dart';
 
 class CourseCard extends StatelessWidget {
   final CourseCell cell;

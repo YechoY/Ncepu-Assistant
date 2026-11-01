@@ -31,6 +31,12 @@ dependencies:
   flutter:
     sdk: flutter
 
+  # 模块化拆分：玻璃 UI 体系（跨项目复用）+ 饮水模块（其他学校可复用）
+  glass_ui:
+    path: packages/glass_ui
+  huish:
+    path: packages/huish
+
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
@@ -48,8 +54,6 @@ dependencies:
   package_info_plus: ^9.0.1
   url_launcher: ^6.3.2
   open_filex: ^4.7.0
-  crypto: ^3.0.0
-  mobile_scanner: ^5.2.3
 
 dev_dependencies:
   flutter_test:

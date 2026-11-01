@@ -259,12 +259,14 @@ class DevicePrefs {
     final sp = await SharedPreferences.getInstance();
     await sp.setString(_kQuickDevice, deviceId);
     await sp.setString(_kQuickDeviceName, name);
+    await clearQuickEverRunning(); // 换绑设备：旧会话标记作废
   }
 
   static Future<void> clearQuickDevice() async {
     final sp = await SharedPreferences.getInstance();
     await sp.remove(_kQuickDevice);
     await sp.remove(_kQuickDeviceName);
+    await clearQuickEverRunning();
   }
 
   // 一键取水：授权开关状态（远程启动只是授权，服务端 status 在实体键按下前仍为空闲）
@@ -282,6 +284,26 @@ class DevicePrefs {
   static Future<bool> isQuickOn() async {
     final sp = await SharedPreferences.getInstance();
     return sp.getBool(_kQuickOn) ?? false;
+  }
+
+  // 一键取水：本次会话是否已实际出过水（服务端报过"使用中"）。
+  // 用于区分「授权开启但还没按出水键」（服务端报空闲，保持红色）
+  // 和「出过水后回到空闲」= 会话已结束（应复位按钮）。
+  static const _kQuickEverRunning = 'huish_quick_ever_running';
+
+  static Future<void> markQuickEverRunning() async {
+    final sp = await SharedPreferences.getInstance();
+    await sp.setBool(_kQuickEverRunning, true);
+  }
+
+  static Future<void> clearQuickEverRunning() async {
+    final sp = await SharedPreferences.getInstance();
+    await sp.remove(_kQuickEverRunning);
+  }
+
+  static Future<bool> isQuickEverRunning() async {
+    final sp = await SharedPreferences.getInstance();
+    return sp.getBool(_kQuickEverRunning) ?? false;
   }
 }
 

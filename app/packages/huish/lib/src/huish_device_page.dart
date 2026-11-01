@@ -8,10 +8,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../theme.dart';
-import '../../widgets/glass_background.dart';
-import '../../widgets/glass_card.dart';
-import '../../widgets/glass_snackbar.dart';
+import 'package:glass_ui/theme.dart';
+import 'package:glass_ui/widgets/glass_background.dart';
+import 'package:glass_ui/widgets/glass_card.dart';
+import 'package:glass_ui/widgets/glass_snackbar.dart';
 import 'huish_auth_state.dart';
 import 'huish_home_page.dart';
 import 'device_prefs.dart';
@@ -363,27 +363,10 @@ class _HuishDevicePageState extends ConsumerState<HuishDevicePage> {
     }
   }
 
-  // 退出取水：取水中先暂停出水再离开
+  // 退出页面：纯导航，不碰设备。
+  // App 只负责授权，出水/停水由设备实体键控制；授权长时间无操作会被服务端自动超时。
+  // 会话数据（activeSession）保留，回来时 Resume 逻辑自动接上"本次接水量"。
   Future<void> _exit() async {
-    if (_running) {
-      _pollTimer?.cancel();
-      setState(() {
-        _running = false;
-        _deviceStatus = DeviceRuntimeStatus.idle;
-      });
-      // 已有启停请求在途（如刚点"结束取水"）→ 不再重复调用 /dev/end
-      if (!_busy) {
-        try {
-          final api = ref.read(huishApiClientProvider);
-          final resp = await api.stopDevice(widget.deviceId);
-          if (resp.isSuccess) {
-            await DevicePrefs.markStoppedByMe(widget.deviceId);
-          }
-        } catch (_) {}
-        await DevicePrefs.clearActiveSession();
-      }
-      if (mounted) showGlassSnackBar(context, '已结束取水');
-    }
     if (!mounted) return;
     // 先放行 PopScope，再在下一帧真正 pop（避免被拦截形成死循环）
     setState(() => _leaving = true);
@@ -435,7 +418,7 @@ class _HuishDevicePageState extends ConsumerState<HuishDevicePage> {
       canPop: _leaving,
       onPopInvokedWithResult: (didPop, _) {
         if (didPop) return;
-        // 系统返回手势 / 硬件返回键：先停水再离开（否则水会一直流）
+        // 系统返回手势 / 硬件返回键：纯导航离开，不影响设备授权与出水
         _exit();
       },
       child: Scaffold(

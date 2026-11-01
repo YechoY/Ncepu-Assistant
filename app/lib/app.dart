@@ -22,22 +22,22 @@ import 'package:package_info_plus/package_info_plus.dart'; // 运行时读取版
 import 'package:path_provider/path_provider.dart'; // APK 下载临时目录
 import 'package:url_launcher/url_launcher.dart'; // 前往浏览器下载新版本
 
-import 'pages/classrooms_page.dart';
-import 'pages/exams_page.dart';
-import 'pages/full_timetable_page.dart';
-import 'pages/grades_page.dart';
-import 'pages/module_nav_page.dart';
-import 'pages/timetable_page.dart';
-import 'providers/auth_state.dart';
-import 'providers/data_state.dart';
-import 'theme.dart';
-import 'widgets/capsule_nav.dart';
-import 'widgets/glass_background.dart';
-import 'widgets/glass_card.dart';
-import 'widgets/glass_dialog.dart';
-import 'widgets/glass_snackbar.dart';
-import 'widgets/offline_banner.dart';
-import 'widgets/top_bar.dart';
+import 'study/pages/classrooms_page.dart';
+import 'study/pages/exams_page.dart';
+import 'study/pages/full_timetable_page.dart';
+import 'study/pages/grades_page.dart';
+import 'module_nav_page.dart';
+import 'study/pages/timetable_page.dart';
+import 'study/providers/auth_state.dart';
+import 'study/providers/data_state.dart';
+import 'package:glass_ui/theme.dart';
+import 'package:glass_ui/widgets/capsule_nav.dart';
+import 'package:glass_ui/widgets/glass_background.dart';
+import 'package:glass_ui/widgets/glass_card.dart';
+import 'package:glass_ui/widgets/glass_dialog.dart';
+import 'package:glass_ui/widgets/glass_snackbar.dart';
+import 'package:glass_ui/widgets/offline_banner.dart';
+import 'package:glass_ui/widgets/top_bar.dart';
 
 // StatelessWidget：无内部状态的 Widget。它的 UI 完全由构造参数决定，
 // 一旦创建就不变。HdjwApp 只是配置一下整个 App，不需要自己维护状态，所以用无状态的即可。

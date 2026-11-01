@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
-import '../models/grade.dart';
-import '../theme.dart';
-import 'glass_card.dart';
+import '../study/models/grade.dart';
+import 'package:glass_ui/theme.dart';
+import 'package:glass_ui/widgets/glass_card.dart';
 
 class GradeCard extends StatelessWidget {
   final Grade grade;
