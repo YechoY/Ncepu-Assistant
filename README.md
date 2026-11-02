@@ -10,12 +10,10 @@
 
 ## 应用预览
 
-<p>
-  <img src="docs/screenshots/home.png" width="24%" alt="首页">
-  <img src="docs/screenshots/study.png" width="24%" alt="学习服务">
-  <img src="docs/screenshots/huish.png" width="24%" alt="饮水服务">
-  <img src="docs/screenshots/laundry.png" width="24%" alt="洗衣服务">
-</p>
+| 首页 | 学习服务 | 饮水服务 | 洗衣服务 |
+| :---: | :---: | :---: | :---: |
+| <img src="docs/screenshots/home.png" width="200" alt="首页"> | <img src="docs/screenshots/study.png" width="200" alt="学习服务"> | <img src="docs/screenshots/huish.png" width="200" alt="饮水服务"> | <img src="docs/screenshots/laundry.png" width="200" alt="洗衣服务"> |
+| 模块导航，各服务独立登录 | 课表 · 成绩 · 考试 · 空闲教室 | 扫码取水 · 设备管理 · 消费记录 | 扫码下单 · 支付宝支付 · 订单跟踪 |
 
 ## 功能特性
 
