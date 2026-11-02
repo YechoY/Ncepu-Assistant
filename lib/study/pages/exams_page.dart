@@ -67,13 +67,28 @@ class ExamsPage extends ConsumerWidget {
           ),
         ),
         // ── 考试列表 / 空态 ───────────────────────────────
-        Expanded(child: _buildList(exams)),
+        Expanded(child: _buildList(ref, exams)),
       ],
     );
   }
 
-  Widget _buildList(List exams) {
-    if (exams.isEmpty) return const EmptyView(text: '暂无考试信息');
+  Widget _buildList(WidgetRef ref, List exams) {
+    // 下拉刷新：重新拉取考试数据（保持当前学期）。
+    Future<void> onRefresh() =>
+        ref.read(dataStateProvider.notifier).refreshExams();
+    if (exams.isEmpty) {
+      return RefreshIndicator(
+        color: kPrimary,
+        onRefresh: onRefresh,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          children: const [
+            SizedBox(height: 100),
+            EmptyView(text: '暂无考试信息'),
+          ],
+        ),
+      );
+    }
     final now = DateTime.now();
     // 按考试时间排序后反转 → 时间较晚的在前（降序）。
     final sorted = [...exams]
@@ -86,19 +101,24 @@ class ExamsPage extends ConsumerWidget {
         return ta.compareTo(tb);
       });
     final ordered = sorted.reversed.toList();
-    return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(14, 6, 14, 8),
-      itemCount: ordered.length,
-      itemBuilder: (_, i) {
-        final e = ordered[i];
-        final done = _parseTime(e.time)?.isBefore(now) ?? false;
-        return Reveal(
-          duration: const Duration(milliseconds: 320),
-          offset: const Offset(0, 14),
-          minScale: 0.98,
-          child: ExamCard(exam: e, done: done),
-        );
-      },
+    return RefreshIndicator(
+      color: kPrimary,
+      onRefresh: onRefresh,
+      child: ListView.builder(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(14, 6, 14, 8),
+        itemCount: ordered.length,
+        itemBuilder: (_, i) {
+          final e = ordered[i];
+          final done = _parseTime(e.time)?.isBefore(now) ?? false;
+          return Reveal(
+            duration: const Duration(milliseconds: 320),
+            offset: const Offset(0, 14),
+            minScale: 0.98,
+            child: ExamCard(exam: e, done: done),
+          );
+        },
+      ),
     );
   }
 

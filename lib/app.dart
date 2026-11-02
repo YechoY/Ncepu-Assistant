@@ -200,7 +200,7 @@ class _MainShellState extends ConsumerState<MainShell> {
                   2 => '更新：${formatUpdatedAt(state.examsUpdatedAt)}',
                   _ => null,
                 },
-                showRefresh: tab != 3, // 空闲教室页(3)不显示刷新按钮（它每次实时查）
+                // 刷新已统一为各页下拉触发，顶栏不再放刷新按钮
                 // 仅课表页(0)在标题栏放一个「全部课表」入口，点击进入整学期课表页。
                 trailing: tab == 0
                     ? TextButton.icon(
@@ -229,54 +229,6 @@ class _MainShellState extends ConsumerState<MainShell> {
                         ),
                       )
                     : null,
-                // onRefresh 根据当前 Tab 决定刷新哪块数据。用 switch 表达式返回不同的回调函数。
-                onRefresh: switch (tab) {
-                  0 => () async {
-                    final week = ref.read(dataStateProvider).timetableWeek;
-                    if (week.isEmpty) return;
-                    await ref
-                        .read(dataStateProvider.notifier)
-                        .loadTimetable(week, force: true);
-                    await Future.delayed(const Duration(milliseconds: 200));
-                    if (!context.mounted) return;
-                    final st = ref.read(dataStateProvider);
-                    if (st.notice == null) {
-                      showGlassSnackBar(context, '课表已刷新');
-                    } else if (st.notice!.contains('缓存')) {
-                      showGlassSnackBar(context, st.notice!);
-                    } else {
-                      showGlassSnackBar(context, st.notice!);
-                    }
-                  },
-                  1 => () async {
-                    await ref.read(dataStateProvider.notifier).refreshGrades();
-                    await Future.delayed(const Duration(milliseconds: 200));
-                    if (!context.mounted) return;
-                    final st = ref.read(dataStateProvider);
-                    if (st.notice == null) {
-                      showGlassSnackBar(context, '成绩已刷新');
-                    } else if (st.notice!.contains('缓存')) {
-                      showGlassSnackBar(context, st.notice!);
-                    } else {
-                      showGlassSnackBar(context, st.notice!);
-                    }
-                  },
-                  _ => () async {
-                    await ref
-                        .read(dataStateProvider.notifier)
-                        .refreshExams(force: true);
-                    await Future.delayed(const Duration(milliseconds: 200));
-                    if (!context.mounted) return;
-                    final st = ref.read(dataStateProvider);
-                    if (st.notice == null) {
-                      showGlassSnackBar(context, '考试已刷新');
-                    } else if (st.notice!.contains('缓存')) {
-                      showGlassSnackBar(context, st.notice!);
-                    } else {
-                      showGlassSnackBar(context, st.notice!);
-                    }
-                  },
-                },
                 userName: userName,
                 userClass: userClass,
                 onUserTap: () => showModalBottomSheet(

@@ -11,6 +11,9 @@ import 'package:glass_ui/theme.dart';
 import 'package:glass_ui/widgets/glass_background.dart';
 import 'package:glass_ui/widgets/glass_card.dart';
 import 'package:glass_ui/widgets/glass_dialog.dart';
+import 'package:glass_ui/widgets/glass_info_row.dart';
+import 'package:glass_ui/widgets/glass_page_header.dart';
+import 'package:glass_ui/widgets/glass_stat_cards.dart';
 
 import 'laundry_api_client.dart';
 import 'laundry_auth_state.dart';
@@ -96,88 +99,38 @@ class _LaundryHistoryPageState extends ConsumerState<LaundryHistoryPage> {
     final balanceText = _balanceFen < 0
         ? '--'
         : '¥${(_balanceFen / 100).toStringAsFixed(2)}';
-    return GlassCard(
-      radius: 18,
-      live: false,
-      opacity: kFrostAlpha,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      child: Row(
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: const LinearGradient(colors: [kLaundry, kLaundryDeep]),
-              boxShadow: [
-                BoxShadow(
-                  color: kLaundryDeep.withValues(alpha: 0.22),
-                  blurRadius: 10,
-                  offset: const Offset(0, 3),
-                ),
-              ],
-            ),
-            child: const Icon(
-              Icons.account_balance_wallet_rounded,
-              size: 20,
-              color: Colors.white,
-            ),
+    return GlassBalanceCard(
+      label: '账户余额',
+      amount: balanceText,
+      icon: Icons.account_balance_wallet_rounded,
+      light: kLaundry,
+      deep: kLaundryDeep,
+      trailing: GestureDetector(
+        onTap: _loadingBalance ? null : _loadBalance,
+        child: Container(
+          width: 34,
+          height: 34,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: Colors.white.withValues(alpha: 0.55),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.7)),
           ),
-          const SizedBox(width: 12),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                '账户余额',
-                style: TextStyle(
-                  fontSize: 11.5,
-                  color: kTextMuted,
-                  fontWeight: FontWeight.w600,
+          child: _loadingBalance
+              ? const SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: kLaundryDeep,
+                  ),
+                )
+              : const Icon(
+                  Icons.refresh_rounded,
+                  size: 18,
+                  color: kLaundryDeep,
                 ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                balanceText,
-                style: const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w800,
-                  color: kInk,
-                  height: 1.1,
-                ),
-              ),
-            ],
-          ),
-          const Spacer(),
-          GestureDetector(
-            onTap: _loadingBalance ? null : _loadBalance,
-            child: Container(
-              width: 34,
-              height: 34,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.white.withValues(alpha: 0.55),
-                border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.7),
-                ),
-              ),
-              child: _loadingBalance
-                  ? const SizedBox(
-                      width: 14,
-                      height: 14,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: kLaundryDeep,
-                      ),
-                    )
-                  : const Icon(
-                      Icons.refresh_rounded,
-                      size: 18,
-                      color: kLaundryDeep,
-                    ),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -205,54 +158,17 @@ class _LaundryHistoryPageState extends ConsumerState<LaundryHistoryPage> {
 
   Widget _statsCard() {
     final (today, month) = _calcStats();
-    return GlassCard(
-      radius: 18,
-      live: false,
-      opacity: kFrostAlpha,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      child: Row(
-        children: [
-          Expanded(child: _statItem('今日消费', today, Icons.today_rounded)),
-          Container(width: 1, height: 34, color: kGlassGridLine),
-          Expanded(
-            child: _statItem(
-              '本月消费',
-              month,
-              Icons.calendar_month_rounded,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _statItem(String label, double value, IconData icon) {
-    return Column(
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, size: 13, color: kTextMuted),
-            const SizedBox(width: 4),
-            Text(
-              label,
-              style: const TextStyle(
-                fontSize: 11.5,
-                color: kTextMuted,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
+    return GlassStatsCard(
+      stats: [
+        GlassStat(
+          icon: Icons.today_rounded,
+          label: '今日消费',
+          value: '¥${today.toStringAsFixed(2)}',
         ),
-        const SizedBox(height: 5),
-        Text(
-          '¥${value.toStringAsFixed(2)}',
-          style: const TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.w800,
-            color: kInk,
-            height: 1.1,
-          ),
+        GlassStat(
+          icon: Icons.calendar_month_rounded,
+          label: '本月消费',
+          value: '¥${month.toStringAsFixed(2)}',
         ),
       ],
     );
@@ -264,59 +180,34 @@ class _LaundryHistoryPageState extends ConsumerState<LaundryHistoryPage> {
     final o = item.order;
     final at = item.finishedAt;
     final atStr = at == null || at.millisecondsSinceEpoch == 0
-        ? '--'
+        ? ''
         : '${at.year}-${_two(at.month)}-${_two(at.day)} '
             '${_two(at.hour)}:${_two(at.minute)}';
-    Widget row(String label, String value) => Padding(
-          padding: const EdgeInsets.only(bottom: 9),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              SizedBox(
-                width: 64,
-                child: Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: kTextMuted.withValues(alpha: 0.85),
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-              Expanded(
-                child: Text(
-                  value,
-                  style: const TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w700,
-                    color: kTextMain,
-                    height: 1.4,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        );
     showDialog<void>(
       context: context,
+      barrierColor: const Color(0x402E3350),
       builder: (_) => GlassDialog(
         title: '订单详情',
         accentColor: kLaundryDeep,
         confirmText: '知道了',
+        cancelText: null,
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            row(
-              '设备',
-              o == null || o.deviceNo.isEmpty
-                  ? '--'
+            GlassInfoRow(
+              label: '设备',
+              value: o == null || o.deviceNo.isEmpty
+                  ? ''
                   : '洗衣机 ${o.deviceNo}',
             ),
-            row('订单号', item.orderId),
-            row('状态', o == null ? '查询失败' : o.statusText),
-            row('金额', o == null || o.payPrice.isEmpty ? '--' : o.payPrice),
-            row('完成时间', atStr),
+            GlassInfoRow(label: '订单号', value: item.orderId),
+            GlassInfoRow(label: '状态', value: o == null ? '查询失败' : o.statusText),
+            GlassInfoRow(
+              label: '金额',
+              value: o == null || o.payPrice.isEmpty ? '' : o.payPrice,
+            ),
+            GlassInfoRow(label: '完成时间', value: atStr),
           ],
         ),
       ),
@@ -334,44 +225,7 @@ class _LaundryHistoryPageState extends ConsumerState<LaundryHistoryPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
-                child: Row(
-                  children: [
-                    GestureDetector(
-                      onTap: () => Navigator.pop(context),
-                      child: Container(
-                        width: 38,
-                        height: 38,
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.5),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.65),
-                          ),
-                        ),
-                        child: const Icon(
-                          Icons.arrow_back_ios_new_rounded,
-                          size: 18,
-                          color: kLaundryDeep,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    const Expanded(
-                      child: Text(
-                        '洗衣记录',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w800,
-                          color: kInk,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              const GlassPageHeader(title: '洗衣记录', accentColor: kLaundryDeep),
               if (!_loading && _items.isNotEmpty) ...[
                 Padding(
                   padding: const EdgeInsets.fromLTRB(20, 10, 20, 0),

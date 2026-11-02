@@ -11,6 +11,8 @@ import 'package:glass_ui/widgets/glass_background.dart';
 import 'package:glass_ui/widgets/glass_dialog.dart';
 import 'package:glass_ui/widgets/glass_card.dart';
 import 'package:glass_ui/widgets/glass_info_row.dart';
+import 'package:glass_ui/widgets/glass_page_header.dart';
+import 'package:glass_ui/widgets/glass_stat_cards.dart';
 import 'huish_auth_state.dart';
 
 class HuishBillPage extends ConsumerStatefulWidget {
@@ -132,6 +134,7 @@ class _HuishBillPageState extends ConsumerState<HuishBillPage> {
       barrierColor: const Color(0x402E3350),
       builder: (_) => GlassDialog(
         title: '账单详情',
+        accentColor: kHuishDeep,
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -163,44 +166,7 @@ class _HuishBillPageState extends ConsumerState<HuishBillPage> {
           child: Column(
             children: [
               // 顶部栏
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
-                child: Row(
-                  children: [
-                    GestureDetector(
-                      onTap: () => Navigator.of(context).pop(),
-                      child: Container(
-                        width: 38,
-                        height: 38,
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.5),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.65),
-                          ),
-                        ),
-                        child: const Icon(
-                          Icons.arrow_back_ios_new_rounded,
-                          size: 18,
-                          color: kPrimary,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    const Expanded(
-                      child: Text(
-                        '消费记录',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w800,
-                          color: kInk,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              const GlassPageHeader(title: '消费记录', accentColor: kHuishDeep),
               Expanded(
                 child: RefreshIndicator(
                   color: kPrimary,
@@ -246,48 +212,20 @@ class _HuishBillPageState extends ConsumerState<HuishBillPage> {
   }
 
   Widget _balanceCard() {
-    return GlassCard(
-      radius: 24,
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    // GlassBalanceCard 公共组件：横向紧凑布局，现金/赠送明细收进右侧竖排小胶囊
+    final label = _epName.isEmpty ? '账户余额' : '账户余额 · $_epName';
+    return GlassBalanceCard(
+      label: label,
+      amount: '¥${(_cash + _gift).toStringAsFixed(2)}',
+      icon: Icons.account_balance_wallet_rounded,
+      light: kHuish,
+      deep: kHuishDeep,
+      trailing: Column(
+        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          Row(
-            children: [
-              const Icon(
-                Icons.account_balance_wallet_rounded,
-                size: 16,
-                color: kPrimary,
-              ),
-              const SizedBox(width: 6),
-              Text(
-                _epName,
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: kTextMuted,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            '¥${(_cash + _gift).toStringAsFixed(2)}',
-            style: const TextStyle(
-              fontSize: 36,
-              fontWeight: FontWeight.w800,
-              color: kInk,
-              height: 1.1,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              _walletChip('现金 ¥${_cash.toStringAsFixed(2)}'),
-              const SizedBox(width: 8),
-              _walletChip('赠送 ¥${_gift.toStringAsFixed(2)}'),
-            ],
-          ),
+          _walletChip('现金 ¥${_cash.toStringAsFixed(2)}'),
+          const SizedBox(height: 4),
+          _walletChip('赠送 ¥${_gift.toStringAsFixed(2)}'),
         ],
       ),
     );
@@ -295,15 +233,15 @@ class _HuishBillPageState extends ConsumerState<HuishBillPage> {
 
   Widget _walletChip(String text) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2.5),
       decoration: BoxDecoration(
-        color: kPrimary.withValues(alpha: 0.08),
+        color: kHuish.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Text(
         text,
         style: const TextStyle(
-          fontSize: 11.5,
+          fontSize: 11,
           color: kTextMuted,
           fontWeight: FontWeight.w600,
         ),
@@ -337,59 +275,17 @@ class _HuishBillPageState extends ConsumerState<HuishBillPage> {
 
   Widget _statsCard() {
     final (today, month) = _calcStats();
-    return GlassCard(
-      radius: 18,
-      live: false,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      child: Row(
-        children: [
-          Expanded(
-            child: _statItem(
-              '今日消费',
-              today,
-              Icons.today_rounded,
-            ),
-          ),
-          Container(width: 1, height: 34, color: kGlassGridLine),
-          Expanded(
-            child: _statItem(
-              '本月消费',
-              month,
-              Icons.calendar_month_rounded,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _statItem(String label, double value, IconData icon) {
-    return Column(
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, size: 13, color: kTextMuted),
-            const SizedBox(width: 4),
-            Text(
-              label,
-              style: const TextStyle(
-                fontSize: 11.5,
-                color: kTextMuted,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
+    return GlassStatsCard(
+      stats: [
+        GlassStat(
+          icon: Icons.today_rounded,
+          label: '今日消费',
+          value: '¥${today.toStringAsFixed(2)}',
         ),
-        const SizedBox(height: 5),
-        Text(
-          '¥${value.toStringAsFixed(2)}',
-          style: const TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.w800,
-            color: kInk,
-            height: 1.1,
-          ),
+        GlassStat(
+          icon: Icons.calendar_month_rounded,
+          label: '本月消费',
+          value: '¥${month.toStringAsFixed(2)}',
         ),
       ],
     );

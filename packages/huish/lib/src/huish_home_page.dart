@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:glass_ui/theme.dart';
+import 'package:glass_ui/widgets/glass_action_sheet.dart';
 import 'package:glass_ui/widgets/glass_background.dart';
 import 'package:glass_ui/widgets/glass_card.dart';
 import 'package:glass_ui/widgets/glass_dialog.dart';
@@ -136,29 +137,31 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
                   const SizedBox(height: 10),
                   ...allDevices.map((e) {
                     final isCurrent = e.key == _quickDeviceId;
-                    return _sheetAction(
+                    return GlassActionRow(
                       Icons.water_drop_outlined,
                       e.value,
-                      () {
+                      onTap: () {
                         Navigator.of(ctx).pop(e.key);
                       },
-                      color: isCurrent ? kPrimary : kInk,
+                      color: isCurrent ? kHuishDeep : null,
                       trailing: isCurrent
                           ? const Icon(
                               Icons.check_rounded,
                               size: 18,
-                              color: kPrimary,
+                              color: kHuishDeep,
                             )
                           : null,
+                      accentColor: kHuishDeep,
                     );
                   }),
                   if (_quickDeviceId != null) ...[
                     const SizedBox(height: 4),
-                    _sheetAction(
+                    GlassActionRow(
                       Icons.link_off_rounded,
                       '取消绑定',
-                      () => Navigator.of(ctx).pop('__clear__'),
+                      onTap: () => Navigator.of(ctx).pop('__clear__'),
                       color: const Color(0xFFB85450),
+                      accentColor: kHuishDeep,
                     ),
                   ],
                 ],
@@ -595,6 +598,7 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
         final c = TextEditingController(text: _deviceName(d));
         return GlassDialog(
           title: '重命名设备',
+          accentColor: kHuishDeep,
           content: TextField(
             controller: c,
             autofocus: true,
@@ -619,30 +623,6 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
 
   // ── 分组管理 ─────────────────────────────────────────────
 
-  Future<String?> _textInputDialog(String title, String initial) {
-    return showDialog<String>(
-      context: context,
-      builder: (ctx) {
-        final c = TextEditingController(text: initial);
-        return GlassDialog(
-          title: title,
-          content: TextField(
-            controller: c,
-            autofocus: true,
-            style: const TextStyle(
-              fontSize: 13.5,
-              fontWeight: FontWeight.w600,
-              color: kTextMain,
-            ),
-          ),
-          cancelText: '取消',
-          confirmText: '确定',
-          onConfirm: () => Navigator.of(ctx).pop(c.text.trim()),
-        );
-      },
-    );
-  }
-
   // 删除设备（取消收藏 + 清本地偏好）
   Future<void> _deleteDevice(dynamic d) async {
     final id = _deviceId(d);
@@ -650,6 +630,7 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
       context: context,
       builder: (_) => GlassDialog(
         title: '删除设备',
+        accentColor: kHuishDeep,
         content: Text(
           '将从设备列表移除「${_deviceName(d)}」，确定？',
           style: const TextStyle(
@@ -692,118 +673,57 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
     );
   }
 
-  Widget _sheetAction(
-    IconData icon,
-    String label,
-    VoidCallback onTap, {
-    Color color = kInk,
-    Widget? trailing,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      child: Material(
-        color: kPrimary.withValues(alpha: 0.05),
-        borderRadius: BorderRadius.circular(14),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(14),
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
-            child: Row(
-              children: [
-                Icon(icon, size: 21, color: color),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    label,
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                      color: color,
-                    ),
-                  ),
-                ),
-                ?trailing,
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  // 设备操作：重命名 / 移动到分组 / 删除（居中弹窗）
+  // 设备操作：重命名 / 移动到分组 / 删除（居中弹窗，GlassActionSheet 公共组件）
   Future<void> _showDeviceActions(dynamic d) async {
     final id = _deviceId(d);
     await showDialog<void>(
       context: context,
       barrierColor: const Color(0x402E3350),
-      builder: (_) => Dialog(
-        backgroundColor: Colors.transparent,
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 380),
-          child: _sheetContainer(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  '「${_deviceName(d)}」',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontSize: 15.5,
-                    fontWeight: FontWeight.w700,
-                    color: kInk,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                _sheetAction(Icons.edit_note_rounded, '重命名', () {
-                  Navigator.of(context).pop();
-                  _renameDevice(d);
-                }),
-                const Padding(
-                  padding: EdgeInsets.fromLTRB(4, 8, 4, 6),
-                  child: Text(
-                    '移动到分组',
-                    style: TextStyle(fontSize: 12.5, color: kTextMuted),
-                  ),
-                ),
-                ..._groups.map((g) {
-                  final current = _customs[id]?.groupId ?? 'default';
-                  return _sheetAction(
-                    g == 'default' ? Icons.home_rounded : Icons.folder_rounded,
-                    g == 'default' ? '默认' : g,
-                    () async {
-                      Navigator.of(context).pop();
-                      await DevicePrefs.updateDeviceCustom(id, groupId: g);
-                      _customs = await DevicePrefs.loadDeviceCustoms();
-                      if (mounted) setState(() {});
-                    },
-                    color: current == g ? kPrimary : kInk,
-                    trailing: current == g
-                        ? const Icon(
-                            Icons.check_rounded,
-                            size: 18,
-                            color: kPrimary,
-                          )
-                        : null,
-                  );
-                }),
-                const Padding(
-                  padding: EdgeInsets.fromLTRB(4, 8, 4, 6),
-                  child: Text(
-                    '更多操作',
-                    style: TextStyle(fontSize: 12.5, color: kTextMuted),
-                  ),
-                ),
-                _sheetAction(Icons.delete_outline_rounded, '删除设备', () {
-                  Navigator.of(context).pop();
-                  _deleteDevice(d);
-                }, color: const Color(0xFFB85450)),
-              ],
-            ),
+      builder: (_) => GlassActionSheet(
+        title: '「${_deviceName(d)}」',
+        accentColor: kHuishDeep,
+        actions: [
+          GlassAction(
+            icon: Icons.edit_note_rounded,
+            label: '重命名',
+            onTap: () {
+              Navigator.of(context).pop();
+              _renameDevice(d);
+            },
           ),
-        ),
+          for (final g in _groups)
+            GlassAction(
+              icon: g == 'default' ? Icons.home_rounded : Icons.folder_rounded,
+              label: g == 'default' ? '默认' : g,
+              section: g == _groups.first ? '移动到分组' : null,
+              onTap: () async {
+                Navigator.of(context).pop();
+                await DevicePrefs.updateDeviceCustom(id, groupId: g);
+                _customs = await DevicePrefs.loadDeviceCustoms();
+                if (mounted) setState(() {});
+              },
+              color: (_customs[id]?.groupId ?? 'default') == g
+                  ? kHuishDeep
+                  : null,
+              trailing: (_customs[id]?.groupId ?? 'default') == g
+                  ? const Icon(
+                      Icons.check_rounded,
+                      size: 18,
+                      color: kHuishDeep,
+                    )
+                  : null,
+            ),
+          GlassAction(
+            icon: Icons.delete_outline_rounded,
+            label: '删除设备',
+            section: '更多操作',
+            color: const Color(0xFFB85450),
+            onTap: () {
+              Navigator.of(context).pop();
+              _deleteDevice(d);
+            },
+          ),
+        ],
       ),
     );
   }
@@ -850,7 +770,12 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
                           ),
                           GestureDetector(
                             onTap: () async {
-                              final name = await _textInputDialog('新建分组', '');
+                              final name = await GlassDialog.showText(
+                                context,
+                                title: '新建分组',
+                                hint: '输入名称',
+                                accentColor: kHuishDeep,
+                              );
                               if (name == null || name.isEmpty) return;
                               final ok = await DevicePrefs.addGroup(name);
                               if (!ok) return;
@@ -925,9 +850,12 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
                                   if (!isDefault) ...[
                                     GestureDetector(
                                       onTap: () async {
-                                        final nn = await _textInputDialog(
-                                          '重命名分组',
-                                          g,
+                                        final nn = await GlassDialog.showText(
+                                          context,
+                                          title: '重命名分组',
+                                          initial: g,
+                                          hint: '输入名称',
+                                          accentColor: kHuishDeep,
                                         );
                                         if (nn == null || nn.isEmpty) return;
                                         await DevicePrefs.renameGroup(g, nn);
@@ -948,6 +876,7 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
                                           context: context,
                                           builder: (_) => GlassDialog(
                                             title: '删除分组',
+                                            accentColor: kHuishDeep,
                                             content: Text(
                                               '「$g」内的 $count 台设备将移回默认分组，确定删除？',
                                               style: const TextStyle(
@@ -1559,10 +1488,16 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
                   ],
                 ),
                 const SizedBox(height: 10),
-                _sheetAction(Icons.logout_rounded, '退出登录', () {
-                  Navigator.of(ctx).pop();
-                  _logout();
-                }, color: const Color(0xFFB85450)),
+                GlassActionRow(
+                  Icons.logout_rounded,
+                  '退出登录',
+                  onTap: () {
+                    Navigator.of(ctx).pop();
+                    _logout();
+                  },
+                  color: const Color(0xFFB85450),
+                  accentColor: kHuishDeep,
+                ),
               ],
             ),
           ),
@@ -1616,38 +1551,13 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
     );
   }
 
-  Widget _sheetStat(String label, String value) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.6),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.6)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label, style: const TextStyle(fontSize: 10, color: kTextMuted)),
-          const SizedBox(height: 2),
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w800,
-              color: kInk,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Future<void> _logout() async {
     final ok = await showDialog<bool>(
       context: context,
       barrierColor: const Color(0x402E3350),
       builder: (_) => const GlassDialog(
         title: '退出生活服务',
+        accentColor: kHuishDeep,
         content: Text(
           '退出将清除本地饮水登录信息，需要重新输入手机号验证码才能登录，确定吗？',
           style: TextStyle(fontSize: 12.5, height: 1.55, color: kTextMuted),

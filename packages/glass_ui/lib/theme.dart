@@ -9,6 +9,7 @@
 
 import 'dart:ui';
 
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
 // ── 主色（雾蓝紫系）────────────────────────────────────────────
@@ -85,6 +86,15 @@ ThemeData buildTheme() {
     // fromSeed：给一个「种子色」，Material 3 会自动推导出一整套协调的配色方案。
     colorScheme: ColorScheme.fromSeed(seedColor: kPrimarySoft),
     useMaterial3: true, // 启用 Material Design 3 风格
+    // 页面转场：Android 默认的 Zoom 缩放转场会把整面毛玻璃背景一起缩放重采样，
+    // 玻璃页观感发闷发卡；换成 Material 3 的 FadeForwards（淡入 + 轻位移）更轻快，
+    // iOS 保持系统跟手滑动返回。
+    pageTransitionsTheme: const PageTransitionsTheme(
+      builders: {
+        TargetPlatform.android: FadeForwardsPageTransitionsBuilder(),
+        TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+      },
+    ),
   );
   // copyWith：基于 base 复制一份，只覆盖想改的字段（Flutter 里大量用这种“不可变+复制修改”模式）。
   return base.copyWith(

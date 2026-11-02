@@ -184,7 +184,7 @@ class _HuishAddDevicePageState extends ConsumerState<HuishAddDevicePage>
                         child: const Icon(
                           Icons.arrow_back_ios_new_rounded,
                           size: 18,
-                          color: kPrimary,
+                          color: kHuishDeep,
                         ),
                       ),
                     ),
@@ -254,26 +254,26 @@ class _HuishAddDevicePageState extends ConsumerState<HuishAddDevicePage>
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
         decoration: BoxDecoration(
           color: selected
-              ? kPrimary.withValues(alpha: 0.14)
+              ? kHuishDeep.withValues(alpha: 0.14)
               : Colors.white.withValues(alpha: 0.5),
           borderRadius: BorderRadius.circular(13),
           border: Border.all(
             color: selected
-                ? kPrimary.withValues(alpha: 0.55)
+                ? kHuishDeep.withValues(alpha: 0.55)
                 : Colors.white.withValues(alpha: 0.65),
           ),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 16, color: selected ? kPrimary : kTextMuted),
+            Icon(icon, size: 16, color: selected ? kHuishDeep : kTextMuted),
             const SizedBox(width: 6),
             Text(
               label,
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                color: selected ? kPrimary : kTextMuted,
+                color: selected ? kHuishDeep : kTextMuted,
               ),
             ),
           ],
@@ -453,7 +453,7 @@ class _HuishAddDevicePageState extends ConsumerState<HuishAddDevicePage>
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Icon(Icons.keyboard_rounded, size: 40, color: kPrimary),
+            const Icon(Icons.keyboard_rounded, size: 40, color: kHuishDeep),
             const SizedBox(height: 12),
             const Center(
               child: Text(
@@ -509,7 +509,7 @@ class _HuishAddDevicePageState extends ConsumerState<HuishAddDevicePage>
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(14),
-                  borderSide: const BorderSide(color: kPrimary, width: 1.5),
+                  borderSide: const BorderSide(color: kHuishDeep, width: 1.5),
                 ),
               ),
               onSubmitted: (_) => _lookupManual(),
@@ -519,7 +519,7 @@ class _HuishAddDevicePageState extends ConsumerState<HuishAddDevicePage>
               height: 46,
               child: FilledButton.icon(
                 onPressed: _looking ? null : _lookupManual,
-                style: FilledButton.styleFrom(backgroundColor: kPrimary),
+                style: FilledButton.styleFrom(backgroundColor: kHuishDeep),
                 icon: _looking
                     ? const SizedBox(
                         width: 16,
@@ -565,7 +565,7 @@ class _HuishAddDevicePageState extends ConsumerState<HuishAddDevicePage>
               height: 42,
               child: FilledButton(
                 onPressed: _reset,
-                style: FilledButton.styleFrom(backgroundColor: kPrimary),
+                style: FilledButton.styleFrom(backgroundColor: kHuishDeep),
                 child: const Text('返回重试'),
               ),
             ),

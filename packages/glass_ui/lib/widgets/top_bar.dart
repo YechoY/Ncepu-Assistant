@@ -6,19 +6,15 @@ import 'glass_card.dart';
 class TopBar extends StatelessWidget {
   final String title;
   final String? subtitle;
-  final bool showRefresh;
-  final VoidCallback? onRefresh;
   final Widget? trailing;
   final String userName;
-  final String? userClass; // 班级（头像胶囊第二行，可空）
+  final String? userClass; // 班级（胶囊内「·」后展示，可空）
   final VoidCallback onUserTap;
   final VoidCallback? onBack; // 内嵌返回按钮（学习服务用）
   const TopBar({
     super.key,
     required this.title,
     this.subtitle,
-    this.showRefresh = false,
-    this.onRefresh,
     this.trailing,
     required this.userName,
     this.userClass,
@@ -92,11 +88,6 @@ class TopBar extends StatelessWidget {
               ),
             ),
             ?trailing,
-            if (showRefresh)
-              IconButton(
-                icon: const Icon(Icons.refresh, size: 20, color: kPrimary),
-                onPressed: onRefresh,
-              ),
             GestureDetector(
               onTap: onUserTap,
               child: Container(
@@ -111,30 +102,44 @@ class TopBar extends StatelessWidget {
                     color: Colors.white.withValues(alpha: 0.5),
                   ),
                 ),
-                child: Column(
+                child: Row(
                   mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    Text(
-                      userName,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 11,
-                        color: kInk,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    if (userClass != null && userClass!.isNotEmpty)
-                      Text(
-                        userClass!,
+                    Flexible(
+                      child: Text(
+                        userName,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 9,
-                          color: kTextMuted.withValues(alpha: 0.8),
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: kInk,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
+                    ),
+                    // 姓名 · 班级 单行胶囊；班级过长时截断，姓名始终优先
+                    if (userClass != null && userClass!.isNotEmpty) ...[
+                      const SizedBox(width: 4),
+                      Text(
+                        '·',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: kTextMuted.withValues(alpha: 0.7),
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Flexible(
+                        child: Text(
+                          userClass!,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: kTextMuted.withValues(alpha: 0.85),
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),

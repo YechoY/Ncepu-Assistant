@@ -67,6 +67,70 @@ class GlassDialog extends StatelessWidget {
     ).then((v) => v == true);
   }
 
+  /// 文本输入弹窗（重命名/新建分组等共用）：玻璃输入框 + 取消/确定，
+  /// 点确定返回输入内容（trim 过），取消/关闭返回 null。
+  static Future<String?> showText(
+    BuildContext context, {
+    required String title,
+    String initial = '',
+    String? hint,
+    Color? accentColor,
+    String confirmText = '确定',
+    String cancelText = '取消',
+  }) {
+    final c = TextEditingController(text: initial);
+    return showDialog<String>(
+      context: context,
+      builder: (ctx) => GlassDialog(
+        title: title,
+        accentColor: accentColor,
+        content: TextField(
+          controller: c,
+          autofocus: true,
+          style: const TextStyle(
+            fontSize: 13.5,
+            fontWeight: FontWeight.w600,
+            color: kTextMain,
+          ),
+          decoration: InputDecoration(
+            hintText: hint,
+            hintStyle: TextStyle(
+              fontSize: 12.5,
+              color: kTextMuted.withValues(alpha: 0.7),
+            ),
+            isDense: true,
+            filled: true,
+            fillColor: Colors.white.withValues(alpha: 0.6),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 14,
+              vertical: 12,
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(
+                color: Colors.white.withValues(alpha: 0.8),
+              ),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(
+                color: (accentColor ?? kPrimary).withValues(alpha: 0.55),
+                width: 1.4,
+              ),
+            ),
+          ),
+        ),
+        cancelText: cancelText,
+        confirmText: confirmText,
+        onConfirm: () => Navigator.of(ctx).pop(c.text.trim()),
+      ),
+    ).whenComplete(() {
+      // pop 完成时 TextField 仍在退场动画中挂在树上，立即 dispose controller
+      // 会触发 framework 的 _dependents.isEmpty 断言（红屏），延迟到动画结束后释放
+      Future.delayed(const Duration(milliseconds: 600), c.dispose);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final tone = destructive

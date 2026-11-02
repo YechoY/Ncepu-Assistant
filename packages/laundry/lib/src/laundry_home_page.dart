@@ -7,6 +7,7 @@
 
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -14,6 +15,7 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'package:glass_ui/theme.dart';
+import 'package:glass_ui/widgets/glass_action_sheet.dart';
 import 'package:glass_ui/widgets/glass_background.dart';
 import 'package:glass_ui/widgets/glass_card.dart';
 import 'package:glass_ui/widgets/glass_dialog.dart';
@@ -40,8 +42,13 @@ class _LaundryHomePageState extends ConsumerState<LaundryHomePage> {
 
   WasherOrder? _order; // 当前跟踪的订单
   bool _orderBusy = false; // 订单操作进行中
+  bool _simulating = false; // debug 模拟订单状态中（暂停真实轮询）
+  bool _payIntent = false; // 支付意图：回跳拉单确认可启动后消费（触发自动启动）
   Timer? _pollTimer;
   Timer? _remainTickTimer; // 本地每秒倒计时（运行中让剩余时间平滑走动）
+  Timer? _autoStartTimer; // 支付后自动启动倒计时
+  final ValueNotifier<int> _autoStartNotifier =
+      ValueNotifier(-1); // >=0 = 自动启动等待剩余秒
 
   List<FavWasher> _favs = []; // 常用洗衣机（本地收藏）
   Map<String, List<String>> _deviceOrder = {}; // 分组内拖拽顺序
@@ -170,6 +177,8 @@ class _LaundryHomePageState extends ConsumerState<LaundryHomePage> {
   void dispose() {
     _pollTimer?.cancel();
     _remainTickTimer?.cancel();
+    _autoStartTimer?.cancel();
+    _autoStartNotifier.dispose();
     super.dispose();
   }
 
@@ -196,6 +205,8 @@ class _LaundryHomePageState extends ConsumerState<LaundryHomePage> {
       final order = await ref.read(laundryApiProvider).fetchOrder(last);
       if (!mounted) return;
       if (order.isFinished) {
+        // 洗完才回来也要留档洗衣记录（addOrderHistory 按 orderId 去重，不会重复）
+        await LaundryDevicePrefs.addOrderHistory(order.orderId);
         await _storage.delete(key: _kLastOrder);
         return;
       }
@@ -211,6 +222,8 @@ class _LaundryHomePageState extends ConsumerState<LaundryHomePage> {
     _remainTickTimer?.cancel();
     final o = _order;
     if (o == null || o.isFinished) return;
+    // 先把当前订单的剩余秒同步进通知器（否则 tick 首秒见 v<=0 会自杀，倒计时冻结）
+    _syncRemain();
     // 运行中/已预约：本地每秒递减剩余时间，让倒计时平滑走动（5s 轮询负责校准真实值）
     if (o.status == WasherOrder.statusRunning ||
         o.status == WasherOrder.statusReserved) {
@@ -250,11 +263,15 @@ class _LaundryHomePageState extends ConsumerState<LaundryHomePage> {
   Future<void> _refreshOrder() async {
     final o = _order;
     if (o == null || _orderBusy) return;
+    if (_simulating) return; // 模拟态不打真实接口
     try {
       final fresh = await ref.read(laundryApiProvider).fetchOrder(o.orderId);
       if (!mounted) return;
       setState(() => _order = fresh);
-      _syncRemain();
+      // 校准后重启每秒 tick（含 _syncRemain），防止 tick 自死后倒计时冻结
+      _updatePolling();
+      // 支付后拉单未入账的场景：轮询拉到已预约时补触发自动启动
+      await _consumePayIntent();
       if (fresh.isFinished) {
         await _storage.delete(key: _kLastOrder);
         _pollTimer?.cancel();
@@ -282,6 +299,58 @@ class _LaundryHomePageState extends ConsumerState<LaundryHomePage> {
     } catch (_) {
       // 轮询失败静默，下一轮再试
     }
+  }
+
+  // ===== 支付后自动启动 =====
+  //
+  // 设备侧保证：启动指令发出后等洗衣机门关好才真正开始运行，
+  // 所以无论立即还是延时发送都是安全的，延时只是给「放衣服关门」留时间。
+
+  /// 支付回跳后调用：若开了自动启动且订单处于已预约，启动延时倒计时。
+  Future<void> _maybeAutoStart() async {
+    if (!mounted) return;
+    final o = _order;
+    if (o == null || !o.canStart) return;
+    if (!await LaundryDevicePrefs.loadAutoStart()) return;
+    final delay = await LaundryDevicePrefs.loadAutoStartDelay();
+    if (!mounted) return;
+    _cancelAutoStart();
+    if (delay <= 0) {
+      await _startOrder(); // 立即发送
+      return;
+    }
+    var remain = delay;
+    _autoStartNotifier.value = remain;
+    _autoStartTimer = Timer.periodic(const Duration(seconds: 1), (t) {
+      remain--;
+      if (!mounted) {
+        t.cancel();
+        return;
+      }
+      _autoStartNotifier.value = remain;
+      if (remain <= 0) {
+        t.cancel();
+        _autoStartTimer = null;
+        _autoStartNotifier.value = -1;
+        if (_order?.canStart == true) _startOrder();
+      }
+    });
+  }
+
+  void _cancelAutoStart() {
+    _autoStartTimer?.cancel();
+    _autoStartTimer = null;
+    _autoStartNotifier.value = -1;
+  }
+
+  /// 消费支付意图：订单确认处于「已预约」时进入自动启动。
+  /// 支付回跳时拉单未入账（仍是待支付）则保留标记，交给轮询补触发。
+  Future<void> _consumePayIntent() async {
+    if (!_payIntent) return;
+    final o = _order;
+    if (o == null || !o.canStart) return;
+    _payIntent = false;
+    await _maybeAutoStart();
   }
 
   Future<void> _trackOrder(String orderId) async {
@@ -364,6 +433,7 @@ class _LaundryHomePageState extends ConsumerState<LaundryHomePage> {
   Future<void> _payOrder() async {
     final o = _order;
     if (o == null || !o.canPay) return;
+    _payIntent = true; // 支付意图标记：等拉单确认 canStart 后消费
     setState(() => _orderBusy = true);
     try {
       final args = await ref.read(laundryApiProvider).fetchPaymentArgs(o.orderId);
@@ -371,40 +441,39 @@ class _LaundryHomePageState extends ConsumerState<LaundryHomePage> {
       // 服务端下发 h5_url 时直接外跳 H5 收银；否则用 orderInfo 走原生支付宝 SDK。
       if (args.h5Url.isNotEmpty) {
         final uri = Uri.parse(args.h5Url);
-        if (await canLaunchUrl(uri)) {
-          await launchUrl(uri, mode: LaunchMode.externalApplication);
-          if (!mounted) return;
-          showGlassSnackBar(context, '已跳转支付宝，支付完成后回来查看状态');
-          await Future.delayed(const Duration(seconds: 3));
-          await _trackOrder(o.orderId);
-          return;
+        if (!await canLaunchUrl(uri)) {
+          throw const LaundryException('无法打开支付宝链接');
         }
-        throw const LaundryException('无法打开支付宝链接');
-      }
-      if (args.orderInfo.isEmpty) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+        if (!mounted) return;
+        showGlassSnackBar(context, '已跳转支付宝，支付完成后回来查看状态');
+        await Future.delayed(const Duration(seconds: 3));
+        await _trackOrder(o.orderId);
+      } else if (args.orderInfo.isEmpty) {
         throw const LaundryException('服务端未返回支付宝支付参数');
+      } else {
+        // 原生 PayTask 拉起收银台（对齐参考项目：channel ujing/alipay）
+        final pay = await AlipayPay.payV2(args.orderInfo);
+        if (!mounted) return;
+        switch (pay.status) {
+          case '9000':
+            showGlassSnackBar(context, '支付成功');
+            break;
+          case '8000':
+            showGlassSnackBar(context, '支付处理中，确认后自动更新状态');
+            break;
+          case '6001':
+            showGlassSnackBar(context, '已取消支付');
+            break;
+          case 'NO_PLUGIN':
+          case 'PAY_ERROR':
+            showGlassSnackBar(context, pay.message);
+            break;
+          default:
+            showGlassSnackBar(context, '支付未完成（${pay.status}）');
+        }
+        await _trackOrder(o.orderId);
       }
-      // 原生 PayTask 拉起收银台（对齐参考项目：channel ujing/alipay）
-      final pay = await AlipayPay.payV2(args.orderInfo);
-      if (!mounted) return;
-      switch (pay.status) {
-        case '9000':
-          showGlassSnackBar(context, '支付成功');
-          break;
-        case '8000':
-          showGlassSnackBar(context, '支付处理中，确认后自动更新状态');
-          break;
-        case '6001':
-          showGlassSnackBar(context, '已取消支付');
-          break;
-        case 'NO_PLUGIN':
-        case 'PAY_ERROR':
-          showGlassSnackBar(context, pay.message);
-          break;
-        default:
-          showGlassSnackBar(context, '支付未完成（${pay.status}）');
-      }
-      await _trackOrder(o.orderId);
     } on LaundryException catch (e) {
       if (mounted) showGlassSnackBar(context, e.message);
     } catch (e) {
@@ -412,11 +481,29 @@ class _LaundryHomePageState extends ConsumerState<LaundryHomePage> {
     } finally {
       if (mounted) setState(() => _orderBusy = false);
     }
+    // 此处 busy 已释放，避免「立即启动」被 _orderBusy 拦截吞掉；
+    // 拉单未入账时这里不触发，由轮询 _refreshOrder 补触发。
+    await _consumePayIntent();
   }
 
   Future<void> _startOrder() async {
     final o = _order;
     if (o == null || _orderBusy) return;
+    _cancelAutoStart(); // 手动/自动启动都终止自动启动倒计时
+    if (_simulating) {
+      // 模拟态不请求服务端：直接推进到运行中，便于预览自动启动链路
+      setState(
+        () => _order = o.copyWithStatus(
+          WasherOrder.statusRunning,
+          '运行中',
+          remainTimeSeconds: 1800,
+        ),
+      );
+      _syncRemain();
+      _updatePolling();
+      showGlassSnackBar(context, '（模拟）已发送启动指令');
+      return;
+    }
     setState(() => _orderBusy = true);
     try {
       final fresh = await ref.read(laundryApiProvider).startOrder(o.orderId);
@@ -465,6 +552,8 @@ class _LaundryHomePageState extends ConsumerState<LaundryHomePage> {
   Future<void> _cancelOrder() async {
     final o = _order;
     if (o == null || _orderBusy) return;
+    _cancelAutoStart(); // 取消订单时终止自动启动倒计时
+    _payIntent = false; // 用户主动取消，不再自动启动
     final ok = await GlassDialog.showConfirm(
       context,
       title: '取消订单',
@@ -504,50 +593,51 @@ class _LaundryHomePageState extends ConsumerState<LaundryHomePage> {
             onRefresh: _refreshAll,
             backgroundColor: Colors.white,
             color: kLaundryDeep,
-            child: SingleChildScrollView(
+            // 用 ListView 而非 SingleChildScrollView：视口整体可命中，
+            // 内容不足一屏时底部空白处也能下拉刷新（对齐饮水模块行为）
+            child: ListView(
               physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _topBar(),
+              children: [
+                _topBar(),
+                const SizedBox(height: 14),
+                _scanButton(),
+                const SizedBox(height: 14),
+                if (_order != null) ...[
+                  _orderCard(),
                   const SizedBox(height: 14),
-                  _scanButton(),
-                  const SizedBox(height: 14),
-                  if (_order != null) _orderCard(),
-                  if (_order == null) ...[
-                    if (_favs.isNotEmpty) ...[
-                      _groupTabs(),
-                      if (_visibleFavs.isEmpty)
-                        _emptyGroupHint()
-                      else
-                        ReorderableListView(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          padding: EdgeInsets.zero,
-                          buildDefaultDragHandles: true,
-                          proxyDecorator: (child, index, animation) =>
-                              ScaleTransition(
-                            scale: Tween<double>(begin: 1, end: 1.03)
-                                .animate(animation),
-                            child: child,
-                          ),
-                          onReorderItem: _reorderFavs,
-                          children: [
-                            for (final f in _visibleFavs)
-                              Container(
-                                key: ValueKey('fav_${f.deviceNo}'),
-                                child: _favCard(f),
-                              ),
-                          ],
-                        ),
-                      const SizedBox(height: 10),
-                    ],
-                    // 扫码引导卡只在没有常用设备时展示（有设备后卡片即入口）
-                    if (_favs.isEmpty) _emptyHint(),
-                  ],
                 ],
-              ),
+                // 常用设备列表常驻显示（有运行中订单也在）
+                if (_favs.isNotEmpty) ...[
+                  _groupTabs(),
+                  if (_visibleFavs.isEmpty)
+                    _emptyGroupHint()
+                  else
+                    ReorderableListView(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      padding: EdgeInsets.zero,
+                      buildDefaultDragHandles: true,
+                      proxyDecorator: (child, index, animation) =>
+                          ScaleTransition(
+                        scale: Tween<double>(begin: 1, end: 1.03)
+                            .animate(animation),
+                        child: child,
+                      ),
+                      onReorderItem: _reorderFavs,
+                      children: [
+                        for (final f in _visibleFavs)
+                          Container(
+                            key: ValueKey('fav_${f.deviceNo}'),
+                            child: _favCard(f),
+                          ),
+                      ],
+                    ),
+                  const SizedBox(height: 10),
+                ],
+                // 扫码引导卡只在既无订单也无常用设备时展示
+                if (_favs.isEmpty && _order == null) _emptyHint(),
+              ],
             ),
           ),
         ),
@@ -850,19 +940,59 @@ class _LaundryHomePageState extends ConsumerState<LaundryHomePage> {
   }
 
   Widget _emptyGroupHint() {
+    // 空分组提示：长按已被拖拽排序占用，移动分组的入口是
+    // 设备卡右侧的编辑图标（点开 → 移动到分组），指引要写对路径。
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       child: GlassCard(
-        radius: 18,
+        radius: 20,
         width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 22, horizontal: 20),
-        child: Text(
-          '该分组暂无常用洗衣机，长按设备卡可移动分组',
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            fontSize: 12.5,
-            color: kTextMuted.withValues(alpha: 0.85),
-          ),
+        padding: const EdgeInsets.symmetric(vertical: 30, horizontal: 20),
+        child: Column(
+          children: [
+            Container(
+              width: 46,
+              height: 46,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    kLaundry.withValues(alpha: 0.5),
+                    kLaundry.withValues(alpha: 0.12),
+                  ],
+                ),
+                border:
+                    Border.all(color: Colors.white.withValues(alpha: 0.55)),
+              ),
+              child: Icon(
+                Icons.folder_open_rounded,
+                size: 22,
+                color: kLaundryDeep.withValues(alpha: 0.78),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              '这个分组还没有洗衣机',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 13.5,
+                fontWeight: FontWeight.w700,
+                color: kTextMain,
+              ),
+            ),
+            const SizedBox(height: 5),
+            Text(
+              '点设备卡右侧的编辑图标，选「移动到分组」即可移入',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 11.5,
+                color: kTextMuted.withValues(alpha: 0.8),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -916,11 +1046,17 @@ class _LaundryHomePageState extends ConsumerState<LaundryHomePage> {
                       ],
                     ),
                     const SizedBox(height: 4),
-                    _sheetAction(
+                    GlassActionRow(
                       Icons.create_new_folder_rounded,
                       '新建分组',
+                      accentColor: kLaundryDeep,
                       onTap: () async {
-                        final name = await _textInputDialog('新建分组', '');
+                        final name = await GlassDialog.showText(
+                          context,
+                          title: '新建分组',
+                          hint: '输入名称',
+                          accentColor: kLaundryDeep,
+                        );
                         if (name == null || name.isEmpty) return;
                         final ok = await LaundryDevicePrefs.addGroup(name);
                         if (!ok) {
@@ -994,7 +1130,13 @@ class _LaundryHomePageState extends ConsumerState<LaundryHomePage> {
             const SizedBox(width: 6),
             GestureDetector(
               onTap: () async {
-                final name = await _textInputDialog('重命名分组', g);
+                final name = await GlassDialog.showText(
+                  context,
+                  title: '重命名分组',
+                  initial: g,
+                  hint: '输入名称',
+                  accentColor: kLaundryDeep,
+                );
                 if (name == null || name.isEmpty) return;
                 await LaundryDevicePrefs.renameGroup(g, name);
                 await refresh();
@@ -1036,50 +1178,32 @@ class _LaundryHomePageState extends ConsumerState<LaundryHomePage> {
     );
   }
 
-  /// 设备长按操作：重命名 / 移动到分组 / 移除。
+  /// 设备长按操作：重命名 / 移动到分组 / 移除（居中弹窗，规格对齐饮水模块）。
   Future<void> _deviceActions(FavWasher f) async {
     final action = await showDialog<String>(
       context: context,
-      builder: (ctx) => Dialog(
-        backgroundColor: Colors.transparent,
-        child: GlassCard(
-          radius: 20,
-          padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                f.displayName,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontSize: 14.5,
-                  fontWeight: FontWeight.w800,
-                  color: kInk,
-                ),
-              ),
-              const SizedBox(height: 4),
-              _sheetAction(
-                Icons.edit_note_rounded,
-                '重命名设备',
-                onTap: () => Navigator.pop(ctx, 'rename'),
-              ),
-              _sheetAction(
-                Icons.drive_file_move_rounded,
-                '移动到分组',
-                onTap: () => Navigator.pop(ctx, 'move'),
-              ),
-              _sheetAction(
-                Icons.delete_outline_rounded,
-                '移除常用',
-                color: kWeekend,
-                onTap: () => Navigator.pop(ctx, 'remove'),
-              ),
-            ],
+      barrierColor: const Color(0x402E3350),
+      builder: (ctx) => GlassActionSheet(
+        title: '「${f.displayName}」',
+        accentColor: kLaundryDeep,
+        actions: [
+          GlassAction(
+            icon: Icons.edit_note_rounded,
+            label: '重命名设备',
+            onTap: () => Navigator.pop(ctx, 'rename'),
           ),
-        ),
+          GlassAction(
+            icon: Icons.drive_file_move_rounded,
+            label: '移动到分组',
+            onTap: () => Navigator.pop(ctx, 'move'),
+          ),
+          GlassAction(
+            icon: Icons.delete_outline_rounded,
+            label: '移除常用',
+            color: kWeekend,
+            onTap: () => Navigator.pop(ctx, 'remove'),
+          ),
+        ],
       ),
     );
     if (action == null || !mounted) return;
@@ -1096,46 +1220,14 @@ class _LaundryHomePageState extends ConsumerState<LaundryHomePage> {
     }
   }
 
-  Widget _sheetAction(
-    IconData icon,
-    String label, {
-    required VoidCallback onTap,
-    Color? color,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        margin: const EdgeInsets.only(top: 8),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
-          color: Colors.white.withValues(alpha: 0.5),
-          border: Border.all(color: kGlassBorder),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              icon,
-              size: 17,
-              color: color ?? kLaundryDeep.withValues(alpha: 0.85),
-            ),
-            const SizedBox(width: 8),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: color ?? kTextMain,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Future<void> _renameDevice(FavWasher f) async {
-    final name = await _textInputDialog('重命名设备', f.customName);
+    final name = await GlassDialog.showText(
+      context,
+      title: '重命名设备',
+      initial: f.customName,
+      hint: '输入名称',
+      accentColor: kLaundryDeep,
+    );
     if (name == null || !mounted) return;
     final list =
         await LaundryDevicePrefs.updateDevice(f.deviceNo, customName: name);
@@ -1145,38 +1237,28 @@ class _LaundryHomePageState extends ConsumerState<LaundryHomePage> {
   Future<void> _moveDevice(FavWasher f) async {
     final target = await showDialog<String>(
       context: context,
-      builder: (ctx) => Dialog(
-        backgroundColor: Colors.transparent,
-        child: GlassCard(
-          radius: 20,
-          padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                '移动「${f.displayName}」到',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontSize: 14.5,
-                  fontWeight: FontWeight.w800,
-                  color: kInk,
-                ),
-              ),
-              const SizedBox(height: 4),
-              for (final g in _groups)
-                _sheetAction(
-                  g == f.groupId
-                      ? Icons.folder_rounded
-                      : Icons.folder_outlined,
-                  _groupName(g),
-                  onTap: () => Navigator.pop(ctx, g),
-                ),
-            ],
-          ),
-        ),
+      barrierColor: const Color(0x402E3350),
+      builder: (ctx) => GlassActionSheet(
+        title: '移动「${f.displayName}」到',
+        accentColor: kLaundryDeep,
+        actions: [
+          for (final g in _groups)
+            GlassAction(
+              icon: g == f.groupId
+                  ? Icons.folder_rounded
+                  : Icons.folder_outlined,
+              label: _groupName(g),
+              color: g == f.groupId ? kLaundryDeep : null,
+              trailing: g == f.groupId
+                  ? const Icon(
+                      Icons.check_rounded,
+                      size: 18,
+                      color: kLaundryDeep,
+                    )
+                  : null,
+              onTap: () => Navigator.pop(ctx, g),
+            ),
+        ],
       ),
     );
     if (target == null || target == f.groupId || !mounted) return;
@@ -1196,63 +1278,6 @@ class _LaundryHomePageState extends ConsumerState<LaundryHomePage> {
     if (ok != true || !mounted) return;
     final list = await LaundryDevicePrefs.remove(f.deviceNo);
     if (mounted) setState(() => _favs = list);
-  }
-
-  /// 通用文本输入弹窗（重命名/新建分组共用）。返回输入内容，取消返回 null。
-  Future<String?> _textInputDialog(String title, String initial) {
-    return showDialog<String>(
-      context: context,
-      builder: (ctx) {
-        final c = TextEditingController(text: initial);
-        return GlassDialog(
-          title: title,
-          accentColor: kLaundryDeep,
-          content: _textField('输入名称', c),
-          cancelText: '取消',
-          confirmText: '确定',
-          onConfirm: () => Navigator.of(ctx).pop(c.text.trim()),
-        );
-      },
-    );
-  }
-
-  Widget _textField(String hint, TextEditingController c) {
-    return TextField(
-      controller: c,
-      autofocus: true,
-      style: const TextStyle(
-        fontSize: 13.5,
-        fontWeight: FontWeight.w600,
-        color: kTextMain,
-      ),
-      decoration: _inputDecoration(hint),
-    );
-  }
-
-  /// 统一输入框样式（手动输入设备码 / 重命名等共用）。
-  InputDecoration _inputDecoration(String hint) {
-    return InputDecoration(
-      hintText: hint,
-      hintStyle: TextStyle(
-        fontSize: 12.5,
-        color: kTextMuted.withValues(alpha: 0.7),
-      ),
-      isDense: true,
-      filled: true,
-      fillColor: Colors.white.withValues(alpha: 0.6),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.8)),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(
-          color: kLaundryDeep.withValues(alpha: 0.55),
-          width: 1.4,
-        ),
-      ),
-    );
   }
 
   /// 常用洗衣机卡：点「去洗衣」直接进下单流程；长按弹出重命名/移动分组/移除；行尾快捷删除。
@@ -1460,9 +1485,9 @@ class _LaundryHomePageState extends ConsumerState<LaundryHomePage> {
 
   Widget _orderCard() {
     final o = _order!;
-    return GlassCard(
-        radius: 20,
-        padding: const EdgeInsets.fromLTRB(18, 16, 18, 14),
+    final card = GlassCard(
+        radius: 22,
+        padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -1472,7 +1497,7 @@ class _LaundryHomePageState extends ConsumerState<LaundryHomePage> {
                   child: Text(
                     '洗衣机 ${o.deviceNo.isEmpty ? o.orderId : o.deviceNo}',
                     style: const TextStyle(
-                      fontSize: 14.5,
+                      fontSize: 15.5,
                       fontWeight: FontWeight.w700,
                       color: kTextMain,
                     ),
@@ -1481,7 +1506,7 @@ class _LaundryHomePageState extends ConsumerState<LaundryHomePage> {
                 _statusBadge(o),
               ],
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 14),
             // 状态详情（剩余时间用通知器驱动，每秒只重建该文本）
             Row(
               children: [
@@ -1501,7 +1526,7 @@ class _LaundryHomePageState extends ConsumerState<LaundryHomePage> {
                 ),
                 Container(
                   width: 1,
-                  height: 26,
+                  height: 30,
                   color: kGlassGridLine,
                 ),
                 Expanded(
@@ -1509,12 +1534,185 @@ class _LaundryHomePageState extends ConsumerState<LaundryHomePage> {
                 ),
               ],
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 14),
+            // 自动启动等待提示（支付回跳后倒计时发送启动指令）
+            if (o.canStart) _autoStartHint(),
             // 操作按钮
             _orderActions(o),
           ],
         ),
     );
+    // debug 构建专属：长按订单卡打开状态模拟面板（release 包不编译）
+    if (!kDebugMode) return card;
+    return GestureDetector(onLongPress: _showSimPanel, child: card);
+  }
+
+  /// 自动启动等待提示条：支付回跳后倒计时期间显示，点按取消改为手动启动。
+  /// 通知器 <0 = 无倒计时，收缩为 0 高度不占位。
+  Widget _autoStartHint() {
+    return ValueListenableBuilder<int>(
+      valueListenable: _autoStartNotifier,
+      builder: (context, v, _) {
+        if (v < 0) return const SizedBox.shrink();
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () {
+              _cancelAutoStart();
+              showGlassSnackBar(context, '已取消自动启动，可点「启动洗衣机」手动开始');
+            },
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(14),
+                color: kLaundryDeep.withValues(alpha: 0.08),
+                border: Border.all(color: kLaundryDeep.withValues(alpha: 0.22)),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.bolt_rounded,
+                    size: 16,
+                    color: kLaundryDeep.withValues(alpha: 0.8),
+                  ),
+                  const SizedBox(width: 7),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          v >= 60 ? '1 分钟后自动发送启动指令' : '$v 秒后自动发送启动指令',
+                          style: const TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w700,
+                            color: kTextMain,
+                          ),
+                        ),
+                        const SizedBox(height: 1),
+                        Text(
+                          '设备等门关好后才开始运行 · 点按取消',
+                          style: TextStyle(
+                            fontSize: 10.5,
+                            color: kTextMuted.withValues(alpha: 0.8),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  /// debug 模拟面板：推进订单状态预览各阶段 UI（不碰服务端）。
+  Future<void> _showSimPanel() async {
+    final o = _order;
+    if (o == null || _orderBusy) return;
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.92),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.7)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 10),
+              child: Text(
+                '模拟订单状态（仅调试构建）',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: kTextMuted,
+                ),
+              ),
+            ),
+            _simItem('模拟支付成功 · 已预约（5 分钟启动倒计时）', 'reserved'),
+            _simItem('模拟运行中（30 分钟倒计时）', 'running'),
+            _simItem('模拟已完成（记入洗衣记录）', 'done'),
+            _simItem('恢复真实状态', 'real'),
+          ],
+        ),
+      ),
+    );
+    if (choice == null || !mounted) return;
+    switch (choice) {
+      case 'reserved':
+        _applySim(
+          o.copyWithStatus(WasherOrder.statusReserved, '已预约，等待启动',
+              remainTimeSeconds: 300),
+        );
+        await _maybeAutoStart(); // 模拟态同样触发自动启动倒计时（可测整条链路）
+        break;
+      case 'running':
+        _cancelAutoStart(); // 切走状态时终止残留的自动启动倒计时
+        _applySim(
+          o.copyWithStatus(WasherOrder.statusRunning, '运行中',
+              remainTimeSeconds: 1800),
+        );
+        break;
+      case 'done':
+        _cancelAutoStart();
+        setState(() => _order = o.copyWithStatus(WasherOrder.statusDone, '已完成'));
+        _updatePolling();
+        await LaundryDevicePrefs.addOrderHistory(o.orderId);
+        if (!mounted) return;
+        showGlassSnackBar(context, '模拟完成，订单已记入「洗衣记录」');
+        Future.delayed(const Duration(seconds: 3), () {
+          if (!mounted) return;
+          final cur = _order;
+          if (cur != null && cur.orderId == o.orderId && cur.isFinished) {
+            setState(() => _order = null);
+            _syncRemain();
+          }
+        });
+        break;
+      case 'real':
+        _cancelAutoStart();
+        setState(() => _simulating = false);
+        await _trackOrder(o.orderId); // 重新拉真实状态覆盖模拟值
+        break;
+    }
+  }
+
+  Widget _simItem(String text, String value) {
+    return InkWell(
+      onTap: () => Navigator.pop(context, value),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+        child: Text(
+          text,
+          style: const TextStyle(
+            fontSize: 14.5,
+            fontWeight: FontWeight.w600,
+            color: kTextMain,
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 应用模拟状态：暂停真实轮询 + 按新状态重启每秒倒计时。
+  void _applySim(WasherOrder sim) {
+    setState(() {
+      _simulating = true;
+      _order = sim;
+    });
+    _updatePolling(); // 会同步剩余秒到通知器并启动 tick（轮询被 _refreshOrder 拦截）
+    showGlassSnackBar(context, '已进入模拟状态，长按订单卡可恢复真实状态');
   }
 
   String _formatRemainSecs(int secs) {
@@ -1531,15 +1729,15 @@ class _LaundryHomePageState extends ConsumerState<LaundryHomePage> {
         Text(
           label,
           style: TextStyle(
-            fontSize: 11.5,
+            fontSize: 12,
             color: kTextMuted.withValues(alpha: 0.85),
           ),
         ),
-        const SizedBox(height: 3),
+        const SizedBox(height: 4),
         Text(
           value,
           style: const TextStyle(
-            fontSize: 15,
+            fontSize: 17,
             fontWeight: FontWeight.w700,
             color: kTextMain,
           ),
@@ -1584,14 +1782,14 @@ class _LaundryHomePageState extends ConsumerState<LaundryHomePage> {
         text = o.statusText.isEmpty ? o.status : o.statusText;
     }
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12),
         color: bg,
       ),
       child: Text(
         text,
-        style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: fg),
+        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: fg),
       ),
     );
   }
@@ -1627,17 +1825,17 @@ class _LaundryHomePageState extends ConsumerState<LaundryHomePage> {
     return GestureDetector(
       onTap: _orderBusy ? null : onTap,
       child: Container(
-        height: 40,
+        height: 44,
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(15),
           color: solid ?? Colors.white.withValues(alpha: 0.6),
           border: solid == null ? Border.all(color: kGlassBorder) : null,
         ),
         child: Text(
           text,
           style: TextStyle(
-            fontSize: 13,
+            fontSize: 14,
             fontWeight: FontWeight.w700,
             color: solid != null ? Colors.white : kTextMain,
           ),

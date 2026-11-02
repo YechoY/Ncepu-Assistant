@@ -49,6 +49,27 @@ class _LaundryOrderPageState extends State<LaundryOrderPage> {
   int? _detergentId; // 洗衣液档位，null = 不添加
   int? _disinfectId; // 除菌液档位，null = 不添加
   late bool _inFavs = widget.initialInFavs; // 常用收藏（开关即时生效，与下单解耦）
+  bool _autoStart = true; // 支付后自动启动（本地记忆）
+  int _autoDelaySec = 5; // 启动前等待秒数，0 = 立即发送
+
+  /// 延迟选项：秒数 → 展示文案。
+  static const _delayChoices = <int, String>{
+    0: '立即',
+    5: '5 秒',
+    15: '15 秒',
+    30: '30 秒',
+  };
+
+  @override
+  void initState() {
+    super.initState();
+    LaundryDevicePrefs.loadAutoStart().then((v) {
+      if (mounted) setState(() => _autoStart = v);
+    });
+    LaundryDevicePrefs.loadAutoStartDelay().then((v) {
+      if (mounted) setState(() => _autoDelaySec = v);
+    });
+  }
 
   /// 设备展示号：deviceNo 缺失（不可下单响应）时用二维码 cd / deviceId 兜底。
   String get _deviceNo => washerDisplayNo(widget.program, widget.qrCode);
@@ -124,6 +145,137 @@ class _LaundryOrderPageState extends State<LaundryOrderPage> {
     } catch (_) {
       // 存储失败静默（下次进页按实际收藏态显示）
     }
+  }
+
+  /// 「支付后自动启动」设置卡：开关 + 延迟时长胶囊（本地记忆，支付流程读取）。
+  Widget _autoStartCard() {
+    return _sectionCard(
+      icon: Icons.bolt_rounded,
+      title: '自动启动',
+      tail: '支付后自动发送启动指令',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () async {
+              final v = !_autoStart;
+              setState(() => _autoStart = v);
+              await LaundryDevicePrefs.saveAutoStart(v);
+            },
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _autoStart ? '支付成功后自动启动' : '支付后手动启动',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: kTextMain,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        // 设备侧保证：启动指令发出后，等洗衣机门关好才真正开始运行
+                        _autoStart
+                            ? '发送后设备等门关好才开始，不用赶时间'
+                            : '可在订单卡上点「启动洗衣机」',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: kTextMuted.withValues(alpha: 0.8),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                _pillSwitch(_autoStart),
+              ],
+            ),
+          ),
+          if (_autoStart) ...[
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final e in _delayChoices.entries)
+                  GestureDetector(
+                    onTap: () async {
+                      setState(() => _autoDelaySec = e.key);
+                      await LaundryDevicePrefs.saveAutoStartDelay(e.key);
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 7),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12),
+                        color: _autoDelaySec == e.key
+                            ? kLaundryDeep.withValues(alpha: 0.14)
+                            : Colors.white.withValues(alpha: 0.55),
+                        border: Border.all(
+                          color: _autoDelaySec == e.key
+                              ? kLaundryDeep.withValues(alpha: 0.45)
+                              : kGlassBorder,
+                        ),
+                      ),
+                      child: Text(
+                        e.value,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: _autoDelaySec == e.key
+                              ? kLaundryDeep
+                              : kTextMuted,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              // 即便选「立即」也不是机器马上转：指令即刻发出，
+              // 设备侧等洗衣机门关好才开始运行，只是给放衣服留的时间不同
+              '以上为指令发送时机，设备都会等门关好后才开始运行',
+              style: TextStyle(
+                fontSize: 10.5,
+                color: kTextMuted.withValues(alpha: 0.75),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// 粉色胶囊开关（与常用设备开关同款）。
+  Widget _pillSwitch(bool on) {
+    return Container(
+      width: 42,
+      height: 24,
+      padding: const EdgeInsets.all(2),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        color:
+            on ? kLaundryDeep.withValues(alpha: 0.9) : Colors.white.withValues(alpha: 0.55),
+        border: Border.all(
+          color: on ? kLaundryDeep.withValues(alpha: 0.4) : kGlassBorder,
+        ),
+      ),
+      child: AnimatedAlign(
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOut,
+        alignment: on ? Alignment.centerRight : Alignment.centerLeft,
+        child: Container(
+          width: 18,
+          height: 18,
+          decoration: const BoxDecoration(shape: BoxShape.circle, color: Colors.white),
+        ),
+      ),
+    );
   }
 
   /// 「加入常用设备」开关行：点整行切换，即时写入/移出收藏（不依赖下单）。
@@ -217,6 +369,8 @@ class _LaundryOrderPageState extends State<LaundryOrderPage> {
                         tail: '记录这台洗衣机',
                         child: _favSwitchRow(),
                       ),
+                      const SizedBox(height: 12),
+                      _autoStartCard(),
                       const SizedBox(height: 12),
                       if (_orderable) ...[
                         _sectionCard(

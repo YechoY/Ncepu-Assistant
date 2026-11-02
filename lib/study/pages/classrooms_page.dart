@@ -502,25 +502,43 @@ class _ClassroomsPageState extends ConsumerState<ClassroomsPage>
         Expanded(
           child: loading
               ? const Center(child: CircularProgressIndicator())
-              : error != null
-              ? EmptyView(text: error!)
-              : rooms.isEmpty
-              ? const EmptyView(text: '该条件下暂无空闲教室')
-              : GridView.builder(
-                  padding: const EdgeInsets.fromLTRB(14, 10, 14, 8),
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    mainAxisSpacing: 9,
-                    crossAxisSpacing: 9,
-                    childAspectRatio: 1.9,
-                  ),
-                  itemCount: rooms.length,
-                  itemBuilder: (_, i) => Reveal(
-                    duration: const Duration(milliseconds: 320),
-                    offset: const Offset(0, 14),
-                    minScale: 0.98,
-                    child: RoomCard(name: rooms[i]),
-                  ),
+              : RefreshIndicator(
+                  color: kPrimary,
+                  onRefresh: () => _query(),
+                  child: error != null
+                      ? ListView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          children: [
+                            const SizedBox(height: 100),
+                            EmptyView(text: error!),
+                          ],
+                        )
+                      : rooms.isEmpty
+                      ? ListView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          children: const [
+                            SizedBox(height: 100),
+                            EmptyView(text: '该条件下暂无空闲教室'),
+                          ],
+                        )
+                      : GridView.builder(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          padding: const EdgeInsets.fromLTRB(14, 10, 14, 8),
+                          gridDelegate:
+                              const SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: 2,
+                                mainAxisSpacing: 9,
+                                crossAxisSpacing: 9,
+                                childAspectRatio: 1.9,
+                              ),
+                          itemCount: rooms.length,
+                          itemBuilder: (_, i) => Reveal(
+                            duration: const Duration(milliseconds: 320),
+                            offset: const Offset(0, 14),
+                            minScale: 0.98,
+                            child: RoomCard(name: rooms[i]),
+                          ),
+                        ),
                 ),
         ),
       ],

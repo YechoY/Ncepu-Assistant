@@ -138,51 +138,79 @@ class GlassDropdown extends StatelessWidget {
       );
       return;
     }
+    final selKey = GlobalKey(); // 选中项锚点：打开面板时滚动到可见
+    var scrollScheduled = false;
     final sel = await showModalBottomSheet<String>(
       context: context,
       backgroundColor: Colors.transparent,
       barrierColor: const Color(0x4D2E3350),
-      builder: (ctx) => Padding(
-        // 面板四周浮起留白，与屏幕边缘分开，强化"玻璃片悬浮"感
-        padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-        child: GlassCard(
-          padding: const EdgeInsets.fromLTRB(14, 18, 14, 12),
-          child: SafeArea(
-            top: false,
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (label != null) ...[
-                    Text(
-                      label!,
-                      style: const TextStyle(
-                        fontSize: 11,
-                        color: kTextMuted,
-                        fontWeight: FontWeight.w600,
+      builder: (ctx) {
+        // 首帧布局完成后把当前选中项滚到可见位置（长列表选靠后项不用手动划）
+        if (!scrollScheduled) {
+          scrollScheduled = true;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            final c = selKey.currentContext;
+            if (c != null) {
+              Scrollable.ensureVisible(
+                c,
+                duration: const Duration(milliseconds: 260),
+                curve: Curves.easeOutCubic,
+                alignment: 0.3,
+              );
+            }
+          });
+        }
+        return Padding(
+          // 面板四周浮起留白，与屏幕边缘分开，强化"玻璃片悬浮"感
+          padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+          child: GlassCard(
+            padding: const EdgeInsets.fromLTRB(14, 18, 14, 12),
+            child: SafeArea(
+              top: false,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (label != null) ...[
+                      Text(
+                        label!,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: kTextMuted,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 10),
+                      const SizedBox(height: 10),
+                    ],
+                    // 选项之间留 8px 空隙（最后一项不留），不再彼此紧挨
+                    for (var i = 0; i < items.length; i++)
+                      Padding(
+                        padding: EdgeInsets.only(
+                          bottom: i == items.length - 1 ? 0 : 8,
+                        ),
+                        child: items[i] == value
+                            ? KeyedSubtree(
+                                key: selKey,
+                                child: _OptionTile(
+                                  label: _display(items[i]),
+                                  selected: true,
+                                  onTap: () => Navigator.pop(ctx, items[i]),
+                                ),
+                              )
+                            : _OptionTile(
+                                label: _display(items[i]),
+                                selected: false,
+                                onTap: () => Navigator.pop(ctx, items[i]),
+                              ),
+                      ),
                   ],
-                  // 选项之间留 8px 空隙（最后一项不留），不再彼此紧挨
-                  for (var i = 0; i < items.length; i++)
-                    Padding(
-                      padding: EdgeInsets.only(
-                        bottom: i == items.length - 1 ? 0 : 8,
-                      ),
-                      child: _OptionTile(
-                        label: _display(items[i]),
-                        selected: items[i] == value,
-                        onTap: () => Navigator.pop(ctx, items[i]),
-                      ),
-                    ),
-                ],
+                ),
               ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
     if (sel != null) onChanged?.call(sel);
   }

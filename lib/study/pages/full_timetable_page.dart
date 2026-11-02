@@ -193,7 +193,7 @@ class _FullTimetablePageState extends ConsumerState<FullTimetablePage> {
         child: SafeArea(
           child: Column(
             children: [
-              // 顶栏：返回 + 标题 + 刷新
+              // 顶栏：返回 + 标题（更新时间），刷新改为下拉触发
               Padding(
                 padding: const EdgeInsets.fromLTRB(6, 8, 12, 8),
                 child: Row(
@@ -228,16 +228,6 @@ class _FullTimetablePageState extends ConsumerState<FullTimetablePage> {
                       ],
                     ),
                     const Spacer(),
-                    IconButton(
-                      icon: const Icon(
-                        Icons.refresh,
-                        size: 20,
-                        color: kPrimary,
-                      ),
-                      onPressed: (_loading || _refreshing)
-                          ? null
-                          : _forceRefresh,
-                    ),
                   ],
                 ),
               ),
@@ -253,19 +243,22 @@ class _FullTimetablePageState extends ConsumerState<FullTimetablePage> {
     if (_loading) {
       return const Center(child: CircularProgressIndicator());
     }
-    if (_error != null) {
-      return Center(
-        child: Text(
-          _error!,
-          style: const TextStyle(fontSize: 13, color: kTextMuted),
-        ),
-      );
-    }
-    if (_courses.isEmpty) {
-      return const Center(
-        child: Text(
-          '本学期暂无课表信息',
-          style: TextStyle(fontSize: 13, color: kTextMuted),
+    if (_error != null || _courses.isEmpty) {
+      // 空/错误态也支持下拉刷新（包一层可滚动的 ListView）
+      return RefreshIndicator(
+        color: kPrimary,
+        onRefresh: _forceRefresh,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          children: [
+            const SizedBox(height: 100),
+            Center(
+              child: Text(
+                _error ?? '本学期暂无课表信息',
+                style: const TextStyle(fontSize: 13, color: kTextMuted),
+              ),
+            ),
+          ],
         ),
       );
     }
@@ -278,32 +271,38 @@ class _FullTimetablePageState extends ConsumerState<FullTimetablePage> {
     // 左侧节次列固定不动；右侧 7 天区域可横向滚动。两者放在同一个纵向滚动里，
     // 因此上下滚动时左右同步、左侧节次列不会随横向滚动移动。
     // 「备注」条跟随网格一起纵向滚动，放在网格最下方。
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(8, 0, 8, 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _leftColumn(), // 固定：节次列
-              Expanded(
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [_dayHeaderRow(), _gridBoard(colorMap)],
+    // 整体支持下拉刷新（强制联网重查，成功/失败均有提示）。
+    return RefreshIndicator(
+      color: kPrimary,
+      onRefresh: _forceRefresh,
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(8, 0, 8, 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _leftColumn(), // 固定：节次列
+                Expanded(
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [_dayHeaderRow(), _gridBoard(colorMap)],
+                    ),
                   ),
                 ),
-              ),
-            ],
-          ),
-          if (_remark.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(top: 10),
-              child: _remarkBar(),
+              ],
             ),
-        ],
+            if (_remark.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 10),
+                child: _remarkBar(),
+              ),
+          ],
+        ),
       ),
     );
   }

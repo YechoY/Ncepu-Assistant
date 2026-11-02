@@ -205,6 +205,34 @@ class LaundryDevicePrefs {
     await sp.setString(_kDeviceOrder, jsonEncode(order));
   }
 
+  // ===== 支付后自动启动偏好 =====
+  //
+  // autoStart：支付成功后自动向洗衣机发送启动指令（设备等门关好才开始运行）。
+  // autoStartDelaySec：发送前等待秒数，0 = 立即发送。
+
+  static const _kAutoStart = 'laundry_auto_start';
+  static const _kAutoStartDelay = 'laundry_auto_start_delay';
+
+  static Future<bool> loadAutoStart() async {
+    final sp = await SharedPreferences.getInstance();
+    return sp.getBool(_kAutoStart) ?? true;
+  }
+
+  static Future<void> saveAutoStart(bool value) async {
+    final sp = await SharedPreferences.getInstance();
+    await sp.setBool(_kAutoStart, value);
+  }
+
+  static Future<int> loadAutoStartDelay() async {
+    final sp = await SharedPreferences.getInstance();
+    return sp.getInt(_kAutoStartDelay) ?? 5;
+  }
+
+  static Future<void> saveAutoStartDelay(int seconds) async {
+    final sp = await SharedPreferences.getInstance();
+    await sp.setInt(_kAutoStartDelay, seconds);
+  }
+
   // ===== 本地洗衣记录（已完成订单，倒序）=====
   //
   // 存储格式 "orderId|完成毫秒时间戳"；旧格式纯 orderId 视为无时间。

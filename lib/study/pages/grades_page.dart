@@ -248,29 +248,42 @@ class _GradesPageState extends ConsumerState<GradesPage>
           ),
         ),
         Expanded(
-          child: list.isEmpty
-              ? const EmptyView(text: '暂无成绩数据')
-              : ListView.builder(
-                  padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
-                  itemCount: list.length,
-                  // 入场淡入做缓冲：卡片本身是静态磨砂（无实时模糊），滑动流畅。
-                  itemBuilder: (_, i) => Reveal(
-                    duration: const Duration(milliseconds: 320),
-                    offset: const Offset(0, 14),
-                    minScale: 0.98,
-                    child: GradeCard(
-                      grade: list[i],
-                      // 只有必修可勾（学分绩只统计必修）；非必修卡片无勾选框。
-                      selectable: selectMode && list[i].attr.startsWith('必修'),
-                      selected: selectMode && selected.contains(list[i]),
-                      onToggle: () => setState(() {
-                        selected.contains(list[i])
-                            ? selected.remove(list[i])
-                            : selected.add(list[i]);
-                      }),
+          // 下拉刷新：重新拉取成绩数据
+          child: RefreshIndicator(
+            color: kPrimary,
+            onRefresh: () =>
+                ref.read(dataStateProvider.notifier).refreshGrades(),
+            child: list.isEmpty
+                ? ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    children: const [
+                      SizedBox(height: 100),
+                      EmptyView(text: '暂无成绩数据'),
+                    ],
+                  )
+                : ListView.builder(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
+                    itemCount: list.length,
+                    // 入场淡入做缓冲：卡片本身是静态磨砂（无实时模糊），滑动流畅。
+                    itemBuilder: (_, i) => Reveal(
+                      duration: const Duration(milliseconds: 320),
+                      offset: const Offset(0, 14),
+                      minScale: 0.98,
+                      child: GradeCard(
+                        grade: list[i],
+                        // 只有必修可勾（学分绩只统计必修）；非必修卡片无勾选框。
+                        selectable: selectMode && list[i].attr.startsWith('必修'),
+                        selected: selectMode && selected.contains(list[i]),
+                        onToggle: () => setState(() {
+                          selected.contains(list[i])
+                              ? selected.remove(list[i])
+                              : selected.add(list[i]);
+                        }),
+                      ),
                     ),
                   ),
-                ),
+          ),
         ),
       ],
     );

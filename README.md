@@ -8,6 +8,15 @@
 - **饮水服务**：惠生活 798 饮水（手机号 + 短信验证码，公网可用）
 - **洗衣服务**：U净校园洗衣（手机号 + 短信验证码，支持支付宝下单支付）
 
+## 应用预览
+
+<p>
+  <img src="docs/screenshots/home.png" width="24%" alt="首页">
+  <img src="docs/screenshots/study.png" width="24%" alt="学习服务">
+  <img src="docs/screenshots/huish.png" width="24%" alt="饮水服务">
+  <img src="docs/screenshots/laundry.png" width="24%" alt="洗衣服务">
+</p>
+
 ## 功能特性
 
 ### 学习服务（教务系统）
