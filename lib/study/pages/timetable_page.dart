@@ -179,11 +179,39 @@ class TimetablePage extends ConsumerWidget {
         ),
         const SizedBox(height: 14),
         Expanded(
-          child: state.timetable.isEmpty
-              ? const EmptyView(text: '暂无课表，联网后自动更新')
-              : _grid(state.timetable, state.timetableWeek),
+          child: RefreshIndicator(
+            onRefresh: () => _refresh(context, ref),
+            child: state.timetable.isEmpty
+                ? LayoutBuilder(
+                    builder: (context, c) => ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      children: [
+                        SizedBox(
+                          height: c.maxHeight,
+                          child: const EmptyView(text: '暂无课表，联网后自动更新'),
+                        ),
+                      ],
+                    ),
+                  )
+                : _grid(state.timetable, state.timetableWeek),
+          ),
         ),
       ],
+    );
+  }
+
+  /// 下拉刷新：强制联网更新当前周课表（不走缓存）。
+  Future<void> _refresh(BuildContext context, WidgetRef ref) async {
+    final cur = ref.read(dataStateProvider).timetableWeek;
+    final monday = cur.isEmpty ? mondayOf(DateTime.now()) : cur;
+    await ref
+        .read(dataStateProvider.notifier)
+        .loadTimetable(monday, force: true);
+    if (!context.mounted) return;
+    final st = ref.read(dataStateProvider);
+    showGlassSnackBar(
+      context,
+      st.notice ?? '已更新${_weekLabel(st)}\n${_dateRange(st.timetableWeek)}',
     );
   }
 
@@ -340,8 +368,9 @@ class _TimetableGridState extends State<_TimetableGrid>
       if (s == '周/节次' ||
           s.contains('星期') ||
           s.contains('时间') ||
-          s.contains('节次'))
+          s.contains('节次')) {
         continue;
+      }
       secList.add(s);
     }
     if (secList.isEmpty) return const EmptyView(text: '暂无课表，联网后自动更新');
@@ -364,6 +393,8 @@ class _TimetableGridState extends State<_TimetableGrid>
 
     return SingleChildScrollView(
       scrollDirection: Axis.vertical,
+      // 课表不足一屏时也允许下拉（外层 RefreshIndicator 需要）
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.only(left: 8, right: 4, bottom: 12),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
