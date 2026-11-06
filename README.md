@@ -12,7 +12,7 @@
 
 | 首页 | 学习服务 | 饮水服务 | 洗衣服务 |
 | :---: | :---: | :---: | :---: |
-| <img src="docs/screenshots/home.png" width="200" alt="首页"> | <img src="docs/screenshots/study.png" width="200" alt="学习服务"> | <img src="docs/screenshots/huish.png" width="200" alt="饮水服务"> | <img src="docs/screenshots/laundry.png" width="200" alt="洗衣服务"> |
+| <img src="docs/screenshots/home.jpg" width="200" alt="首页"> | <img src="docs/screenshots/study.jpg" width="200" alt="学习服务"> | <img src="docs/screenshots/huish.jpg" width="200" alt="饮水服务"> | <img src="docs/screenshots/laundry.jpg" width="200" alt="洗衣服务"> |
 | 模块导航，各服务独立登录 | 课表 · 成绩 · 考试 · 空闲教室 | 扫码取水 · 设备管理 · 消费记录 | 扫码下单 · 支付宝支付 · 订单跟踪 |
 
 ## 功能特性
@@ -99,6 +99,8 @@ app/
 - [huish（云水 · 直饮水）](https://github.com/KazemiyaMione/huish)（MIT）：饮水服务接口逻辑参考
 - [FlandreSY（芙兰水衣）](https://github.com/amamiyakazuki/FlandreSY)（AGPL-3.0）：洗衣服务接口协议调研参考；本项目未复制或翻译其源代码，仅借鉴公开接口的请求参数与返回结构等协议事实
 
+此外，感谢 [XERJ Corpus Hub](https://hub.xerj.org/contributors/YechoY) 将本项目洗衣模块提交收录为 AI 编码代理的参考实现（详见[收录](#收录)）。
+
 ## 免责声明
 
 1. 本应用为**非官方应用**，由学生个人开发，仅供学习交流使用，与华北电力大学（保定）官方无任何隶属、合作或授权关系。
@@ -109,6 +111,12 @@ app/
 6. 本应用按「现状」提供，开发者不作任何明示或默示的担保；因使用本应用产生的一切后果由使用者自行承担。
 7. 本应用不用于任何商业用途；如学校或相关权利方提出要求，开发者将及时停止相关功能。
 8. 在法律允许的范围内，开发者保留对本声明的最终解释权；如与法律法规相冲突，以法律法规为准。
+
+## 收录
+
+[![XERJ Corpus Hub contributor](https://hub.xerj.org/contributors/YechoY/badge.svg)](https://hub.xerj.org/contributors/YechoY)
+
+本项目洗衣模块的提交 `feat(laundry)` 已被 [XERJ Corpus Hub](https://hub.xerj.org/contributors/YechoY) 收录，作为 AI 编码代理的参考实现（MIT 许可，保留署名）。
 
 ## License
 
