@@ -12,6 +12,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:glass_ui/theme.dart';
 import 'package:glass_ui/widgets/glass_background.dart';
 import 'package:glass_ui/widgets/glass_card.dart';
+import 'package:glass_ui/widgets/glass_loading.dart';
 import 'package:glass_ui/widgets/glass_snackbar.dart';
 import 'huish_auth_state.dart';
 import 'huish_home_page.dart';
@@ -256,13 +257,9 @@ class _HuishLoginPageState extends ConsumerState<HuishLoginPage> {
                                       ),
                                     )
                                   : const Center(
-                                      child: SizedBox(
-                                        width: 18,
-                                        height: 18,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                          color: kPrimary,
-                                        ),
+                                      child: GlassLoading(
+                                        size: 18,
+                                        color: kHuishDeep,
                                       ),
                                     ),
                             ),

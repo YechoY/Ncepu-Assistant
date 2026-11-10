@@ -268,6 +268,8 @@ class _GradesPageState extends ConsumerState<GradesPage>
                     // 入场淡入做缓冲：卡片本身是静态磨砂（无实时模糊），滑动流畅。
                     itemBuilder: (_, i) => Reveal(
                       duration: const Duration(milliseconds: 320),
+                      // 首屏依次浮入（错峰 40ms）；滚动新构建的项零延迟。
+                      delay: Duration(milliseconds: i < 8 ? i * 40 : 0),
                       offset: const Offset(0, 14),
                       minScale: 0.98,
                       child: GradeCard(

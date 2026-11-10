@@ -9,6 +9,7 @@ import 'package:glass_ui/theme.dart';
 import 'package:glass_ui/widgets/glass_background.dart';
 import 'package:glass_ui/widgets/glass_snackbar.dart';
 import 'package:glass_ui/widgets/glass_card.dart';
+import 'package:glass_ui/widgets/glass_loading.dart';
 import 'package:glass_ui/widgets/glass_info_row.dart';
 import 'package:glass_ui/widgets/mac_card.dart';
 
@@ -241,7 +242,7 @@ class _FullTimetablePageState extends ConsumerState<FullTimetablePage> {
 
   Widget _body() {
     if (_loading) {
-      return const Center(child: CircularProgressIndicator());
+      return const Center(child: GlassLoading(color: kPrimary));
     }
     if (_error != null || _courses.isEmpty) {
       // 空/错误态也支持下拉刷新（包一层可滚动的 ListView）

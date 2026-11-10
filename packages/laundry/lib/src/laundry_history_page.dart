@@ -10,6 +10,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:glass_ui/theme.dart';
 import 'package:glass_ui/widgets/glass_background.dart';
 import 'package:glass_ui/widgets/glass_card.dart';
+import 'package:glass_ui/widgets/glass_loading.dart';
 import 'package:glass_ui/widgets/glass_dialog.dart';
 import 'package:glass_ui/widgets/glass_info_row.dart';
 import 'package:glass_ui/widgets/glass_page_header.dart';
@@ -117,14 +118,7 @@ class _LaundryHistoryPageState extends ConsumerState<LaundryHistoryPage> {
             border: Border.all(color: Colors.white.withValues(alpha: 0.7)),
           ),
           child: _loadingBalance
-              ? const SizedBox(
-                  width: 14,
-                  height: 14,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: kLaundryDeep,
-                  ),
-                )
+              ? const GlassLoading(size: 14, color: kLaundryDeep)
               : const Icon(
                   Icons.refresh_rounded,
                   size: 18,
@@ -239,10 +233,7 @@ class _LaundryHistoryPageState extends ConsumerState<LaundryHistoryPage> {
               Expanded(
                 child: _loading
                     ? const Center(
-                        child: CircularProgressIndicator(
-                          color: kLaundryDeep,
-                          strokeWidth: 2.2,
-                        ),
+                        child: GlassLoading(color: kLaundryDeep),
                       )
                     : RefreshIndicator(
                         onRefresh: _load,

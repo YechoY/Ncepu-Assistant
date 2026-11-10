@@ -9,6 +9,7 @@ import 'package:glass_ui/theme.dart';
 import 'package:glass_ui/widgets/glass_action_sheet.dart';
 import 'package:glass_ui/widgets/glass_background.dart';
 import 'package:glass_ui/widgets/glass_card.dart';
+import 'package:glass_ui/widgets/glass_loading.dart';
 import 'package:glass_ui/widgets/glass_dialog.dart';
 import 'package:glass_ui/widgets/glass_snackbar.dart';
 import 'huish_auth_state.dart';
@@ -1049,7 +1050,7 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
               ),
               Expanded(
                 child: _loading
-                    ? const Center(child: CircularProgressIndicator())
+                    ? const Center(child: GlassLoading(color: kHuishDeep))
                     : _error != null
                     ? Center(
                         child: _ErrorView(error: _error!, onRetry: _load),
@@ -1125,14 +1126,7 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
             child: Row(
               children: [
                 if (_quickBusy)
-                  const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2.5,
-                      color: Colors.white,
-                    ),
-                  )
+                  const GlassLoading(size: 20, color: Colors.white)
                 else
                   Icon(icon, color: Colors.white, size: 21),
                 const SizedBox(width: 10),
@@ -1180,7 +1174,7 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
     final grouped = _groupDevices();
     final groupNames = grouped.keys.toList();
     return RefreshIndicator(
-      color: kPrimary,
+      color: kHuishDeep,
       onRefresh: _load,
       child: ListView(
         padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),

@@ -12,7 +12,9 @@ import 'package:path_provider/path_provider.dart'; // 拿到手机上「应用�
 
 import 'app.dart'; // 根组件 HdjwApp
 import 'core/debug_log.dart'; // 调试日志器：开机时读开关状态（SharedPreferences）
+import 'core/logging_http_client.dart'; // 带调试日志的 HTTP 装饰器
 import 'package:huish/huish.dart'; // 饮水模块（独立包）：注入带日志的 HuishApiClient
+import 'package:laundry/laundry.dart'; // 洗衣模块（独立包）：注入带日志的 LaundryApiClient
 import 'study/providers/app_state.dart'; // 里面定义了 cacheServiceProvider（缓存服务的"插座"）
 import 'study/services/cache_service.dart'; // SQLite 缓存服务
 
@@ -50,6 +52,12 @@ Future<void> main() async {
         huishApiClientProvider.overrideWithValue(
           HuishApiClient(
             logger: (tag, msg) => AppDebugLog.instance.log(tag, msg),
+          ),
+        ),
+        // 洗衣模块日志注入：LoggingHttpClient 按 host 自动打 LAUNDRY 标签。
+        laundryAuthProvider.overrideWith(
+          (ref) => LaundryAuthNotifier(
+            LaundryApiClient(client: LoggingHttpClient()),
           ),
         ),
       ],

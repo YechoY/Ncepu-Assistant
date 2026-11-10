@@ -6,6 +6,7 @@ import 'package:glass_ui/theme.dart';
 import 'package:glass_ui/widgets/empty_view.dart';
 import '../../widgets/exam_card.dart';
 import 'package:glass_ui/widgets/glass_dropdown.dart';
+import 'package:glass_ui/widgets/glass_loading.dart';
 import 'package:glass_ui/widgets/reveal.dart';
 
 class ExamsPage extends ConsumerWidget {
@@ -57,11 +58,7 @@ class ExamsPage extends ConsumerWidget {
               ),
               if (state.loading) ...[
                 const SizedBox(width: 10),
-                const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
+                const GlassLoading(size: 16, color: kPrimary),
               ],
             ],
           ),
@@ -90,17 +87,20 @@ class ExamsPage extends ConsumerWidget {
       );
     }
     final now = DateTime.now();
-    // 按考试时间排序后反转 → 时间较晚的在前（降序）。
-    final sorted = [...exams]
-      ..sort((a, b) {
-        final ta = _parseTime(a.time);
-        final tb = _parseTime(b.time);
-        if (ta == null && tb == null) return 0;
-        if (ta == null) return 1;
-        if (tb == null) return -1;
-        return ta.compareTo(tb);
-      });
-    final ordered = sorted.reversed.toList();
+    // 两段排序：未考的在前按时间升序（最近要考的排最上）；
+    // 已考的沉底按时间降序（刚考完的在前）。时间解析失败的排各组末尾。
+    const far = 1 << 62; // 解析失败的时间视为无穷远
+    final upcoming = <dynamic>[];
+    final past = <dynamic>[];
+    for (final e in exams) {
+      final t = _parseTime(e.time as String);
+      (t != null && t.isBefore(now) ? past : upcoming).add(e);
+    }
+    int tsOf(dynamic e) =>
+        _parseTime(e.time as String)?.millisecondsSinceEpoch ?? far;
+    upcoming.sort((a, b) => tsOf(a).compareTo(tsOf(b)));
+    past.sort((a, b) => tsOf(b).compareTo(tsOf(a)));
+    final ordered = [...upcoming, ...past];
     return RefreshIndicator(
       color: kPrimary,
       onRefresh: onRefresh,
@@ -113,6 +113,8 @@ class ExamsPage extends ConsumerWidget {
           final done = _parseTime(e.time)?.isBefore(now) ?? false;
           return Reveal(
             duration: const Duration(milliseconds: 320),
+            // 首屏依次浮入（错峰 40ms）；滚动新构建的项零延迟。
+            delay: Duration(milliseconds: i < 8 ? i * 40 : 0),
             offset: const Offset(0, 14),
             minScale: 0.98,
             child: ExamCard(exam: e, done: done),

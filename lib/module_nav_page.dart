@@ -12,14 +12,19 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'app.dart';
 import 'core/debug_log.dart';
 import 'core/debug_log_page.dart';
+
 import 'package:huish/huish.dart';
 import 'package:laundry/laundry.dart';
+
 import 'study/providers/auth_state.dart';
 import 'study/providers/data_state.dart';
+
 import 'package:glass_ui/theme.dart';
 import 'package:glass_ui/widgets/glass_background.dart';
 import 'package:glass_ui/widgets/glass_card.dart';
+import 'package:glass_ui/widgets/glass_loading.dart';
 import 'package:glass_ui/widgets/glass_snackbar.dart';
+
 import 'study/pages/login_page.dart';
 
 class ModuleNavPage extends ConsumerStatefulWidget {
@@ -183,9 +188,7 @@ class _ModuleNavPageState extends ConsumerState<ModuleNavPage> {
   Widget build(BuildContext context) {
     if (_loading) {
       return const Scaffold(
-        body: GlassBackground(
-          child: Center(child: CircularProgressIndicator()),
-        ),
+        body: GlassBackground(child: Center(child: GlassLoading())),
       );
     }
     return Scaffold(
@@ -293,130 +296,136 @@ class _ModuleNavPageState extends ConsumerState<ModuleNavPage> {
                 ),
               ),
               // 中部工具行：左侧引导文字 + 右侧开发者工具组（单行防溢出）
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                  child: Row(
-                    children: [
-                      Text(
-                        '选择服务进入',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: kTextMuted.withValues(alpha: 0.6),
-                          fontWeight: FontWeight.w500,
-                        ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Row(
+                  children: [
+                    Text(
+                      '选择服务进入',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: kTextMuted.withValues(alpha: 0.6),
+                        fontWeight: FontWeight.w500,
                       ),
-                      const Spacer(),
-                      _DebugSwitch(
-                        active: AppDebugLog.instance.isEnabled,
-                        onChanged: (v) {
-                          AppDebugLog.instance.setEnabled(v).then((_) {
-                            if (mounted) setState(() {});
-                          });
-                        },
-                      ),
-                      const SizedBox(width: 8),
-                      _DebugPill(
-                        icon: Icons.terminal,
-                        label: '日志',
-                        onTap: () async {
-                          await Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => const DebugLogPage(),
-                            ),
-                          );
-                          // 日志页里可能切换了开关 → 返回后同步外层状态
+                    ),
+                    const Spacer(),
+                    _DebugSwitch(
+                      active: AppDebugLog.instance.isEnabled,
+                      onChanged: (v) {
+                        AppDebugLog.instance.setEnabled(v).then((_) {
                           if (mounted) setState(() {});
-                        },
-                      ),
-                    ],
-                  ),
+                        });
+                      },
+                    ),
+                    const SizedBox(width: 8),
+                    _DebugPill(
+                      icon: Icons.terminal,
+                      label: '日志',
+                      onTap: () async {
+                        await Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const DebugLogPage(),
+                          ),
+                        );
+                        // 日志页里可能切换了开关 → 返回后同步外层状态
+                        if (mounted) setState(() {});
+                      },
+                    ),
+                  ],
                 ),
               ),
-              // 免责声明 + 勾选框（贴近底部）
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
-                child: GlassCard(
-                  radius: 18,
-                  padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
+              // 弹性区：免责卡始终贴底；高屏留白在上，矮屏压缩声明正文
+              Expanded(
+                child: Align(
+                  alignment: Alignment.bottomCenter,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+                    child: GlassCard(
+                      radius: 18,
+                      padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Icon(
-                            Icons.info_outline,
-                            size: 15,
-                            color: kPrimary,
-                          ),
-                          const SizedBox(width: 6),
-                          const Text(
-                            '免责声明',
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w700,
-                              color: kInk,
-                            ),
-                          ),
-                          const Spacer(),
-                          Text(
-                            'v$_version',
-                            style: const TextStyle(
-                              fontSize: 11,
-                              color: kTextMuted,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      // 声明正文：可滚动列表（8 条）
-                      SizedBox(
-                        height: 170,
-                        child: SingleChildScrollView(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                          Row(
                             children: [
-                              _disclaimerItem(
-                                '本应用为非官方应用，由学生个人开发，仅供学习交流使用，'
-                                '与华北电力大学（保定）官方无任何隶属、合作或授权关系。',
+                              const Icon(
+                                Icons.info_outline,
+                                size: 15,
+                                color: kPrimary,
                               ),
-                              _disclaimerItem(
-                                '教务数据来源于华电教务系统官网，饮水服务数据来源于惠生活798'
-                                '第三方接口，洗衣服务数据来源于U净（Ujing）第三方接口；'
-                                '相关数据的版权归原平台及权利方所有，接口可用性不作担保。',
+                              const SizedBox(width: 6),
+                              const Text(
+                                '免责声明',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                  color: kInk,
+                                ),
                               ),
-                              _disclaimerItem(
-                                '账号、密码、登录凭证等数据仅加密保存在本机，'
-                                '不上传、不同步至任何第三方服务器。',
-                              ),
-                              _disclaimerItem(
-                                '洗衣下单产生的费用通过支付宝直接支付给服务提供商，'
-                                '开发者不经手、不托管任何资金，支付前请确认订单信息。',
-                              ),
-                              _disclaimerItem(
-                                '本应用不使用学校及第三方平台的官方标识，'
-                                '若涉及侵权请及时联系更正或删除。',
-                              ),
-                              _disclaimerItem(
-                                '本应用按「现状」提供，开发者不作任何明示或默示的担保；'
-                                '因使用本应用产生的一切后果由使用者自行承担。',
-                              ),
-                              _disclaimerItem(
-                                '本应用不用于任何商业用途；如学校或相关权利方提出要求，'
-                                '开发者将及时停止相关功能。',
-                              ),
-                              _disclaimerItem(
-                                '在法律允许的范围内，开发者保留对本声明的最终解释权；'
-                                '如与法律法规相冲突，以法律法规为准。',
+                              const Spacer(),
+                              Text(
+                                'v$_version',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  color: kTextMuted,
+                                  fontWeight: FontWeight.w500,
+                                ),
                               ),
                             ],
                           ),
-                        ),
+                          const SizedBox(height: 8),
+                          // 声明正文：可滚动列表（8 条），高屏上限 170，矮屏自动压缩
+                          Flexible(
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(maxHeight: 170),
+                              child: SingleChildScrollView(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    _disclaimerItem(
+                                      '本应用为非官方应用，由学生个人开发，仅供学习交流使用，'
+                                      '与华北电力大学（保定）官方无任何隶属、合作或授权关系。',
+                                    ),
+                                    _disclaimerItem(
+                                      '教务数据来源于华电教务系统官网，饮水服务数据来源于惠生活798'
+                                      '第三方接口，洗衣服务数据来源于U净（Ujing）第三方接口；'
+                                      '相关数据的版权归原平台及权利方所有，接口可用性不作担保。',
+                                    ),
+                                    _disclaimerItem(
+                                      '账号、密码、登录凭证等数据仅加密保存在本机，'
+                                      '不上传、不同步至任何第三方服务器。',
+                                    ),
+                                    _disclaimerItem(
+                                      '洗衣下单产生的费用通过支付宝直接支付给服务提供商，'
+                                      '开发者不经手、不托管任何资金，支付前请确认订单信息。',
+                                    ),
+                                    _disclaimerItem(
+                                      '本应用不使用学校及第三方平台的官方标识，'
+                                      '若涉及侵权请及时联系更正或删除。',
+                                    ),
+                                    _disclaimerItem(
+                                      '本应用按「现状」提供，开发者不作任何明示或默示的担保；'
+                                      '因使用本应用产生的一切后果由使用者自行承担。',
+                                    ),
+                                    _disclaimerItem(
+                                      '本应用不用于任何商业用途；如学校或相关权利方提出要求，'
+                                      '开发者将及时停止相关功能。',
+                                    ),
+                                    _disclaimerItem(
+                                      '在法律允许的范围内，开发者保留对本声明的最终解释权；'
+                                      '如与法律法规相冲突，以法律法规为准。',
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          _AgreeRow(agreed: _agreed, onToggle: _toggleAgreed),
+                        ],
                       ),
-                      const SizedBox(height: 12),
-                      _AgreeRow(agreed: _agreed, onToggle: _toggleAgreed),
-                    ],
+                    ),
                   ),
                 ),
               ),
@@ -543,11 +552,11 @@ class _DebugSwitch extends StatelessWidget {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(15),
           color: active
-              ? Colors.orange.withValues(alpha: 0.25)
+              ? kTextMain.withValues(alpha: 0.14)
               : Colors.white.withValues(alpha: 0.5),
           border: Border.all(
             color: active
-                ? Colors.orange.withValues(alpha: 0.7)
+                ? kTextMain.withValues(alpha: 0.45)
                 : kPrimarySoft.withValues(alpha: 0.3),
           ),
         ),
@@ -556,7 +565,7 @@ class _DebugSwitch extends StatelessWidget {
           height: 24,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            color: active ? Colors.orange : kTextMuted,
+            color: active ? kTextMain : kTextMuted,
           ),
           alignment: Alignment.center,
           child: Icon(

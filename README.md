@@ -13,7 +13,7 @@
 | 首页 | 学习服务 | 饮水服务 | 洗衣服务 |
 | :---: | :---: | :---: | :---: |
 | <img src="docs/screenshots/home.jpg" width="200" alt="首页"> | <img src="docs/screenshots/study.jpg" width="200" alt="学习服务"> | <img src="docs/screenshots/huish.jpg" width="200" alt="饮水服务"> | <img src="docs/screenshots/laundry.jpg" width="200" alt="洗衣服务"> |
-| 模块导航，各服务独立登录 | 课表 · 成绩 · 考试 · 空闲教室 | 扫码取水 · 设备管理 · 消费记录 | 扫码下单 · 支付宝支付 · 订单跟踪 |
+| 模块导航 · 独立登录 | 课表 · 成绩 · 考试 | 扫码取水 · 设备管理 | 扫码下单 · 支付宝支付 |
 
 ## 功能特性
 

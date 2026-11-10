@@ -33,7 +33,11 @@ class GlassInfoRow extends StatelessWidget {
             width: 68,
             child: Text(
               label,
-              style: const TextStyle(fontSize: 12.5, color: kTextMuted),
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: kTextMain.withValues(alpha: 0.7),
+              ),
             ),
           ),
           Expanded(
@@ -43,7 +47,7 @@ class GlassInfoRow extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(
                 fontSize: 13.5,
-                fontWeight: FontWeight.w600,
+                fontWeight: FontWeight.w700,
                 color: kTextMain,
               ),
             ),

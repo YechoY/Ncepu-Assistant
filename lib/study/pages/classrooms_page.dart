@@ -9,6 +9,7 @@ import 'package:glass_ui/theme.dart';
 import 'package:glass_ui/widgets/border_beam.dart';
 import 'package:glass_ui/widgets/empty_view.dart';
 import 'package:glass_ui/widgets/glass_dropdown.dart';
+import 'package:glass_ui/widgets/glass_loading.dart';
 import 'package:glass_ui/widgets/glass_snackbar.dart';
 import 'package:glass_ui/widgets/reveal.dart';
 import '../../widgets/room_card.dart';
@@ -501,7 +502,7 @@ class _ClassroomsPageState extends ConsumerState<ClassroomsPage>
         ),
         Expanded(
           child: loading
-              ? const Center(child: CircularProgressIndicator())
+              ? const Center(child: GlassLoading(color: kPrimary))
               : RefreshIndicator(
                   color: kPrimary,
                   onRefresh: () => _query(),
@@ -534,6 +535,8 @@ class _ClassroomsPageState extends ConsumerState<ClassroomsPage>
                           itemCount: rooms.length,
                           itemBuilder: (_, i) => Reveal(
                             duration: const Duration(milliseconds: 320),
+                            // 首屏依次浮入（错峰 40ms）；滚动新构建的项零延迟。
+                            delay: Duration(milliseconds: i < 8 ? i * 40 : 0),
                             offset: const Offset(0, 14),
                             minScale: 0.98,
                             child: RoomCard(name: rooms[i]),

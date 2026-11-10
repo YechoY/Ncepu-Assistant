@@ -10,6 +10,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:glass_ui/theme.dart';
 import 'package:glass_ui/widgets/glass_background.dart';
 import 'package:glass_ui/widgets/glass_card.dart';
+import 'package:glass_ui/widgets/glass_loading.dart';
 import 'package:glass_ui/widgets/glass_snackbar.dart';
 import 'laundry_auth_state.dart';
 import 'laundry_home_page.dart';
@@ -318,14 +319,7 @@ class _LaundryLoginPageState extends ConsumerState<LaundryLoginPage> {
           ],
         ),
         child: _submitting
-            ? const SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2.4,
-                  valueColor: AlwaysStoppedAnimation(Colors.white),
-                ),
-              )
+            ? const GlassLoading(size: 20, color: Colors.white)
             : const Text(
                 '登录',
                 style: TextStyle(

@@ -180,6 +180,7 @@ class TimetablePage extends ConsumerWidget {
         const SizedBox(height: 14),
         Expanded(
           child: RefreshIndicator(
+            color: kPrimary,
             onRefresh: () => _refresh(context, ref),
             child: state.timetable.isEmpty
                 ? LayoutBuilder(
@@ -220,8 +221,7 @@ class TimetablePage extends ConsumerWidget {
     if (week.isEmpty) return '选择周次';
     final w = _weekOf(state, week);
     if (w == null) return '本周课表';
-    final total = state.totalWeeks;
-    return total != null ? '第 $w 周课表（共 $total 周）' : '第 $w 周课表';
+    return '第 $w 周课表';
   }
 
   int? _weekOf(DataState state, String monday) {

@@ -34,6 +34,7 @@ import 'package:glass_ui/theme.dart';
 import 'package:glass_ui/widgets/capsule_nav.dart';
 import 'package:glass_ui/widgets/glass_background.dart';
 import 'package:glass_ui/widgets/glass_card.dart';
+import 'package:glass_ui/widgets/glass_loading.dart';
 import 'package:glass_ui/widgets/glass_dialog.dart';
 import 'package:glass_ui/widgets/glass_snackbar.dart';
 import 'package:glass_ui/widgets/offline_banner.dart';
@@ -92,7 +93,7 @@ class _GateState extends ConsumerState<_Gate> {
     if (_booting) {
       return const Scaffold(
         body: GlassBackground(
-          child: Center(child: CircularProgressIndicator()),
+          child: Center(child: GlassLoading()),
         ),
       );
     }
@@ -631,10 +632,7 @@ class AppAboutDialogState extends State<AppAboutDialog> {
             SizedBox(
               width: 16,
               height: 16,
-              child: CircularProgressIndicator(
-                strokeWidth: 2.2,
-                color: kPrimary,
-              ),
+              child: GlassLoading(size: 16, color: kPrimary),
             ),
             SizedBox(width: 10),
             Text('正在检查更新…', style: TextStyle(fontSize: 12.5, color: kTextMain)),

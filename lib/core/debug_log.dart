@@ -4,9 +4,10 @@
 // 开关关闭时 log() 早退，不影响性能；开关打开后所有 HTTP 请求/响应自动记录。
 // 供两个 API client（教务 ApiClient / 饮水 HuishApiClient）共用。
 
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-class AppDebugLog {
+class AppDebugLog extends ChangeNotifier {
   AppDebugLog._();
   static final AppDebugLog instance = AppDebugLog._();
 
@@ -55,6 +56,7 @@ class AppDebugLog {
       ..clear()
       ..write(merged);
     _persist();
+    notifyListeners();
   }
 
   String read() => _buffer.toString();
@@ -63,6 +65,7 @@ class AppDebugLog {
     _buffer.clear();
     final sp = await SharedPreferences.getInstance();
     await sp.remove(_kLog);
+    notifyListeners();
   }
 
   Future<void> _persist() async {

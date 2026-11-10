@@ -12,6 +12,7 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:glass_ui/theme.dart';
 import 'package:glass_ui/widgets/glass_background.dart';
 import 'package:glass_ui/widgets/glass_card.dart';
+import 'package:glass_ui/widgets/glass_loading.dart';
 import 'package:glass_ui/widgets/glass_snackbar.dart';
 import 'huish_auth_state.dart';
 
@@ -352,7 +353,7 @@ class _HuishAddDevicePageState extends ConsumerState<HuishAddDevicePage>
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    CircularProgressIndicator(color: Colors.white),
+                    GlassLoading(color: Colors.white),
                     SizedBox(height: 16),
                     Text(
                       '正在查询设备…',
@@ -521,14 +522,7 @@ class _HuishAddDevicePageState extends ConsumerState<HuishAddDevicePage>
                 onPressed: _looking ? null : _lookupManual,
                 style: FilledButton.styleFrom(backgroundColor: kHuishDeep),
                 icon: _looking
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
+                    ? const GlassLoading(size: 16, color: Colors.white)
                     : const Icon(Icons.search_rounded, size: 19),
                 label: const Text('查询设备'),
               ),

@@ -11,6 +11,7 @@ import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 
 import 'debug_log.dart';
+
 import 'package:glass_ui/theme.dart';
 import 'package:glass_ui/widgets/glass_background.dart';
 import 'package:glass_ui/widgets/glass_card.dart';
@@ -24,11 +25,51 @@ class DebugLogPage extends StatefulWidget {
 
 class _DebugLogPageState extends State<DebugLogPage> {
   late bool _enabled;
+  final ScrollController _scroll = ScrollController();
+  bool _firstJumpDone = false;
 
   @override
   void initState() {
     super.initState();
     _enabled = AppDebugLog.instance.isEnabled;
+    AppDebugLog.instance.addListener(_onLogChanged);
+  }
+
+  @override
+  void dispose() {
+    AppDebugLog.instance.removeListener(_onLogChanged);
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  void _onLogChanged() {
+    if (!mounted) return;
+    setState(() {});
+    _jumpToBottomIfFollowing();
+  }
+
+  /// 用户本来就在底部附近时才跟随滚动，翻阅历史时不打扰。
+  void _jumpToBottomIfFollowing() {
+    if (!_scroll.hasClients) return;
+    final pos = _scroll.position;
+    if (pos.pixels > pos.maxScrollExtent - 120) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_scroll.hasClients) {
+          _scroll.jumpTo(_scroll.position.maxScrollExtent);
+        }
+      });
+    }
+  }
+
+  /// 首次进入直接定位到底部（最新日志）。
+  void _jumpToBottomOnce() {
+    if (_firstJumpDone) return;
+    _firstJumpDone = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scroll.hasClients) {
+        _scroll.jumpTo(_scroll.position.maxScrollExtent);
+      }
+    });
   }
 
   Future<void> _setEnabled(bool v) async {
@@ -83,6 +124,38 @@ class _DebugLogPageState extends State<DebugLogPage> {
         showGlassSnackBar(context, '导出失败');
       }
     }
+  }
+
+  /// 工具按钮：统一白玻璃小胶囊（朴素风格，不用彩色描边）。
+  Widget _toolButton(IconData icon, String label, VoidCallback onTap) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 9),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.5),
+            borderRadius: BorderRadius.circular(11),
+            border: Border.all(color: kGlassBorder),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 15, color: kTextMain.withValues(alpha: 0.75)),
+              const SizedBox(width: 5),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                  color: kTextMain.withValues(alpha: 0.85),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -146,74 +219,21 @@ class _DebugLogPageState extends State<DebugLogPage> {
                   ],
                 ),
               ),
-              // ── 操作按钮 ────────────────────────────────────────
+              // ── 操作按钮（统一玻璃小胶囊） ──────────────────────
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Row(
                   children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: _export,
-                        icon: const Icon(Icons.save_alt_rounded, size: 16),
-                        label: const Text('导出'),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: const Color(0xFF5A7BA6),
-                          side: BorderSide(
-                            color: const Color(0xFF5A7BA6)
-                                .withValues(alpha: 0.5),
-                          ),
-                          backgroundColor: Colors.white.withValues(alpha: 0.5),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                      ),
-                    ),
+                    _toolButton(Icons.save_alt_rounded, '导出', _export),
                     const SizedBox(width: 8),
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: _copy,
-                        icon: const Icon(Icons.copy_rounded, size: 16),
-                        label: const Text('复制'),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: kPrimary,
-                          side: BorderSide(
-                            color: kPrimary.withValues(alpha: 0.5),
-                          ),
-                          backgroundColor: Colors.white.withValues(alpha: 0.5),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                      ),
-                    ),
+                    _toolButton(Icons.copy_rounded, '复制', _copy),
                     const SizedBox(width: 8),
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: _clear,
-                        icon: const Icon(
-                          Icons.delete_outline_rounded,
-                          size: 16,
-                        ),
-                        label: const Text('清空'),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: const Color(0xFFB85450),
-                          side: BorderSide(
-                            color: const Color(0xFFB85450)
-                                .withValues(alpha: 0.4),
-                          ),
-                          backgroundColor: Colors.white.withValues(alpha: 0.5),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                      ),
-                    ),
+                    _toolButton(Icons.delete_outline_rounded, '清空', _clear),
                   ],
                 ),
               ),
               const SizedBox(height: 8),
-              // ── 日志列表（现代化着色卡片 + 滚动条） ─────────────
+              // ── 日志列表（终端风格纯文本行 + 滚动条） ────────────
               Expanded(
                 child: GlassCard(
                   radius: 18,
@@ -232,15 +252,21 @@ class _DebugLogPageState extends State<DebugLogPage> {
                           ),
                         )
                       : Scrollbar(
+                          controller: _scroll,
                           thickness: 4,
                           radius: const Radius.circular(2),
-                          child: ListView.builder(
-                            reverse: true,
-                            padding: const EdgeInsets.only(right: 4),
-                            itemCount: lines.length,
-                            itemBuilder: (_, i) {
-                              final line = lines[lines.length - 1 - i];
-                              return _LogCard(line: line);
+                          child: Builder(
+                            builder: (_) {
+                              _jumpToBottomOnce();
+                              return ListView.builder(
+                                controller: _scroll,
+                                padding: const EdgeInsets.only(right: 4),
+                                itemCount: lines.length,
+                                itemBuilder: (_, i) => _LogLine(
+                                  line: lines[i],
+                                  prevLine: i > 0 ? lines[i - 1] : null,
+                                ),
+                              );
                             },
                           ),
                         ),
@@ -255,10 +281,81 @@ class _DebugLogPageState extends State<DebugLogPage> {
   }
 }
 
-/// ── 解析单条日志行，着色展示 ─────────────────────────────────
-class _LogCard extends StatelessWidget {
+/// ── 单条日志：纯文本行（时间 + tag 着色，消息等宽可选中） ──────────
+/// 终端风格：无卡片无图标，行间仅用细分隔线。
+/// 同一秒内的连续日志省略重复时间戳；HTTP 行的状态码按区间着色、query 淡化。
+class _LogLine extends StatelessWidget {
   final String line;
-  const _LogCard({required this.line});
+  final String? prevLine;
+  const _LogLine({required this.line, this.prevLine});
+
+  static const _errColor = Color(0xFFB85450);
+  static const _okColor = Color(0xFF4A7F4E);
+  static const _redirectColor = Color(0xFF3B6EAB);
+
+  /// 按模块/类型给 tag 着色（HUISH 蓝 / LAUNDRY 粉 / BIZ 绿 / 错误红）。
+  static Color _tagColor(String tag) {
+    if (tag.contains('ERROR') || tag.contains('FAIL')) {
+      return _errColor;
+    }
+    if (tag.contains('BIZ')) return _okColor;
+    if (tag.contains('LAUNDRY')) return kLaundryDeep;
+    if (tag.contains('HUISH')) return kHuishDeep;
+    if (tag.contains('HTTP') || tag.contains('GET') || tag.contains('POST')) {
+      return _redirectColor;
+    }
+    return kTextMuted;
+  }
+
+  static String? _timeOf(String line) {
+    final m = RegExp(r'^\[(\d{2}:\d{2}:\d{2})\]').firstMatch(line);
+    return m?.group(1);
+  }
+
+  /// 渲染消息体：HTTP 完成行（METHOD path?query → status · 耗时）分段着色，
+  /// 其他行（BIZ 等）整行按错误与否着色。
+  static List<InlineSpan> _msgSpans(String msg, bool hasError) {
+    final m = RegExp(r'^([A-Z]+)\s+(\S+)\s+→\s+(\d{3}|FAIL)(.*)$')
+        .firstMatch(msg);
+    if (m == null) {
+      return [
+        TextSpan(
+          text: msg,
+          style: TextStyle(color: hasError ? _errColor : kInk),
+        ),
+      ];
+    }
+    final method = m.group(1)!;
+    final url = m.group(2)!;
+    final status = m.group(3)!;
+    final rest = m.group(4)!; // ' · 96ms'
+    final qi = url.indexOf('?');
+    final path = qi < 0 ? url : url.substring(0, qi);
+    final query = qi < 0 ? '' : url.substring(qi);
+    final code = int.tryParse(status);
+    final statusColor = code == null || code >= 400
+        ? _errColor
+        : code >= 300
+        ? _redirectColor
+        : _okColor;
+    final dim = TextStyle(color: kTextMuted.withValues(alpha: 0.55));
+    return [
+      TextSpan(
+        text: '$method ',
+        style: const TextStyle(fontWeight: FontWeight.w700, color: kInk),
+      ),
+      TextSpan(
+        text: path,
+        style: const TextStyle(color: kInk),
+      ),
+      if (query.isNotEmpty) TextSpan(text: query, style: dim),
+      TextSpan(
+        text: ' → $status',
+        style: TextStyle(fontWeight: FontWeight.w700, color: statusColor),
+      ),
+      TextSpan(text: rest, style: dim),
+    ];
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -269,100 +366,56 @@ class _LogCard extends StatelessWidget {
     final tag = match?.group(2) ?? '';
     final msg = match?.group(3) ?? line;
 
-    // 按 tag 着色
-    Color tagColor;
-    Color tagBg;
-    if (tag.contains('ERROR') || tag.contains('FAIL')) {
-      tagColor = const Color(0xFFB85450);
-      tagBg = const Color(0xFFB85450).withValues(alpha: 0.1);
-    } else if (tag.contains('BIZ')) {
-      tagColor = const Color(0xFF4A7F4E); // 绿
-      tagBg = const Color(0xFF4A7F4E).withValues(alpha: 0.08);
-    } else if (tag.contains('HTTP') ||
-        tag.contains('GET') ||
-        tag.contains('POST')) {
-      tagColor = const Color(0xFF3B6EAB); // 蓝
-      tagBg = const Color(0xFF3B6EAB).withValues(alpha: 0.08);
-    } else if (tag.contains('BODY') || tag.contains('HUISH')) {
-      tagColor = const Color(0xFF7B5BA0); // 紫
-      tagBg = const Color(0xFF7B5BA0).withValues(alpha: 0.08);
-    } else {
-      tagColor = kTextMuted;
-      tagBg = Colors.grey.withValues(alpha: 0.06);
-    }
+    // 与上一条同秒 → 时间位置留白对齐，减少重复噪音
+    final sameSecond =
+        prevLine != null && time.isNotEmpty && _timeOf(prevLine!) == time;
 
-    // msg 里 code=非0 标红
+    // msg 里 code=非0 / FAIL / 失败 标红
     final hasError =
+        tag.contains('ERROR') ||
+        tag.contains('FAIL') ||
+        msg.contains('→ FAIL') ||
         RegExp(r'code\s*[!=]=?\s*(?!0\b)[-9]').hasMatch(msg) ||
         msg.contains('失败') ||
         msg.contains('错误');
 
     return Container(
-      margin: const EdgeInsets.symmetric(vertical: 2),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.35),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: Colors.white.withValues(alpha: 0.4),
-          width: 0.5,
-        ),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      decoration: const BoxDecoration(
+        border: Border(bottom: BorderSide(color: kGlassGridLine, width: 0.5)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 上排：时间 + tag 胶囊
           Row(
             children: [
-              Icon(
-                tag.contains('GET') || tag.contains('HTTP')
-                    ? Icons.arrow_forward_ios_rounded
-                    : tag.contains('BIZ') || tag.contains('BODY')
-                    ? Icons.business_center_rounded
-                    : tag.contains('ERROR') || tag.contains('FAIL')
-                    ? Icons.error_outline_rounded
-                    : Icons.info_outline_rounded,
-                size: 11,
-                color: tagColor,
-              ),
-              const SizedBox(width: 4),
               Text(
-                time,
+                sameSecond ? ' ' * 8 : time,
                 style: TextStyle(
                   fontSize: 10,
-                  color: kTextMuted.withValues(alpha: 0.55),
-                  fontWeight: FontWeight.w600,
+                  color: kTextMuted.withValues(alpha: 0.6),
                   fontFamily: 'monospace',
                 ),
               ),
               const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                decoration: BoxDecoration(
-                  color: tagBg,
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Text(
-                  tag,
-                  style: TextStyle(
-                    fontSize: 9.5,
-                    fontWeight: FontWeight.w800,
-                    color: tagColor,
-                    fontFamily: 'monospace',
-                  ),
+              Text(
+                tag,
+                style: TextStyle(
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w700,
+                  color: _tagColor(tag),
+                  fontFamily: 'monospace',
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 3),
-          // 下排：消息
-          SelectableText(
-            msg,
-            style: TextStyle(
-              fontSize: 11,
+          const SizedBox(height: 2),
+          SelectableText.rich(
+            TextSpan(children: _msgSpans(msg, hasError)),
+            style: const TextStyle(
+              fontSize: 11.5,
               fontFamily: 'monospace',
-              color: hasError ? const Color(0xFFB85450) : kInk,
-              height: 1.35,
+              height: 1.4,
             ),
           ),
         ],
@@ -389,11 +442,11 @@ class _BuildSwitch extends StatelessWidget {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(14),
           color: active
-              ? Colors.orange.withValues(alpha: 0.2)
+              ? kTextMain.withValues(alpha: 0.14)
               : Colors.white.withValues(alpha: 0.5),
           border: Border.all(
             color: active
-                ? Colors.orange.withValues(alpha: 0.6)
+                ? kTextMain.withValues(alpha: 0.45)
                 : kPrimarySoft.withValues(alpha: 0.3),
           ),
         ),
@@ -402,7 +455,7 @@ class _BuildSwitch extends StatelessWidget {
           height: 22,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            color: active ? Colors.orange : kTextMuted,
+            color: active ? kTextMain : kTextMuted,
           ),
           alignment: Alignment.center,
           child: Icon(

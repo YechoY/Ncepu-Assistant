@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 
 /// scroll-reveal 风格入场动画：子组件挂载后淡入 + 向上位移。
 /// 配合 ListView.builder，滚动到新构建的项时触发，产生"进入视口显现"效果。
+/// [delay]：入场前延迟，列表按 index 递增传入可形成依次浮入的错峰效果。
 class Reveal extends StatefulWidget {
   final Widget child;
   final Duration duration;
+  final Duration delay;
   final Offset offset;
   final double minScale;
 
@@ -12,6 +14,7 @@ class Reveal extends StatefulWidget {
     super.key,
     required this.child,
     this.duration = const Duration(milliseconds: 600),
+    this.delay = Duration.zero,
     this.offset = const Offset(0, 28),
     this.minScale = 0.96,
   });
@@ -26,8 +29,14 @@ class _RevealState extends State<Reveal> with SingleTickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(vsync: this, duration: widget.duration)
-      ..forward();
+    _controller = AnimationController(vsync: this, duration: widget.duration);
+    if (widget.delay == Duration.zero) {
+      _controller.forward();
+    } else {
+      Future.delayed(widget.delay, () {
+        if (mounted) _controller.forward();
+      });
+    }
   }
 
   @override

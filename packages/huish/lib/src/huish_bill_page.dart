@@ -169,7 +169,7 @@ class _HuishBillPageState extends ConsumerState<HuishBillPage> {
               const GlassPageHeader(title: '消费记录', accentColor: kHuishDeep),
               Expanded(
                 child: RefreshIndicator(
-                  color: kPrimary,
+                  color: kHuishDeep,
                   onRefresh: _loadBills,
                   child: ListView(
                     padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),

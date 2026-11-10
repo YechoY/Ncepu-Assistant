@@ -11,6 +11,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:glass_ui/theme.dart';
 import 'package:glass_ui/widgets/glass_background.dart';
 import 'package:glass_ui/widgets/glass_card.dart';
+import 'package:glass_ui/widgets/glass_loading.dart';
 import 'package:glass_ui/widgets/glass_snackbar.dart';
 import 'huish_auth_state.dart';
 import 'huish_home_page.dart';
@@ -425,7 +426,7 @@ class _HuishDevicePageState extends ConsumerState<HuishDevicePage> {
         body: GlassBackground(
           child: SafeArea(
             child: _loading
-                ? const Center(child: CircularProgressIndicator())
+                ? const Center(child: GlassLoading(color: kHuishDeep))
                 : _error
                 ? Center(child: _ErrorView(onRetry: _load))
                 : _buildContent(),
