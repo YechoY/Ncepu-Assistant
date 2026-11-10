@@ -153,7 +153,7 @@ class GradeCard extends StatelessWidget {
                   grade.grade.isEmpty ? '—' : grade.grade,
                   style: TextStyle(
                     fontSize: grade.grade.length > 3 ? 18 : 24,
-                    fontWeight: FontWeight.w800,
+                    fontWeight: FontWeight.w600,
                     color: fg,
                   ),
                 ),

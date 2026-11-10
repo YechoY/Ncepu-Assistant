@@ -195,7 +195,7 @@ class _HuishAddDevicePageState extends ConsumerState<HuishAddDevicePage>
                         '添加设备',
                         style: TextStyle(
                           fontSize: 18,
-                          fontWeight: FontWeight.w800,
+                          fontWeight: FontWeight.w600,
                           color: kInk,
                         ),
                       ),

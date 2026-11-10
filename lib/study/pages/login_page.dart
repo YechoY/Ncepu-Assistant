@@ -104,18 +104,14 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   width: 64,
                   height: 64,
                   alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [kPrimarySoft, kPrimary],
-                    ),
-                    borderRadius: BorderRadius.circular(20),
+                  decoration: const BoxDecoration(
+                    color: kPrimary,
+                    borderRadius: BorderRadius.all(Radius.circular(20)),
                     boxShadow: [
                       BoxShadow(
-                        color: kPrimary.withValues(alpha: 0.35),
-                        blurRadius: 20,
-                        offset: const Offset(0, 8),
+                        color: kGlassShadow,
+                        blurRadius: 14,
+                        offset: Offset(0, 5),
                       ),
                     ],
                   ),
@@ -131,7 +127,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 20,
-                    fontWeight: FontWeight.w800,
+                    fontWeight: FontWeight.w600,
                     color: kInk,
                   ),
                 ),

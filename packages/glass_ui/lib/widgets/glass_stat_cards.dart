@@ -72,7 +72,7 @@ class GlassBalanceCard extends StatelessWidget {
                   amount,
                   style: const TextStyle(
                     fontSize: 20,
-                    fontWeight: FontWeight.w800,
+                    fontWeight: FontWeight.w600,
                     color: kInk,
                     height: 1.1,
                   ),
@@ -139,7 +139,7 @@ class GlassStatsCard extends StatelessWidget {
                     stats[i].value,
                     style: const TextStyle(
                       fontSize: 24,
-                      fontWeight: FontWeight.w800,
+                      fontWeight: FontWeight.w600,
                       color: kInk,
                       height: 1.1,
                     ),

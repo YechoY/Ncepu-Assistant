@@ -20,6 +20,7 @@ import 'package:http/http.dart' as http; // GitHub API 查询最新版本
 import 'package:open_filex/open_filex.dart'; // 打开下载完成的 APK 触发安装
 import 'package:package_info_plus/package_info_plus.dart'; // 运行时读取版本号
 import 'package:path_provider/path_provider.dart'; // APK 下载临时目录
+import 'package:shared_preferences/shared_preferences.dart'; // 自动检查更新开关
 import 'package:url_launcher/url_launcher.dart'; // 前往浏览器下载新版本
 
 import 'study/pages/classrooms_page.dart';
@@ -271,12 +272,11 @@ class _MainShellState extends ConsumerState<MainShell> {
   }
 }
 
-/// 关于弹窗里的单行声明：普通文字灰、关键词墨紫加粗，强化「非官方」的醒目度。
+/// 关于弹窗里的单行声明：普通文字灰、关键词墨紫加粗。
 class _AboutLine extends StatelessWidget {
   final String text;
   final String bold;
-  final String? tail;
-  const _AboutLine({this.text = '', required this.bold, this.tail});
+  const _AboutLine({this.text = '', required this.bold});
   @override
   Widget build(BuildContext context) {
     return Text.rich(
@@ -292,10 +292,70 @@ class _AboutLine extends StatelessWidget {
               color: kInk,
             ),
           ),
-          if (tail != null) TextSpan(text: tail),
         ],
       ),
     );
+  }
+}
+
+/// 关于弹窗的信息行：左侧灰色小标签，右侧墨紫值，整齐对齐。
+class _InfoRow extends StatelessWidget {
+  final String label;
+  final String value;
+  const _InfoRow({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Text(
+          label,
+          style: const TextStyle(fontSize: 12.5, color: kTextMuted),
+        ),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Text(
+            value,
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: kInk,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// 静默检查更新（启动时「自动检查更新」用）：
+/// 成功返回 (newer: 是否有新版, tag: 远端版本号)；网络失败/解析失败返回 null。
+Future<({bool newer, String tag})?> checkLatestRelease() async {
+  try {
+    final res = await http
+        .get(
+          Uri.parse(
+            'https://api.github.com/repos/YechoY/Ncepu-Assistant/releases/latest',
+          ),
+          headers: const {
+            'User-Agent': 'hdjw_assistant', // GitHub API 要求 UA
+            'Accept': 'application/vnd.github+json',
+          },
+        )
+        .timeout(const Duration(seconds: 10));
+    if (res.statusCode != 200) return null;
+    final release =
+        jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+    final info = await PackageInfo.fromPlatform();
+    final tag = (release['tag_name'] as String? ?? '').trim();
+    if (tag.isEmpty) return null;
+    final t = tag.startsWith('v') ? tag : 'v$tag';
+    return (
+      newer: _isRemoteNewer(t, info.version, int.tryParse(info.buildNumber) ?? 0),
+      tag: t,
+    );
+  } catch (_) {
+    return null;
   }
 }
 
@@ -348,6 +408,7 @@ class AppAboutDialogState extends State<AppAboutDialog> {
   HttpClientRequest? _dlReq; // 进行中的下载请求，用于取消
   HttpClient? _dlClient; // 进行中的下载客户端，取消时强制断开连接
   bool _cancelled = false; // 区分「用户主动取消」与「下载真失败」
+  bool _autoCheck = true; // 启动时自动检查更新（持久化到 SharedPreferences）
 
   @override
   void initState() {
@@ -355,6 +416,21 @@ class AppAboutDialogState extends State<AppAboutDialog> {
     PackageInfo.fromPlatform().then((v) {
       if (mounted) setState(() => _info = v);
     });
+    // 读取自动检查开关；开着的话打开弹窗就直接检查一次
+    SharedPreferences.getInstance().then((sp) {
+      final v = sp.getBool('auto_check_update') ?? true;
+      if (!mounted) return;
+      setState(() => _autoCheck = v);
+      if (v && _phase == 'idle') _check();
+    });
+  }
+
+  Future<void> _toggleAutoCheck(bool v) async {
+    setState(() => _autoCheck = v);
+    try {
+      final sp = await SharedPreferences.getInstance();
+      await sp.setBool('auto_check_update', v);
+    } catch (_) {}
   }
 
   Future<void> _check() async {
@@ -569,37 +645,47 @@ class AppAboutDialogState extends State<AppAboutDialog> {
                         '掌上华电',
                         style: TextStyle(
                           fontSize: 16,
-                          fontWeight: FontWeight.w700,
+                          fontWeight: FontWeight.w600,
                           color: kInk,
                         ),
                       ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        '非官方应用 · 学生个人开发，仅供学习交流',
+                        style: TextStyle(fontSize: 12, color: kTextMuted),
+                      ),
+                      const SizedBox(height: 14),
+                      const _InfoRow(label: '开发者', value: 'YechoY'),
                       const SizedBox(height: 8),
-                      const _AboutLine(
-                        text: '① ',
-                        bold: '非官方应用',
-                        tail: '，由学生个人 vibecoding 独立开发，仅供学习交流',
-                      ),
-                      const SizedBox(height: 4),
-                      const _AboutLine(
-                        text: '② 不用于任何商业用途，使用产生的一切后果',
-                        bold: '由使用者自行承担',
-                      ),
-                      const SizedBox(height: 4),
-                      const _AboutLine(
-                        text: '③ 在法律允许的范围内，开发者保留对本声明的',
-                        bold: '最终解释权',
-                        tail: '；如与法律法规相冲突，以法律法规为准',
-                      ),
-                      const SizedBox(height: 4),
-                      const _AboutLine(
-                        text: '④ ',
-                        bold: '开发者 YechoY',
-                        tail: ' · 联系方式 ncepu@yechoy.cn',
-                      ),
-                      const SizedBox(height: 12),
-                      if (info != null)
-                        _AboutLine(text: '当前版本 ', bold: 'v${info.version}'),
+                      const _InfoRow(label: '联系', value: 'ncepu@yechoy.cn'),
+                      if (info != null) ...[
+                        const SizedBox(height: 8),
+                        _InfoRow(label: '版本', value: 'v${info.version}'),
+                      ],
                       const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          const Expanded(
+                            child: Text(
+                              '自动检查更新',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: kTextMain,
+                              ),
+                            ),
+                          ),
+                          Transform.scale(
+                            scale: 0.8,
+                            child: Switch(
+                              value: _autoCheck,
+                              activeThumbColor: kPrimary,
+                              onChanged: _toggleAutoCheck,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
                       _updateArea(),
                     ],
                   ),

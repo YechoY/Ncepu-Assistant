@@ -37,12 +37,15 @@ class _ModuleNavPageState extends ConsumerState<ModuleNavPage> {
   bool _agreed = false;
   bool _loading = true;
   String _version = '';
+  // 免责卡展开状态：未同意时默认展开（先读再勾选），同意后默认收起
+  bool _disclaimerExpanded = true;
 
   @override
   void initState() {
     super.initState();
     _loadAgreement();
     _loadVersion();
+    _autoCheckUpdate();
   }
 
   Future<void> _loadAgreement() async {
@@ -51,6 +54,7 @@ class _ModuleNavPageState extends ConsumerState<ModuleNavPage> {
       if (!mounted) return;
       setState(() {
         _agreed = sp.getBool('nav_disclaimer_agreed') ?? false;
+        _disclaimerExpanded = !_agreed;
         _loading = false;
       });
     } catch (_) {
@@ -62,6 +66,18 @@ class _ModuleNavPageState extends ConsumerState<ModuleNavPage> {
     try {
       final info = await PackageInfo.fromPlatform();
       if (mounted) setState(() => _version = info.version);
+    } catch (_) {}
+  }
+
+  /// 启动时静默检查更新（开关在「关于」弹窗里，默认开）。
+  /// 有新版只弹一条提示，不主动弹窗打扰。
+  Future<void> _autoCheckUpdate() async {
+    try {
+      final sp = await SharedPreferences.getInstance();
+      if (!(sp.getBool('auto_check_update') ?? true)) return;
+      final r = await checkLatestRelease();
+      if (!mounted || r == null || !r.newer) return;
+      showGlassSnackBar(context, '发现新版本 ${r.tag}，点右上角「关于」更新');
     } catch (_) {}
   }
 
@@ -209,7 +225,7 @@ class _ModuleNavPageState extends ConsumerState<ModuleNavPage> {
                             '掌上华电',
                             style: TextStyle(
                               fontSize: 22,
-                              fontWeight: FontWeight.w800,
+                              fontWeight: FontWeight.w600,
                               color: kInk,
                               height: 1.2,
                             ),
@@ -295,6 +311,7 @@ class _ModuleNavPageState extends ConsumerState<ModuleNavPage> {
                   ],
                 ),
               ),
+              const SizedBox(height: 22),
               // 中部工具行：左侧引导文字 + 右侧开发者工具组（单行防溢出）
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -347,78 +364,110 @@ class _ModuleNavPageState extends ConsumerState<ModuleNavPage> {
                         mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Row(
-                            children: [
-                              const Icon(
-                                Icons.info_outline,
-                                size: 15,
-                                color: kPrimary,
-                              ),
-                              const SizedBox(width: 6),
-                              const Text(
-                                '免责声明',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w700,
-                                  color: kInk,
+                          GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: () => setState(
+                              () => _disclaimerExpanded = !_disclaimerExpanded,
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(
+                                  Icons.info_outline,
+                                  size: 15,
+                                  color: kPrimary,
                                 ),
-                              ),
-                              const Spacer(),
-                              Text(
-                                'v$_version',
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  color: kTextMuted,
-                                  fontWeight: FontWeight.w500,
+                                const SizedBox(width: 6),
+                                const Text(
+                                  '免责声明',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w700,
+                                    color: kInk,
+                                  ),
                                 ),
-                              ),
-                            ],
+                                const Spacer(),
+                                Text(
+                                  'v$_version',
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    color: kTextMuted,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                                const SizedBox(width: 2),
+                                AnimatedRotation(
+                                  turns: _disclaimerExpanded ? 0.5 : 0,
+                                  duration: const Duration(milliseconds: 250),
+                                  curve: kSpring,
+                                  child: const Icon(
+                                    Icons.keyboard_arrow_down_rounded,
+                                    size: 16,
+                                    color: kTextMuted,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
-                          const SizedBox(height: 8),
-                          // 声明正文：可滚动列表（8 条），高屏上限 170，矮屏自动压缩
+                          // 声明正文：可展开/收起；全文上限高 170，超出滚动
                           Flexible(
-                            child: ConstrainedBox(
-                              constraints: const BoxConstraints(maxHeight: 170),
-                              child: SingleChildScrollView(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    _disclaimerItem(
-                                      '本应用为非官方应用，由学生个人开发，仅供学习交流使用，'
-                                      '与华北电力大学（保定）官方无任何隶属、合作或授权关系。',
+                            child: AnimatedCrossFade(
+                              firstChild: const SizedBox(
+                                width: double.infinity,
+                              ),
+                              secondChild: Padding(
+                                padding: const EdgeInsets.only(top: 8),
+                                child: ConstrainedBox(
+                                  constraints: const BoxConstraints(
+                                    maxHeight: 170,
+                                  ),
+                                  child: SingleChildScrollView(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        _disclaimerItem(
+                                          '本应用为非官方应用，由学生个人开发，仅供学习交流使用，'
+                                          '与华北电力大学（保定）官方无任何隶属、合作或授权关系。',
+                                        ),
+                                        _disclaimerItem(
+                                          '教务数据来源于华电教务系统官网，饮水服务数据来源于惠生活798'
+                                          '第三方接口，洗衣服务数据来源于U净（Ujing）第三方接口；'
+                                          '相关数据的版权归原平台及权利方所有，接口可用性不作担保。',
+                                        ),
+                                        _disclaimerItem(
+                                          '账号、密码、登录凭证等数据仅加密保存在本机，'
+                                          '不上传、不同步至任何第三方服务器。',
+                                        ),
+                                        _disclaimerItem(
+                                          '洗衣下单产生的费用通过支付宝直接支付给服务提供商，'
+                                          '开发者不经手、不托管任何资金，支付前请确认订单信息。',
+                                        ),
+                                        _disclaimerItem(
+                                          '本应用不使用学校及第三方平台的官方标识，'
+                                          '若涉及侵权请及时联系更正或删除。',
+                                        ),
+                                        _disclaimerItem(
+                                          '本应用按「现状」提供，开发者不作任何明示或默示的担保；'
+                                          '因使用本应用产生的一切后果由使用者自行承担。',
+                                        ),
+                                        _disclaimerItem(
+                                          '本应用不用于任何商业用途；如学校或相关权利方提出要求，'
+                                          '开发者将及时停止相关功能。',
+                                        ),
+                                        _disclaimerItem(
+                                          '在法律允许的范围内，开发者保留对本声明的最终解释权；'
+                                          '如与法律法规相冲突，以法律法规为准。',
+                                        ),
+                                      ],
                                     ),
-                                    _disclaimerItem(
-                                      '教务数据来源于华电教务系统官网，饮水服务数据来源于惠生活798'
-                                      '第三方接口，洗衣服务数据来源于U净（Ujing）第三方接口；'
-                                      '相关数据的版权归原平台及权利方所有，接口可用性不作担保。',
-                                    ),
-                                    _disclaimerItem(
-                                      '账号、密码、登录凭证等数据仅加密保存在本机，'
-                                      '不上传、不同步至任何第三方服务器。',
-                                    ),
-                                    _disclaimerItem(
-                                      '洗衣下单产生的费用通过支付宝直接支付给服务提供商，'
-                                      '开发者不经手、不托管任何资金，支付前请确认订单信息。',
-                                    ),
-                                    _disclaimerItem(
-                                      '本应用不使用学校及第三方平台的官方标识，'
-                                      '若涉及侵权请及时联系更正或删除。',
-                                    ),
-                                    _disclaimerItem(
-                                      '本应用按「现状」提供，开发者不作任何明示或默示的担保；'
-                                      '因使用本应用产生的一切后果由使用者自行承担。',
-                                    ),
-                                    _disclaimerItem(
-                                      '本应用不用于任何商业用途；如学校或相关权利方提出要求，'
-                                      '开发者将及时停止相关功能。',
-                                    ),
-                                    _disclaimerItem(
-                                      '在法律允许的范围内，开发者保留对本声明的最终解释权；'
-                                      '如与法律法规相冲突，以法律法规为准。',
-                                    ),
-                                  ],
+                                  ),
                                 ),
                               ),
+                              crossFadeState: _disclaimerExpanded
+                                  ? CrossFadeState.showSecond
+                                  : CrossFadeState.showFirst,
+                              duration: const Duration(milliseconds: 280),
+                              sizeCurve: kSpring,
                             ),
                           ),
                           const SizedBox(height: 12),

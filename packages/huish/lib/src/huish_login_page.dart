@@ -182,17 +182,13 @@ class _HuishLoginPageState extends ConsumerState<HuishLoginPage> {
                   height: 64,
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [kHuish, kHuishDeep],
-                    ),
+                    color: kHuishDeep,
                     borderRadius: BorderRadius.circular(20),
-                    boxShadow: [
+                    boxShadow: const [
                       BoxShadow(
-                        color: kHuish.withValues(alpha: 0.35),
-                        blurRadius: 20,
-                        offset: const Offset(0, 8),
+                        color: kGlassShadow,
+                        blurRadius: 14,
+                        offset: Offset(0, 5),
                       ),
                     ],
                   ),
@@ -208,7 +204,7 @@ class _HuishLoginPageState extends ConsumerState<HuishLoginPage> {
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 20,
-                    fontWeight: FontWeight.w800,
+                    fontWeight: FontWeight.w600,
                     color: kInk,
                   ),
                 ),

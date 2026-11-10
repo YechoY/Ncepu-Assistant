@@ -520,7 +520,7 @@ class _LaundryOrderPageState extends State<LaundryOrderPage> {
             '确认洗衣订单',
             style: TextStyle(
               fontSize: 18,
-              fontWeight: FontWeight.w800,
+              fontWeight: FontWeight.w600,
               color: kInk,
             ),
           ),
@@ -571,7 +571,7 @@ class _LaundryOrderPageState extends State<LaundryOrderPage> {
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     fontSize: 14.5,
-                    fontWeight: FontWeight.w800,
+                    fontWeight: FontWeight.w600,
                     color: kTextMain,
                   ),
                 ),
@@ -687,7 +687,7 @@ class _LaundryOrderPageState extends State<LaundryOrderPage> {
                 title,
                 style: const TextStyle(
                   fontSize: 14,
-                  fontWeight: FontWeight.w800,
+                  fontWeight: FontWeight.w600,
                   color: kInk,
                 ),
               ),
@@ -797,7 +797,7 @@ class _LaundryOrderPageState extends State<LaundryOrderPage> {
               m.priceText,
               style: TextStyle(
                 fontSize: 15,
-                fontWeight: FontWeight.w800,
+                fontWeight: FontWeight.w600,
                 color: selected ? kLaundryDeep : kTextMain,
               ),
             ),
@@ -914,7 +914,7 @@ class _LaundryOrderPageState extends State<LaundryOrderPage> {
                     _orderable ? '¥${(_totalFen / 100).toStringAsFixed(2)}' : '--',
                     style: const TextStyle(
                       fontSize: 21,
-                      fontWeight: FontWeight.w800,
+                      fontWeight: FontWeight.w600,
                       color: kInk,
                     ),
                   ),
@@ -952,7 +952,7 @@ class _LaundryOrderPageState extends State<LaundryOrderPage> {
                   _orderable ? '创建订单' : '设备暂不可下单',
                   style: const TextStyle(
                     fontSize: 14.5,
-                    fontWeight: FontWeight.w800,
+                    fontWeight: FontWeight.w600,
                     color: Colors.white,
                     letterSpacing: 1,
                   ),

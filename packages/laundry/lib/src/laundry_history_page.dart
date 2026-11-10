@@ -356,7 +356,7 @@ class _LaundryHistoryPageState extends ConsumerState<LaundryHistoryPage> {
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         fontSize: 15,
-                        fontWeight: FontWeight.w800,
+                        fontWeight: FontWeight.w600,
                         color: kTextMain,
                       ),
                     ),
@@ -391,7 +391,7 @@ class _LaundryHistoryPageState extends ConsumerState<LaundryHistoryPage> {
                     o == null || o.payPrice.isEmpty ? '--' : o.payPrice,
                     style: const TextStyle(
                       fontSize: 16,
-                      fontWeight: FontWeight.w800,
+                      fontWeight: FontWeight.w600,
                       color: kTextMain,
                     ),
                   ),

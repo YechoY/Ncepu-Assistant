@@ -150,7 +150,7 @@ class GlassDialog extends StatelessWidget {
               title,
               style: const TextStyle(
                 fontSize: 17,
-                fontWeight: FontWeight.w800,
+                fontWeight: FontWeight.w600,
                 color: kInk,
               ),
             ),

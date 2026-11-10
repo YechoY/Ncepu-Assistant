@@ -215,7 +215,7 @@ class _FullTimetablePageState extends ConsumerState<FullTimetablePage> {
                           '全部课表',
                           style: TextStyle(
                             fontSize: 18,
-                            fontWeight: FontWeight.w800,
+                            fontWeight: FontWeight.w600,
                             color: kInk,
                           ),
                         ),
@@ -652,7 +652,7 @@ class _FullCourseDialog extends StatelessWidget {
                     course.name,
                     style: const TextStyle(
                       fontSize: 16,
-                      fontWeight: FontWeight.w800,
+                      fontWeight: FontWeight.w600,
                       color: kInk,
                     ),
                   ),

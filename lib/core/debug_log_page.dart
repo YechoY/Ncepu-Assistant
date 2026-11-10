@@ -204,7 +204,7 @@ class _DebugLogPageState extends State<DebugLogPage> {
                             '调试日志',
                             style: TextStyle(
                               fontSize: 18,
-                              fontWeight: FontWeight.w800,
+                              fontWeight: FontWeight.w600,
                               color: kInk,
                             ),
                           ),

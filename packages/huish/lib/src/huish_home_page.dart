@@ -126,7 +126,7 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
                     '选择一键取水设备',
                     style: TextStyle(
                       fontSize: 17,
-                      fontWeight: FontWeight.w800,
+                      fontWeight: FontWeight.w600,
                       color: kInk,
                     ),
                   ),
@@ -306,9 +306,11 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
         (_quickOn || st == DeviceRuntimeStatus.running);
     if (active && _quickPollTimer == null) {
       _quickPollTimer = Timer.periodic(
-        const Duration(seconds: 5),
+        const Duration(seconds: 3),
         (_) => _pollQuickStatus(),
       );
+      // 立即先刷一次：重进页面时不必等满一个周期才复位「取水中」按钮
+      _pollQuickStatus();
     } else if (!active && _quickPollTimer != null) {
       _quickPollTimer?.cancel();
       _quickPollTimer = null;
@@ -764,7 +766,7 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
                               '分组管理',
                               style: TextStyle(
                                 fontSize: 17,
-                                fontWeight: FontWeight.w800,
+                                fontWeight: FontWeight.w600,
                                 color: kInk,
                               ),
                             ),
@@ -966,7 +968,7 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
                             '饮水服务',
                             style: TextStyle(
                               fontSize: 18,
-                              fontWeight: FontWeight.w800,
+                              fontWeight: FontWeight.w600,
                               color: kInk,
                             ),
                           ),
@@ -1134,7 +1136,7 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
                   label,
                   style: const TextStyle(
                     fontSize: 15,
-                    fontWeight: FontWeight.w800,
+                    fontWeight: FontWeight.w600,
                     color: Colors.white,
                   ),
                 ),
@@ -1233,7 +1235,7 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
                             '扫码取水',
                             style: TextStyle(
                               fontSize: 20,
-                              fontWeight: FontWeight.w800,
+                              fontWeight: FontWeight.w600,
                               color: Colors.white,
                             ),
                           ),
@@ -1465,7 +1467,7 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
                             mask,
                             style: const TextStyle(
                               fontSize: 17,
-                              fontWeight: FontWeight.w800,
+                              fontWeight: FontWeight.w600,
                               color: kInk,
                             ),
                           ),

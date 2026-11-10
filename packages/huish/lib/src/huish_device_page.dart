@@ -562,7 +562,7 @@ class _HuishDevicePageState extends ConsumerState<HuishDevicePage> {
                         key: ValueKey(_thisUse.toStringAsFixed(1)),
                         style: TextStyle(
                           fontSize: 48,
-                          fontWeight: FontWeight.w800,
+                          fontWeight: FontWeight.w600,
                           color: kInk,
                           height: 1.1,
                           shadows: [

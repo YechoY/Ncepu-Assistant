@@ -230,9 +230,9 @@ class _LaundryHomePageState extends ConsumerState<LaundryHomePage> {
       _remainTickTimer =
           Timer.periodic(const Duration(seconds: 1), (_) => _tickRemain());
     }
-    // 待支付不自动轮询（用户操作驱动），预约/启动中/运行中每 5s 刷新
+    // 待支付不自动轮询（用户操作驱动），预约/启动中/运行中每 3s 刷新
     if (o.canPay) return;
-    _pollTimer = Timer.periodic(const Duration(seconds: 5), (_) => _refreshOrder());
+    _pollTimer = Timer.periodic(const Duration(seconds: 3), (_) => _refreshOrder());
   }
 
   /// 把当前订单的剩余秒数同步给通知器（剩余时间文本只重建这一小块）。
@@ -694,7 +694,7 @@ class _LaundryHomePageState extends ConsumerState<LaundryHomePage> {
             '洗衣服务',
             style: TextStyle(
               fontSize: 18,
-              fontWeight: FontWeight.w800,
+              fontWeight: FontWeight.w600,
               color: kInk,
             ),
           ),
@@ -809,7 +809,7 @@ class _LaundryHomePageState extends ConsumerState<LaundryHomePage> {
                       '扫码洗衣',
                       style: TextStyle(
                         fontSize: 20,
-                        fontWeight: FontWeight.w800,
+                        fontWeight: FontWeight.w600,
                         color: Colors.white,
                       ),
                     ),
@@ -1027,7 +1027,7 @@ class _LaundryHomePageState extends ConsumerState<LaundryHomePage> {
                             '分组管理',
                             style: TextStyle(
                               fontSize: 14.5,
-                              fontWeight: FontWeight.w800,
+                              fontWeight: FontWeight.w600,
                               color: kInk,
                             ),
                           ),
@@ -1939,7 +1939,7 @@ class _ScanPageState extends State<_ScanPage>
                       _manualMode ? '手动输入设备码' : '扫描洗衣机二维码',
                       style: const TextStyle(
                         fontSize: 16,
-                        fontWeight: FontWeight.w800,
+                        fontWeight: FontWeight.w600,
                         color: kInk,
                       ),
                     ),
@@ -2159,7 +2159,7 @@ class _ScanPageState extends State<_ScanPage>
                   '识别设备',
                   style: TextStyle(
                     fontSize: 15,
-                    fontWeight: FontWeight.w800,
+                    fontWeight: FontWeight.w600,
                     color: Colors.white,
                     letterSpacing: 1,
                   ),

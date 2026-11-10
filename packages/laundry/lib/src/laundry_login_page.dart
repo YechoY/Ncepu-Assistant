@@ -144,14 +144,14 @@ class _LaundryLoginPageState extends ConsumerState<LaundryLoginPage> {
                             Container(
                               width: 46,
                               height: 46,
-                              decoration: BoxDecoration(
+                              decoration: const BoxDecoration(
                                 shape: BoxShape.circle,
                                 color: kLaundry,
                                 boxShadow: [
                                   BoxShadow(
-                                    color: kLaundryDeep.withValues(alpha: 0.25),
+                                    color: kGlassShadow,
                                     blurRadius: 14,
-                                    offset: const Offset(0, 5),
+                                    offset: Offset(0, 5),
                                   ),
                                 ],
                               ),
@@ -166,7 +166,7 @@ class _LaundryLoginPageState extends ConsumerState<LaundryLoginPage> {
                               '洗衣服务',
                               style: TextStyle(
                                 fontSize: 20,
-                                fontWeight: FontWeight.w800,
+                                fontWeight: FontWeight.w600,
                                 color: kInk,
                               ),
                             ),
@@ -324,7 +324,7 @@ class _LaundryLoginPageState extends ConsumerState<LaundryLoginPage> {
                 '登录',
                 style: TextStyle(
                   fontSize: 15.5,
-                  fontWeight: FontWeight.w800,
+                  fontWeight: FontWeight.w600,
                   color: Colors.white,
                   letterSpacing: 4,
                 ),

@@ -67,7 +67,7 @@ class TopBar extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       fontSize: 18,
-                      fontWeight: FontWeight.w800,
+                      fontWeight: FontWeight.w600,
                       foreground: Paint()
                         ..shader = const LinearGradient(
                           colors: [kInk, kPrimary],
