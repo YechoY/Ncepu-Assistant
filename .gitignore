@@ -53,6 +53,10 @@ app.*.map.json
 # 第三方参考项目（仅本地 diff 对照用）
 /tmp/
 
+# 逆向分析产物（APK 解包、反编译输出、参考实现）与安装包
+/reverse/
+*.apk
+
 # Android Gradle 构建产物
 /android/build/
 
