@@ -88,7 +88,9 @@ class HuishAuthNotifier extends Notifier<HuishAuthState> {
       );
       return true;
     } else {
-      state = state.copyWith(error: '登录失败 (code: ${resp.code})');
+      // 优先显示服务端返回的 msg（如"短信验证码错误"），没有时才退到 code
+      final tip = resp.msg.isNotEmpty ? resp.msg : 'code=${resp.code}';
+      state = state.copyWith(error: '登录失败：$tip');
       return false;
     }
   }

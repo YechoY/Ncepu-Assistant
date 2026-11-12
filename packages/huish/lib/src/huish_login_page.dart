@@ -298,7 +298,7 @@ class _HuishLoginPageState extends ConsumerState<HuishLoginPage> {
                                 : ElevatedButton(
                                     onPressed: _sending ? null : _sendSms,
                                     style: ElevatedButton.styleFrom(
-                                      backgroundColor: kPrimary,
+                                      backgroundColor: kHuishDeep,
                                       foregroundColor: Colors.white,
                                       shape: RoundedRectangleBorder(
                                         borderRadius: BorderRadius.circular(14),

@@ -243,7 +243,7 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
             setState(() => _quickOn = false);
             showGlassSnackBar(context, '取水已结束（授权已失效）');
           } else {
-            showGlassSnackBar(context, _mapQuickError(resp.code));
+            showGlassSnackBar(context, _mapQuickError(resp.code, resp.msg));
           }
         }
       } else if (effStatus == 99) {
@@ -265,7 +265,7 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
           setState(() => _quickOn = true); // 立即变色反馈
           showGlassSnackBar(context, '已开启取水授权，请在设备上按出水键');
         } else {
-          showGlassSnackBar(context, _mapQuickError(resp.code));
+          showGlassSnackBar(context, _mapQuickError(resp.code, resp.msg));
         }
       } else {
         if (mounted) showGlassSnackBar(context, '设备离线，请稍后重试');
@@ -280,10 +280,13 @@ class _HuishHomePageState extends ConsumerState<HuishHomePage> {
     }
   }
 
-  String _mapQuickError(int code) {
+  String _mapQuickError(int code, [String? serverMsg]) {
+    // 服务端有 msg 时优先用（login 链路最近返回 "请升级" 是误判；
+    // 取水链路 code=-1 也可能是设备离线等杂因，不要再硬编码误导文案）
+    if (serverMsg != null && serverMsg.isNotEmpty) return serverMsg;
     switch (code) {
       case -1:
-        return '服务端拒绝：请升级最新app';
+        return '操作失败，请重试';
       case -52:
         return '账户欠费，请充值后使用';
       case -82:
