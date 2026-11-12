@@ -42,6 +42,11 @@ class HuishApiClient {
   String? _uid;
   String? _eid;
 
+  // Cookie 存储：sendSms 成功后服务端下发 Set-Cookie，
+  // login 必须带上才能关联 captcha → sms 会话。
+  // key=cookie 名，value=cookie 值（不含属性）。
+  final Map<String, String> _cookies = {};
+
   /// [logger] 可选注入宿主日志接收器（如 AppDebugLog.log）。
   /// 不注入则模块静默运行，零宿主依赖。
   HuishApiClient({void Function(String tag, String msg)? logger})
@@ -68,14 +73,21 @@ class HuishApiClient {
     return IOClient(httpClient);
   }
 
-  // 协议对齐 NcepuJw 项目（华电同学做的、当前真机可用）：
-  // 服务端 dev/start 最低版本校验 >3.1.4，NcepuJw 用 8.2.9 能过。
-  // UA + VersionCode 必须配套：Android_ilife798_<版本>。
-  // Accept-Language 是 NcepuJw 发的，不影响 dev/start，但对齐更保险。
-  Map<String, String> get _baseHeaders => {
+  // 设备控制通道（ApplicationType=1,1）的 API 版本头，与服务端协议绑定，
+  // 和官方包自己的 versionName（3.1.10）无关。UA 必须写成 Android_ilife798_<同一个值>。
+  static const String _versionName = '3.1.9';
+  static const String _versionCode = '3.1.9';
+
+  // 登录接口验签盐值。服务端只认带 sign 的请求，缺 sign 时返回
+  // "请升级最新版应用"（伪装成版本过旧，实际是缺签名）。
+  static const String _signSalt = 'AbCdEfGhIjKlMnOpQrStUvWxYz12345';
+
+  Map<String, String> get _baseHeaders => _headersFor(_versionName, _versionCode);
+
+  static Map<String, String> _headersFor(String verName, String verCode) => {
     'ApplicationType': '1,1',
-    'VersionCode': '8.2.9',
-    'user-agent': 'Android_ilife798_8.2.9',
+    'VersionCode': verCode,
+    'user-agent': 'Android_ilife798_$verName',
     'Accept-Language': 'zh-Hans-CN;q=1',
   };
 
@@ -83,7 +95,28 @@ class HuishApiClient {
     final h = <String, String>{..._baseHeaders};
     final t = _token;
     if (t != null) h['Authorization'] = t;
+    if (_cookies.isNotEmpty) {
+      h['cookie'] = _cookies.entries.map((e) => '${e.key}=${e.value}').join('; ');
+    }
     return h;
+  }
+
+  /// 从响应头的 set-cookie 提取 cookie 名值对，存入 _cookies。
+  /// 服务端可能一次下发多个 set-cookie（每个一个），也可能用逗号分隔。
+  void _saveCookies(http.Response resp) {
+    final raw = resp.headers['set-cookie'];
+    if (raw == null || raw.isEmpty) return;
+    // http 包会把多个 Set-Cookie 用逗号连接，但 cookie 值里也可能有逗号。
+    // 这里按 "name=value; " 切分，取第一个分号前的部分。
+    for (final part in raw.split(',')) {
+      final seg = part.trim();
+      final idx = seg.indexOf(';');
+      final nv = (idx >= 0 ? seg.substring(0, idx) : seg).trim();
+      final eq = nv.indexOf('=');
+      if (eq > 0) {
+        _cookies[nv.substring(0, eq).trim()] = nv.substring(eq + 1).trim();
+      }
+    }
   }
 
   Future<void> _persistToken([String? phone]) async {
@@ -138,13 +171,11 @@ class HuishApiClient {
     final s = _randS();
     final r = DateTime.now().millisecondsSinceEpoch;
     final url = Uri.parse('$_baseUrl/api/v1/captcha/?s=$s&r=$r');
-    final resp = await _client.get(
-      url,
-      headers: {
-        'User-Agent':
-            'Dalvik/2.1.0 (Linux; U; Android 16; PHP110 Build/BP2A.250605.015)',
-      },
-    );
+    // UA 必须和 sendSms/login 一致：服务端可能按 UA+版本 绑定会话，
+    // 旧代码这里用 Dalvik UA，会和后续请求对不上。
+    final resp = await _client.get(url, headers: _baseHeaders);
+    // 验证码请求下发的 cookie 可能参与 captcha→sms→login 的会话关联
+    _saveCookies(resp);
     return HuishCaptchaResult(
       s: s,
       r: r,
@@ -167,13 +198,20 @@ class HuishApiClient {
     );
   }
 
+  /// 登录签名：md5("authCode=" + 短信码 + "&un=" + 手机号 + 盐)，放在 URL 查询串上。
+  String _loginSign(String phone, String smsCode) {
+    final raw = 'authCode=$smsCode&un=$phone$_signSalt';
+    return crypto.md5.convert(utf8.encode(raw)).toString();
+  }
+
   Future<HuishApiResponse> login({
     required String phone,
     required String smsCode,
   }) async {
     final resp = await _post(
       '/api/v1/acc/login',
-      data: {'openCode': '', 'un': phone, 'authCode': smsCode, 'cid': ''},
+      data: {'un': phone, 'authCode': smsCode},
+      query: {'sign': _loginSign(phone, smsCode)},
     );
     final json = jsonDecode(resp.body) as Map<String, dynamic>;
     final result = HuishApiResponse.fromJson(json);
@@ -305,6 +343,11 @@ class HuishApiClient {
       // 路径截取最后一段作为接口名，日志更紧凑
       final apiName = path.split('?').first.split('/').last;
       logger('HUISH-BIZ', '$apiName → code=$code msg="$msg"');
+      // 登录/发验证码接口：额外把完整响应和关键 request headers 打出来方便排查
+      if (path.contains('/acc/login') || path.contains('/login/code')) {
+        logger('HUISH-DEBUG',
+            '[login-debug] status=${resp.statusCode} ua=${_baseHeaders['user-agent']} vcode=${_baseHeaders['VersionCode']} set-cookie=${resp.headers['set-cookie']} body=${resp.body.substring(0, resp.body.length > 300 ? 300 : resp.body.length)}');
+      }
     } catch (_) {
       logger(
         'HUISH-BIZ',
@@ -316,6 +359,7 @@ class HuishApiClient {
   Future<http.Response> _get(String path) async {
     final url = Uri.parse('$_baseUrl$path');
     final resp = await _client.get(url, headers: _authHeaders);
+    _saveCookies(resp);
     _logBizResponse(path, resp);
     return resp;
   }
@@ -323,16 +367,30 @@ class HuishApiClient {
   Future<http.Response> _post(
     String path, {
     required Map<String, dynamic> data,
+    Map<String, String>? query,
   }) async {
-    final url = Uri.parse('$_baseUrl$path');
-    final resp = await _client.post(
-      url,
-      headers: {
-        ..._authHeaders,
-        'Content-Type': 'application/json; charset=UTF-8',
-      },
-      body: jsonEncode(data),
-    );
+    var urlStr = '$_baseUrl$path';
+    if (query != null && query.isNotEmpty) {
+      final qs = query.entries
+          .map((e) =>
+              '${Uri.encodeQueryComponent(e.key)}=${Uri.encodeQueryComponent(e.value)}')
+          .join('&');
+      urlStr = '$urlStr?$qs';
+    }
+    final url = Uri.parse(urlStr);
+    final hdrs = {
+      ..._authHeaders,
+      'Content-Type': 'application/json; charset=UTF-8',
+    };
+    final body = jsonEncode(data);
+    // login/sendSms：发出前把完整 headers + body 打出来，方便和命令行请求对比
+    final logger = _logger;
+    if (logger != null && (path.contains('/acc/login') || path.contains('/login/code'))) {
+      logger('HUISH-OUT',
+          '[out] POST $path\n  headers=$hdrs\n  body=$body');
+    }
+    final resp = await _client.post(url, headers: hdrs, body: body);
+    _saveCookies(resp);
     _logBizResponse(path, resp);
     return resp;
   }
